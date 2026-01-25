@@ -41,44 +41,56 @@
 - [x] Keyboard event system (Delete, Escape, Cmd+A, Arrow keys)
 - [ ] Event delegation architecture — deferred (not needed yet)
 
-## Phase 4: Shape System
+## Phase 4: Shape System ✅ COMPLETED
 - [x] BaseShape interface/type
-- [ ] Shape registry (plugin system)
+- [ ] Shape registry (plugin system) — deferred
 - [x] Shape ID generation (nanoid)
 - [x] Z-index/layering system
 - [x] Implement shapes:
   - [x] Rectangle
   - [x] Ellipse/Circle
-  - [ ] Line
-  - [ ] Arrow
-  - [ ] Text
+  - [ ] Line — deferred
+  - [ ] Arrow — deferred
+  - [ ] Text — deferred
   - [x] Path (freehand)
-- [ ] Shape bounds calculation
-- [ ] Hit testing (point-in-shape detection)
+- [x] Shape bounds calculation
+- [x] Hit testing (point-in-shape detection)
 
-## Phase 5: Selection & Interaction
-- [ ] Single selection (click)
-- [ ] Multi-selection (shift+click)
-- [ ] Marquee/lasso selection
+**Files created:**
+- `packages/react-whiteboard/src/utils/hitTest.ts` — Hit testing utilities
+
+## Phase 5: Selection & Interaction ✅ COMPLETED
+- [x] Single selection (click)
+- [x] Multi-selection (shift+click)
+- [ ] Marquee/lasso selection — deferred
 - [x] Selection bounds box — rendering only
-- [ ] Drag to move shapes
-- [ ] Resize handles (8-point)
-- [ ] Rotation handle
+- [x] Drag to move shapes
+- [x] Resize handles (8-point)
+- [ ] Rotation handle — deferred
 - [ ] Snapping (optional, can defer)
 
-## Phase 6: Tools System
-- [ ] Tool state machine
-- [ ] BaseTool interface
-- [ ] Implement tools:
-  - [ ] SelectTool
-  - [ ] RectangleTool
-  - [ ] EllipseTool
-  - [ ] LineTool
-  - [ ] ArrowTool
-  - [ ] DrawTool (freehand)
-  - [ ] TextTool
-- [ ] Tool cursor management
-- [ ] Toolbar state sync
+## Phase 6: Tools System ✅ COMPLETED
+- [x] Tool state machine
+- [x] BaseTool interface
+- [x] Implement tools:
+  - [x] SelectTool
+  - [x] RectangleTool
+  - [x] EllipseTool
+  - [ ] LineTool — deferred
+  - [ ] ArrowTool — deferred
+  - [x] DrawTool (freehand)
+  - [ ] TextTool — deferred
+- [x] Tool cursor management
+- [x] Toolbar state sync
+
+**Files created:**
+- `packages/react-whiteboard/src/tools/types.ts` — Tool types and interfaces
+- `packages/react-whiteboard/src/tools/SelectTool.ts` — Selection tool
+- `packages/react-whiteboard/src/tools/RectangleTool.ts` — Rectangle tool
+- `packages/react-whiteboard/src/tools/EllipseTool.ts` — Ellipse tool
+- `packages/react-whiteboard/src/tools/DrawTool.ts` — Freehand drawing tool
+- `packages/react-whiteboard/src/tools/ToolManager.ts` — Tool manager
+- `packages/react-whiteboard/src/hooks/useTools.ts` — React hook for tools
 
 ## Phase 7: History (Undo/Redo) ✅ COMPLETED
 - [x] Command pattern implementation — basic structure
@@ -169,13 +181,13 @@
 ---
 
 ## Current Focus
-**Phase 4-5: Shape System + Selection & Interaction** ← NEXT
+**Phase 8: HTML Overlay Layer** ← NEXT
 
 Priority tasks:
-1. Hit testing (detect which shape is clicked)
-2. Single/multi selection with click
-3. Drag to move shapes
-4. Resize handles
+1. Overlay container component
+2. Viewport transform sync (canvas ↔ overlay)
+3. Selection UI overlay (handles, rotation)
+4. Context menu overlay
 
 ---
 

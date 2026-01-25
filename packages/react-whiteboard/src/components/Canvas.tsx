@@ -1,8 +1,16 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
+import { nanoid } from 'nanoid'
 import { useWhiteboardStore } from '../core/store'
 import { CanvasRenderer } from '../core/renderer'
 import { getDevicePixelRatio, screenToCanvas } from '../utils/canvas'
-import type { Point } from '../types'
+import {
+  getShapeAtPoint,
+  hitTestResizeHandles,
+  RESIZE_CURSORS,
+  type ResizeHandle,
+} from '../utils/hitTest'
+import type { Point, Bounds, RectangleShape, EllipseShape, PathShape } from '../types'
+import { TOOL_CURSORS } from '../tools/types'
 
 export interface CanvasProps {
   /** Show grid */
@@ -36,23 +44,48 @@ export function Canvas({
   const lastPinchDistanceRef = useRef<number | null>(null)
   const lastPinchCenterRef = useRef<Point | null>(null)
 
+  // Drag state tracking
+  const isDraggingRef = useRef(false)
+  const dragStartCanvasPointRef = useRef<Point | null>(null)
+  const dragStartPositionsRef = useRef<Map<string, Point>>(new Map())
+
+  // Resize state tracking
+  const isResizingRef = useRef(false)
+  const resizeHandleRef = useRef<ResizeHandle | null>(null)
+  const resizeStartCanvasPointRef = useRef<Point | null>(null)
+  const resizeStartBoundsRef = useRef<Map<string, Bounds>>(new Map())
+
+  // Drawing state tracking (for shape creation tools)
+  const isDrawingShapeRef = useRef(false)
+  const drawingStartPointRef = useRef<Point | null>(null)
+  const drawingCurrentPointRef = useRef<Point | null>(null)
+  const drawingPointsRef = useRef<Point[]>([])
+
   // Store selectors
   const shapes = useWhiteboardStore((s) => s.shapes)
   const shapeIds = useWhiteboardStore((s) => s.shapeIds)
   const viewport = useWhiteboardStore((s) => s.viewport)
   const selectedIds = useWhiteboardStore((s) => s.selectedIds)
   const isPanning = useWhiteboardStore((s) => s.isPanning)
+  const currentTool = useWhiteboardStore((s) => s.currentTool)
 
   // Store actions
   const pan = useWhiteboardStore((s) => s.pan)
   const zoom = useWhiteboardStore((s) => s.zoom)
   const setIsPanning = useWhiteboardStore((s) => s.setIsPanning)
+  const setIsDrawing = useWhiteboardStore((s) => s.setIsDrawing)
   const undo = useWhiteboardStore((s) => s.undo)
   const redo = useWhiteboardStore((s) => s.redo)
   const deleteShapes = useWhiteboardStore((s) => s.deleteShapes)
   const clearSelection = useWhiteboardStore((s) => s.clearSelection)
   const selectMultiple = useWhiteboardStore((s) => s.selectMultiple)
   const updateShape = useWhiteboardStore((s) => s.updateShape)
+  const select = useWhiteboardStore((s) => s.select)
+  const toggleSelection = useWhiteboardStore((s) => s.toggleSelection)
+  const addShape = useWhiteboardStore((s) => s.addShape)
+
+  // Cursor state for hover detection
+  const [cursorStyle, setCursorStyle] = useState<string>('default')
 
   /**
    * Setup canvas and renderer
@@ -151,9 +184,66 @@ export function Canvas({
       }
     })
 
+    // Draw preview shape while drawing
+    if (isDrawingShapeRef.current && drawingStartPointRef.current && drawingCurrentPointRef.current && ctx) {
+      const start = drawingStartPointRef.current
+      const end = drawingCurrentPointRef.current
+
+      ctx.save()
+      ctx.globalAlpha = 0.7
+
+      if (currentTool === 'rectangle') {
+        const x = Math.min(start.x, end.x)
+        const y = Math.min(start.y, end.y)
+        const w = Math.abs(end.x - start.x)
+        const h = Math.abs(end.y - start.y)
+
+        ctx.fillStyle = '#e0e0e0'
+        ctx.strokeStyle = '#333333'
+        ctx.lineWidth = 2
+        ctx.fillRect(x, y, w, h)
+        ctx.strokeRect(x, y, w, h)
+      } else if (currentTool === 'ellipse') {
+        const x = Math.min(start.x, end.x)
+        const y = Math.min(start.y, end.y)
+        const w = Math.abs(end.x - start.x)
+        const h = Math.abs(end.y - start.y)
+        const cx = x + w / 2
+        const cy = y + h / 2
+
+        ctx.beginPath()
+        ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2)
+        ctx.fillStyle = '#e0e0e0'
+        ctx.strokeStyle = '#333333'
+        ctx.lineWidth = 2
+        ctx.fill()
+        ctx.stroke()
+      } else if (currentTool === 'draw' && drawingPointsRef.current.length >= 2) {
+        const points = drawingPointsRef.current
+        ctx.beginPath()
+        ctx.moveTo(points[0]!.x, points[0]!.y)
+        for (let i = 1; i < points.length - 1; i++) {
+          const curr = points[i]!
+          const next = points[i + 1]!
+          const midX = (curr.x + next.x) / 2
+          const midY = (curr.y + next.y) / 2
+          ctx.quadraticCurveTo(curr.x, curr.y, midX, midY)
+        }
+        const last = points[points.length - 1]!
+        ctx.lineTo(last.x, last.y)
+        ctx.strokeStyle = '#333333'
+        ctx.lineWidth = 3
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.stroke()
+      }
+
+      ctx.restore()
+    }
+
     // Reset transform
     renderer.resetTransform()
-  }, [shapes, shapeIds, viewport, selectedIds, showGrid, gridSize, backgroundColor])
+  }, [shapes, shapeIds, viewport, selectedIds, showGrid, gridSize, backgroundColor, currentTool])
 
   // Keep render function ref up to date
   renderFnRef.current = render
@@ -288,18 +378,108 @@ export function Canvas({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       const canvas = canvasRef.current
-      if (!canvas) return
+      const container = containerRef.current
+      if (!canvas || !container) return
 
       canvas.setPointerCapture(e.pointerId)
       lastPointerRef.current = { x: e.clientX, y: e.clientY }
 
-      // Middle mouse button or space+click for panning
+      // Middle mouse button or alt+click for panning
       if (e.button === 1 || (e.button === 0 && e.altKey)) {
         setIsPanning(true)
         e.preventDefault()
+        return
+      }
+
+      // Left click
+      if (e.button === 0) {
+        const rect = container.getBoundingClientRect()
+        const canvasPoint = screenToCanvas({ x: e.clientX, y: e.clientY }, viewport, rect)
+
+        // Handle drawing tools (rectangle, ellipse, draw)
+        if (currentTool === 'rectangle' || currentTool === 'ellipse' || currentTool === 'draw') {
+          isDrawingShapeRef.current = true
+          drawingStartPointRef.current = canvasPoint
+          drawingCurrentPointRef.current = canvasPoint
+          if (currentTool === 'draw') {
+            drawingPointsRef.current = [canvasPoint]
+            setIsDrawing(true)
+          }
+          clearSelection()
+          return
+        }
+
+        // Select tool behavior below
+        // First, check if clicking on a resize handle (only if single shape selected)
+        if (selectedIds.size === 1) {
+          const selectedId = Array.from(selectedIds)[0]
+          const selectedShape = selectedId ? shapes.get(selectedId) : null
+
+          if (selectedShape) {
+            const handle = hitTestResizeHandles(canvasPoint, selectedShape, 8 / viewport.zoom)
+            if (handle) {
+              // Start resizing
+              isResizingRef.current = true
+              resizeHandleRef.current = handle
+              resizeStartCanvasPointRef.current = canvasPoint
+              resizeStartBoundsRef.current.clear()
+              resizeStartBoundsRef.current.set(selectedShape.id, {
+                x: selectedShape.x,
+                y: selectedShape.y,
+                width: selectedShape.width,
+                height: selectedShape.height,
+              })
+              setCursorStyle(RESIZE_CURSORS[handle])
+              return
+            }
+          }
+        }
+
+        // Hit test to find shape at click point
+        const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
+
+        if (hitShape) {
+          // Check if hit shape is already selected
+          const isAlreadySelected = selectedIds.has(hitShape.id)
+
+          if (e.shiftKey) {
+            // Shift+click: toggle selection (add/remove from selection)
+            toggleSelection(hitShape.id)
+          } else if (!isAlreadySelected) {
+            // Normal click on unselected shape: select only this shape
+            select(hitShape.id)
+          }
+
+          // Start dragging - store initial positions
+          isDraggingRef.current = true
+          dragStartCanvasPointRef.current = canvasPoint
+          dragStartPositionsRef.current.clear()
+
+          // Store initial positions of all selected shapes (including newly selected)
+          const idsToTrack = isAlreadySelected || e.shiftKey
+            ? selectedIds
+            : new Set([hitShape.id])
+
+          idsToTrack.forEach((id) => {
+            const shape = shapes.get(id)
+            if (shape) {
+              dragStartPositionsRef.current.set(id, { x: shape.x, y: shape.y })
+            }
+          })
+
+          // Also add the clicked shape if not already tracked
+          if (!dragStartPositionsRef.current.has(hitShape.id)) {
+            dragStartPositionsRef.current.set(hitShape.id, { x: hitShape.x, y: hitShape.y })
+          }
+        } else {
+          // Clicked on empty space - clear selection
+          if (!e.shiftKey) {
+            clearSelection()
+          }
+        }
       }
     },
-    [setIsPanning]
+    [setIsPanning, setIsDrawing, viewport, shapes, shapeIds, select, toggleSelection, clearSelection, selectedIds, currentTool]
   )
 
   /**
@@ -307,20 +487,168 @@ export function Canvas({
    */
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!lastPointerRef.current) return
-
+      const container = containerRef.current
       const currentPoint = { x: e.clientX, y: e.clientY }
 
-      if (isPanning) {
+      // Handle panning
+      if (isPanning && lastPointerRef.current) {
         const deltaX = currentPoint.x - lastPointerRef.current.x
         const deltaY = currentPoint.y - lastPointerRef.current.y
         pan(deltaX, deltaY)
+        lastPointerRef.current = currentPoint
+        return
       }
 
-      lastPointerRef.current = currentPoint
+      // Handle drawing shapes (rectangle, ellipse, draw)
+      if (isDrawingShapeRef.current && container && drawingStartPointRef.current) {
+        const rect = container.getBoundingClientRect()
+        const canvasPoint = screenToCanvas(currentPoint, viewport, rect)
+        drawingCurrentPointRef.current = canvasPoint
+
+        if (currentTool === 'draw') {
+          drawingPointsRef.current.push(canvasPoint)
+        }
+
+        // Force re-render for drawing preview
+        requestAnimationFrame(() => renderFnRef.current?.())
+        lastPointerRef.current = currentPoint
+        return
+      }
+
+      // Handle resizing shapes
+      if (isResizingRef.current && container && resizeStartCanvasPointRef.current && resizeHandleRef.current) {
+        const rect = container.getBoundingClientRect()
+        const canvasPoint = screenToCanvas(currentPoint, viewport, rect)
+
+        const deltaX = canvasPoint.x - resizeStartCanvasPointRef.current.x
+        const deltaY = canvasPoint.y - resizeStartCanvasPointRef.current.y
+
+        resizeStartBoundsRef.current.forEach((startBounds, id) => {
+          const handle = resizeHandleRef.current!
+          let newX = startBounds.x
+          let newY = startBounds.y
+          let newWidth = startBounds.width
+          let newHeight = startBounds.height
+
+          // Calculate new bounds based on handle
+          if (handle.includes('left')) {
+            newX = startBounds.x + deltaX
+            newWidth = startBounds.width - deltaX
+          }
+          if (handle.includes('right')) {
+            newWidth = startBounds.width + deltaX
+          }
+          if (handle.includes('top')) {
+            newY = startBounds.y + deltaY
+            newHeight = startBounds.height - deltaY
+          }
+          if (handle.includes('bottom')) {
+            newHeight = startBounds.height + deltaY
+          }
+
+          // Enforce minimum size
+          const minSize = 10
+          if (newWidth < minSize) {
+            if (handle.includes('left')) {
+              newX = startBounds.x + startBounds.width - minSize
+            }
+            newWidth = minSize
+          }
+          if (newHeight < minSize) {
+            if (handle.includes('top')) {
+              newY = startBounds.y + startBounds.height - minSize
+            }
+            newHeight = minSize
+          }
+
+          updateShape(id, { x: newX, y: newY, width: newWidth, height: newHeight }, false)
+        })
+
+        lastPointerRef.current = currentPoint
+        return
+      }
+
+      // Handle dragging shapes
+      if (isDraggingRef.current && container && dragStartCanvasPointRef.current) {
+        const rect = container.getBoundingClientRect()
+        const canvasPoint = screenToCanvas(currentPoint, viewport, rect)
+
+        const deltaX = canvasPoint.x - dragStartCanvasPointRef.current.x
+        const deltaY = canvasPoint.y - dragStartCanvasPointRef.current.y
+
+        // Move all shapes being dragged
+        dragStartPositionsRef.current.forEach((startPos, id) => {
+          updateShape(id, {
+            x: startPos.x + deltaX,
+            y: startPos.y + deltaY,
+          }, false) // Don't record history during drag
+        })
+
+        setCursorStyle('grabbing')
+        lastPointerRef.current = currentPoint
+        return
+      }
+
+      // Update cursor based on hover state (only when not pressing)
+      if (container && !lastPointerRef.current) {
+        const rect = container.getBoundingClientRect()
+        const canvasPoint = screenToCanvas(currentPoint, viewport, rect)
+
+        // Check resize handles first (if single shape selected)
+        if (selectedIds.size === 1) {
+          const selectedId = Array.from(selectedIds)[0]
+          const selectedShape = selectedId ? shapes.get(selectedId) : null
+
+          if (selectedShape) {
+            const handle = hitTestResizeHandles(canvasPoint, selectedShape, 8 / viewport.zoom)
+            if (handle) {
+              setCursorStyle(RESIZE_CURSORS[handle])
+              return
+            }
+          }
+        }
+
+        // Check shape hover (only in select mode)
+        if (currentTool === 'select') {
+          const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
+          if (hitShape) {
+            setCursorStyle('pointer')
+          } else {
+            setCursorStyle('default')
+          }
+        } else {
+          // Use tool-specific cursor
+          setCursorStyle(TOOL_CURSORS[currentTool] || 'crosshair')
+        }
+      }
+
+      if (lastPointerRef.current) {
+        lastPointerRef.current = currentPoint
+      }
     },
-    [isPanning, pan]
+    [isPanning, pan, viewport, shapes, shapeIds, updateShape, selectedIds, currentTool]
   )
+
+  /**
+   * Calculate bounds from two points (handles negative dimensions)
+   */
+  const calculateBounds = useCallback((start: Point, end: Point, constrain: boolean): Bounds => {
+    let x = Math.min(start.x, end.x)
+    let y = Math.min(start.y, end.y)
+    let width = Math.abs(end.x - start.x)
+    let height = Math.abs(end.y - start.y)
+
+    // Shift key constrains to square/circle
+    if (constrain) {
+      const size = Math.max(width, height)
+      width = size
+      height = size
+      if (end.x < start.x) x = start.x - size
+      if (end.y < start.y) y = start.y - size
+    }
+
+    return { x, y, width, height }
+  }, [])
 
   /**
    * Handle pointer up
@@ -332,17 +660,162 @@ export function Canvas({
         canvas.releasePointerCapture(e.pointerId)
       }
 
+      // Finalize shape drawing
+      if (isDrawingShapeRef.current && drawingStartPointRef.current && drawingCurrentPointRef.current) {
+        const start = drawingStartPointRef.current
+        const end = drawingCurrentPointRef.current
+
+        if (currentTool === 'rectangle') {
+          const bounds = calculateBounds(start, end, e.shiftKey)
+          if (bounds.width > 5 && bounds.height > 5) {
+            const shape: RectangleShape = {
+              id: nanoid(),
+              type: 'rectangle',
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height,
+              rotation: 0,
+              opacity: 1,
+              isLocked: false,
+              parentId: null,
+              props: {
+                fill: '#e0e0e0',
+                stroke: '#333333',
+                strokeWidth: 2,
+                cornerRadius: 0,
+              },
+            }
+            addShape(shape, true)
+            select(shape.id)
+          }
+        } else if (currentTool === 'ellipse') {
+          const bounds = calculateBounds(start, end, e.shiftKey)
+          if (bounds.width > 5 && bounds.height > 5) {
+            const shape: EllipseShape = {
+              id: nanoid(),
+              type: 'ellipse',
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height,
+              rotation: 0,
+              opacity: 1,
+              isLocked: false,
+              parentId: null,
+              props: {
+                fill: '#e0e0e0',
+                stroke: '#333333',
+                strokeWidth: 2,
+              },
+            }
+            addShape(shape, true)
+            select(shape.id)
+          }
+        } else if (currentTool === 'draw' && drawingPointsRef.current.length >= 2) {
+          const points = drawingPointsRef.current
+          // Calculate bounds
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+          for (const pt of points) {
+            minX = Math.min(minX, pt.x)
+            minY = Math.min(minY, pt.y)
+            maxX = Math.max(maxX, pt.x)
+            maxY = Math.max(maxY, pt.y)
+          }
+          // Normalize points relative to shape position
+          const normalizedPoints = points.map(p => ({ x: p.x - minX, y: p.y - minY }))
+          const shape: PathShape = {
+            id: nanoid(),
+            type: 'path',
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+            rotation: 0,
+            opacity: 1,
+            isLocked: false,
+            parentId: null,
+            props: {
+              stroke: '#333333',
+              strokeWidth: 3,
+              points: normalizedPoints,
+              isComplete: true,
+            },
+          }
+          addShape(shape, true)
+          setIsDrawing(false)
+        }
+
+        // Reset drawing state
+        isDrawingShapeRef.current = false
+        drawingStartPointRef.current = null
+        drawingCurrentPointRef.current = null
+        drawingPointsRef.current = []
+      }
+
+      // If we were resizing, record the final bounds to history
+      if (isResizingRef.current && resizeStartBoundsRef.current.size > 0) {
+        resizeStartBoundsRef.current.forEach((_startBounds, id) => {
+          const shape = shapes.get(id)
+          if (shape) {
+            updateShape(id, {
+              x: shape.x,
+              y: shape.y,
+              width: shape.width,
+              height: shape.height,
+            }, true)
+          }
+        })
+      }
+
+      // Reset resize state
+      isResizingRef.current = false
+      resizeHandleRef.current = null
+      resizeStartCanvasPointRef.current = null
+      resizeStartBoundsRef.current.clear()
+
+      // If we were dragging, record the final positions to history
+      if (isDraggingRef.current && dragStartPositionsRef.current.size > 0) {
+        // Check if shapes actually moved
+        let hasMoved = false
+        dragStartPositionsRef.current.forEach((startPos, id) => {
+          const shape = shapes.get(id)
+          if (shape && (shape.x !== startPos.x || shape.y !== startPos.y)) {
+            hasMoved = true
+          }
+        })
+
+        // Record to history if shapes moved
+        if (hasMoved) {
+          dragStartPositionsRef.current.forEach((_startPos, id) => {
+            const shape = shapes.get(id)
+            if (shape) {
+              // Update with history recording for undo/redo
+              updateShape(id, { x: shape.x, y: shape.y }, true)
+            }
+          })
+        }
+      }
+
+      // Reset drag state
+      isDraggingRef.current = false
+      dragStartCanvasPointRef.current = null
+      dragStartPositionsRef.current.clear()
+
       lastPointerRef.current = null
       setIsPanning(false)
     },
-    [setIsPanning]
+    [setIsPanning, setIsDrawing, shapes, updateShape, currentTool, addShape, select, calculateBounds]
   )
 
   /**
-   * Handle wheel for zoom
+   * Handle wheel for zoom (using native event for passive: false support)
    */
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
 
       const container = containerRef.current
@@ -354,9 +827,15 @@ export function Canvas({
       // Zoom with wheel
       const delta = -e.deltaY * 0.001
       zoom(delta, center)
-    },
-    [viewport, zoom]
-  )
+    }
+
+    // Add with passive: false to allow preventDefault
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel)
+    }
+  }, [viewport, zoom])
 
   /**
    * Calculate distance between two points
@@ -501,14 +980,13 @@ export function Canvas({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        onWheel={handleWheel}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
         style={{
           display: 'block',
-          cursor: isPanning ? 'grabbing' : 'default',
+          cursor: isPanning ? 'grabbing' : cursorStyle,
         }}
       />
     </div>
