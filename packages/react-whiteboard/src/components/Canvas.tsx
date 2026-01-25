@@ -593,10 +593,13 @@ export function Canvas({
   )
 
   /**
-   * Handle wheel for zoom
+   * Handle wheel for zoom (using native event for passive: false support)
    */
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
 
       const container = containerRef.current
@@ -608,9 +611,15 @@ export function Canvas({
       // Zoom with wheel
       const delta = -e.deltaY * 0.001
       zoom(delta, center)
-    },
-    [viewport, zoom]
-  )
+    }
+
+    // Add with passive: false to allow preventDefault
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel)
+    }
+  }, [viewport, zoom])
 
   /**
    * Calculate distance between two points
@@ -755,7 +764,6 @@ export function Canvas({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        onWheel={handleWheel}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
