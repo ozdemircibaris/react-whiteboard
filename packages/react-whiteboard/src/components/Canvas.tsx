@@ -30,6 +30,11 @@ export function Canvas({
   const rafRef = useRef<number>(0)
   const lastPointerRef = useRef<Point | null>(null)
 
+  // Touch gesture tracking
+  const touchesRef = useRef<Map<number, Point>>(new Map())
+  const lastPinchDistanceRef = useRef<number | null>(null)
+  const lastPinchCenterRef = useRef<Point | null>(null)
+
   // Store selectors
   const shapes = useWhiteboardStore((s) => s.shapes)
   const shapeIds = useWhiteboardStore((s) => s.shapeIds)
@@ -43,6 +48,10 @@ export function Canvas({
   const setIsPanning = useWhiteboardStore((s) => s.setIsPanning)
   const undo = useWhiteboardStore((s) => s.undo)
   const redo = useWhiteboardStore((s) => s.redo)
+  const deleteShapes = useWhiteboardStore((s) => s.deleteShapes)
+  const clearSelection = useWhiteboardStore((s) => s.clearSelection)
+  const selectMultiple = useWhiteboardStore((s) => s.selectMultiple)
+  const updateShape = useWhiteboardStore((s) => s.updateShape)
 
   /**
    * Setup canvas and renderer
@@ -143,29 +152,81 @@ export function Canvas({
   }, [setupCanvas])
 
   /**
-   * Keyboard shortcuts for undo/redo
+   * Keyboard shortcuts
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Check for Cmd/Ctrl+Z (undo) and Cmd/Ctrl+Shift+Z (redo)
       const isMod = e.metaKey || e.ctrlKey
+      const moveAmount = e.shiftKey ? 10 : 1 // Shift for larger steps
 
+      // Undo: Cmd/Ctrl+Z
       if (isMod && e.key === 'z' && !e.shiftKey) {
         e.preventDefault()
         undo()
-      } else if (isMod && e.key === 'z' && e.shiftKey) {
+        return
+      }
+
+      // Redo: Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y
+      if ((isMod && e.key === 'z' && e.shiftKey) || (isMod && e.key === 'y')) {
         e.preventDefault()
         redo()
-      } else if (isMod && e.key === 'y') {
-        // Alternative redo shortcut (Ctrl+Y on Windows)
+        return
+      }
+
+      // Select All: Cmd/Ctrl+A
+      if (isMod && e.key === 'a') {
         e.preventDefault()
-        redo()
+        selectMultiple(shapeIds)
+        return
+      }
+
+      // Delete selected: Delete or Backspace
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
+        e.preventDefault()
+        deleteShapes(Array.from(selectedIds))
+        return
+      }
+
+      // Clear selection: Escape
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        clearSelection()
+        return
+      }
+
+      // Move selected shapes with arrow keys
+      if (selectedIds.size > 0 && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault()
+        const delta = { x: 0, y: 0 }
+
+        switch (e.key) {
+          case 'ArrowUp':
+            delta.y = -moveAmount
+            break
+          case 'ArrowDown':
+            delta.y = moveAmount
+            break
+          case 'ArrowLeft':
+            delta.x = -moveAmount
+            break
+          case 'ArrowRight':
+            delta.x = moveAmount
+            break
+        }
+
+        // Move all selected shapes
+        selectedIds.forEach((id) => {
+          const shape = shapes.get(id)
+          if (shape) {
+            updateShape(id, { x: shape.x + delta.x, y: shape.y + delta.y })
+          }
+        })
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo])
+  }, [undo, redo, selectedIds, shapeIds, shapes, deleteShapes, clearSelection, selectMultiple, updateShape])
 
   /**
    * Handle pointer down
@@ -243,6 +304,129 @@ export function Canvas({
     [viewport, zoom]
   )
 
+  /**
+   * Calculate distance between two points
+   */
+  const getDistance = (p1: Point, p2: Point): number => {
+    const dx = p2.x - p1.x
+    const dy = p2.y - p1.y
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  /**
+   * Calculate center point between two points
+   */
+  const getCenter = (p1: Point, p2: Point): Point => ({
+    x: (p1.x + p2.x) / 2,
+    y: (p1.y + p2.y) / 2,
+  })
+
+  /**
+   * Handle touch start
+   */
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    // Store all touch points
+    Array.from(e.touches).forEach((touch) => {
+      touchesRef.current.set(touch.identifier, { x: touch.clientX, y: touch.clientY })
+    })
+
+    // Initialize pinch tracking if two fingers
+    if (e.touches.length === 2) {
+      const touch0 = e.touches[0]
+      const touch1 = e.touches[1]
+      if (!touch0 || !touch1) return
+
+      const t1 = { x: touch0.clientX, y: touch0.clientY }
+      const t2 = { x: touch1.clientX, y: touch1.clientY }
+      lastPinchDistanceRef.current = getDistance(t1, t2)
+      lastPinchCenterRef.current = getCenter(t1, t2)
+    }
+  }, [])
+
+  /**
+   * Handle touch move
+   */
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      e.preventDefault()
+
+      const container = containerRef.current
+      if (!container) return
+
+      // Two-finger gesture: pinch zoom and pan
+      if (e.touches.length === 2) {
+        const touch0 = e.touches[0]
+        const touch1 = e.touches[1]
+        if (!touch0 || !touch1) return
+
+        const t1 = { x: touch0.clientX, y: touch0.clientY }
+        const t2 = { x: touch1.clientX, y: touch1.clientY }
+
+        const currentDistance = getDistance(t1, t2)
+        const currentCenter = getCenter(t1, t2)
+
+        // Pinch zoom
+        if (lastPinchDistanceRef.current !== null) {
+          const rect = container.getBoundingClientRect()
+          const canvasCenter = screenToCanvas(currentCenter, viewport, rect)
+
+          // Calculate zoom delta from pinch
+          const scale = currentDistance / lastPinchDistanceRef.current
+          const newZoom = viewport.zoom * scale
+          const zoomDelta = newZoom - viewport.zoom
+
+          zoom(zoomDelta, canvasCenter)
+        }
+
+        // Two-finger pan
+        if (lastPinchCenterRef.current !== null) {
+          const deltaX = currentCenter.x - lastPinchCenterRef.current.x
+          const deltaY = currentCenter.y - lastPinchCenterRef.current.y
+          pan(deltaX, deltaY)
+        }
+
+        lastPinchDistanceRef.current = currentDistance
+        lastPinchCenterRef.current = currentCenter
+      }
+      // Single finger: update touch position (for future single-touch interactions)
+      else if (e.touches.length === 1) {
+        const touch = e.touches[0]
+        if (touch) {
+          touchesRef.current.set(touch.identifier, { x: touch.clientX, y: touch.clientY })
+        }
+      }
+    },
+    [viewport, zoom, pan]
+  )
+
+  /**
+   * Handle touch end
+   */
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    // Remove ended touches
+    Array.from(e.changedTouches).forEach((touch) => {
+      touchesRef.current.delete(touch.identifier)
+    })
+
+    // Reset pinch tracking if less than 2 fingers
+    if (e.touches.length < 2) {
+      lastPinchDistanceRef.current = null
+      lastPinchCenterRef.current = null
+    }
+
+    // Reinitialize pinch tracking if still 2 fingers
+    if (e.touches.length === 2) {
+      const touch0 = e.touches[0]
+      const touch1 = e.touches[1]
+      if (!touch0 || !touch1) return
+
+      const t1 = { x: touch0.clientX, y: touch0.clientY }
+      const t2 = { x: touch1.clientX, y: touch1.clientY }
+      lastPinchDistanceRef.current = getDistance(t1, t2)
+      lastPinchCenterRef.current = getCenter(t1, t2)
+    }
+  }, [])
+
   return (
     <div
       ref={containerRef}
@@ -256,6 +440,10 @@ export function Canvas({
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
         onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         style={{
           display: 'block',
           cursor: isPanning ? 'grabbing' : 'default',

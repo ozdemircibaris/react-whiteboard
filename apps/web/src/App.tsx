@@ -124,6 +124,10 @@ function Instructions() {
         <li>• Middle mouse to pan</li>
         <li>• Cmd/Ctrl + Z to undo</li>
         <li>• Cmd/Ctrl + Shift + Z to redo</li>
+        <li>• Cmd/Ctrl + A to select all</li>
+        <li>• Delete/Backspace to delete</li>
+        <li>• Escape to deselect</li>
+        <li>• Arrow keys to move (Shift for 10px)</li>
       </ul>
     </div>
   )
