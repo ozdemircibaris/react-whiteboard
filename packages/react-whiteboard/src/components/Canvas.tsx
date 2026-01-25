@@ -1,8 +1,14 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { useWhiteboardStore } from '../core/store'
 import { CanvasRenderer } from '../core/renderer'
 import { getDevicePixelRatio, screenToCanvas } from '../utils/canvas'
-import type { Point } from '../types'
+import {
+  getShapeAtPoint,
+  hitTestResizeHandles,
+  RESIZE_CURSORS,
+  type ResizeHandle,
+} from '../utils/hitTest'
+import type { Point, Bounds } from '../types'
 
 export interface CanvasProps {
   /** Show grid */
@@ -36,6 +42,17 @@ export function Canvas({
   const lastPinchDistanceRef = useRef<number | null>(null)
   const lastPinchCenterRef = useRef<Point | null>(null)
 
+  // Drag state tracking
+  const isDraggingRef = useRef(false)
+  const dragStartCanvasPointRef = useRef<Point | null>(null)
+  const dragStartPositionsRef = useRef<Map<string, Point>>(new Map())
+
+  // Resize state tracking
+  const isResizingRef = useRef(false)
+  const resizeHandleRef = useRef<ResizeHandle | null>(null)
+  const resizeStartCanvasPointRef = useRef<Point | null>(null)
+  const resizeStartBoundsRef = useRef<Map<string, Bounds>>(new Map())
+
   // Store selectors
   const shapes = useWhiteboardStore((s) => s.shapes)
   const shapeIds = useWhiteboardStore((s) => s.shapeIds)
@@ -53,6 +70,11 @@ export function Canvas({
   const clearSelection = useWhiteboardStore((s) => s.clearSelection)
   const selectMultiple = useWhiteboardStore((s) => s.selectMultiple)
   const updateShape = useWhiteboardStore((s) => s.updateShape)
+  const select = useWhiteboardStore((s) => s.select)
+  const toggleSelection = useWhiteboardStore((s) => s.toggleSelection)
+
+  // Cursor state for hover detection
+  const [cursorStyle, setCursorStyle] = useState<string>('default')
 
   /**
    * Setup canvas and renderer
@@ -288,18 +310,94 @@ export function Canvas({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       const canvas = canvasRef.current
-      if (!canvas) return
+      const container = containerRef.current
+      if (!canvas || !container) return
 
       canvas.setPointerCapture(e.pointerId)
       lastPointerRef.current = { x: e.clientX, y: e.clientY }
 
-      // Middle mouse button or space+click for panning
+      // Middle mouse button or alt+click for panning
       if (e.button === 1 || (e.button === 0 && e.altKey)) {
         setIsPanning(true)
         e.preventDefault()
+        return
+      }
+
+      // Left click - handle selection, resize, and drag
+      if (e.button === 0) {
+        const rect = container.getBoundingClientRect()
+        const canvasPoint = screenToCanvas({ x: e.clientX, y: e.clientY }, viewport, rect)
+
+        // First, check if clicking on a resize handle (only if single shape selected)
+        if (selectedIds.size === 1) {
+          const selectedId = Array.from(selectedIds)[0]
+          const selectedShape = selectedId ? shapes.get(selectedId) : null
+
+          if (selectedShape) {
+            const handle = hitTestResizeHandles(canvasPoint, selectedShape, 8 / viewport.zoom)
+            if (handle) {
+              // Start resizing
+              isResizingRef.current = true
+              resizeHandleRef.current = handle
+              resizeStartCanvasPointRef.current = canvasPoint
+              resizeStartBoundsRef.current.clear()
+              resizeStartBoundsRef.current.set(selectedShape.id, {
+                x: selectedShape.x,
+                y: selectedShape.y,
+                width: selectedShape.width,
+                height: selectedShape.height,
+              })
+              setCursorStyle(RESIZE_CURSORS[handle])
+              return
+            }
+          }
+        }
+
+        // Hit test to find shape at click point
+        const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
+
+        if (hitShape) {
+          // Check if hit shape is already selected
+          const isAlreadySelected = selectedIds.has(hitShape.id)
+
+          if (e.shiftKey) {
+            // Shift+click: toggle selection (add/remove from selection)
+            toggleSelection(hitShape.id)
+          } else if (!isAlreadySelected) {
+            // Normal click on unselected shape: select only this shape
+            select(hitShape.id)
+          }
+
+          // Start dragging - store initial positions
+          isDraggingRef.current = true
+          dragStartCanvasPointRef.current = canvasPoint
+          dragStartPositionsRef.current.clear()
+
+          // Store initial positions of all selected shapes (including newly selected)
+          const idsToTrack = isAlreadySelected || e.shiftKey
+            ? selectedIds
+            : new Set([hitShape.id])
+
+          idsToTrack.forEach((id) => {
+            const shape = shapes.get(id)
+            if (shape) {
+              dragStartPositionsRef.current.set(id, { x: shape.x, y: shape.y })
+            }
+          })
+
+          // Also add the clicked shape if not already tracked
+          if (!dragStartPositionsRef.current.has(hitShape.id)) {
+            dragStartPositionsRef.current.set(hitShape.id, { x: hitShape.x, y: hitShape.y })
+          }
+        } else {
+          // Clicked on empty space - clear selection
+          if (!e.shiftKey) {
+            clearSelection()
+          }
+        }
       }
     },
-    [setIsPanning]
+    [setIsPanning, viewport, shapes, shapeIds, select, toggleSelection, clearSelection, selectedIds]
   )
 
   /**
@@ -307,19 +405,126 @@ export function Canvas({
    */
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!lastPointerRef.current) return
-
+      const container = containerRef.current
       const currentPoint = { x: e.clientX, y: e.clientY }
 
-      if (isPanning) {
+      // Handle panning
+      if (isPanning && lastPointerRef.current) {
         const deltaX = currentPoint.x - lastPointerRef.current.x
         const deltaY = currentPoint.y - lastPointerRef.current.y
         pan(deltaX, deltaY)
+        lastPointerRef.current = currentPoint
+        return
       }
 
-      lastPointerRef.current = currentPoint
+      // Handle resizing shapes
+      if (isResizingRef.current && container && resizeStartCanvasPointRef.current && resizeHandleRef.current) {
+        const rect = container.getBoundingClientRect()
+        const canvasPoint = screenToCanvas(currentPoint, viewport, rect)
+
+        const deltaX = canvasPoint.x - resizeStartCanvasPointRef.current.x
+        const deltaY = canvasPoint.y - resizeStartCanvasPointRef.current.y
+
+        resizeStartBoundsRef.current.forEach((startBounds, id) => {
+          const handle = resizeHandleRef.current!
+          let newX = startBounds.x
+          let newY = startBounds.y
+          let newWidth = startBounds.width
+          let newHeight = startBounds.height
+
+          // Calculate new bounds based on handle
+          if (handle.includes('left')) {
+            newX = startBounds.x + deltaX
+            newWidth = startBounds.width - deltaX
+          }
+          if (handle.includes('right')) {
+            newWidth = startBounds.width + deltaX
+          }
+          if (handle.includes('top')) {
+            newY = startBounds.y + deltaY
+            newHeight = startBounds.height - deltaY
+          }
+          if (handle.includes('bottom')) {
+            newHeight = startBounds.height + deltaY
+          }
+
+          // Enforce minimum size
+          const minSize = 10
+          if (newWidth < minSize) {
+            if (handle.includes('left')) {
+              newX = startBounds.x + startBounds.width - minSize
+            }
+            newWidth = minSize
+          }
+          if (newHeight < minSize) {
+            if (handle.includes('top')) {
+              newY = startBounds.y + startBounds.height - minSize
+            }
+            newHeight = minSize
+          }
+
+          updateShape(id, { x: newX, y: newY, width: newWidth, height: newHeight }, false)
+        })
+
+        lastPointerRef.current = currentPoint
+        return
+      }
+
+      // Handle dragging shapes
+      if (isDraggingRef.current && container && dragStartCanvasPointRef.current) {
+        const rect = container.getBoundingClientRect()
+        const canvasPoint = screenToCanvas(currentPoint, viewport, rect)
+
+        const deltaX = canvasPoint.x - dragStartCanvasPointRef.current.x
+        const deltaY = canvasPoint.y - dragStartCanvasPointRef.current.y
+
+        // Move all shapes being dragged
+        dragStartPositionsRef.current.forEach((startPos, id) => {
+          updateShape(id, {
+            x: startPos.x + deltaX,
+            y: startPos.y + deltaY,
+          }, false) // Don't record history during drag
+        })
+
+        setCursorStyle('grabbing')
+        lastPointerRef.current = currentPoint
+        return
+      }
+
+      // Update cursor based on hover state (only when not pressing)
+      if (container && !lastPointerRef.current) {
+        const rect = container.getBoundingClientRect()
+        const canvasPoint = screenToCanvas(currentPoint, viewport, rect)
+
+        // Check resize handles first (if single shape selected)
+        if (selectedIds.size === 1) {
+          const selectedId = Array.from(selectedIds)[0]
+          const selectedShape = selectedId ? shapes.get(selectedId) : null
+
+          if (selectedShape) {
+            const handle = hitTestResizeHandles(canvasPoint, selectedShape, 8 / viewport.zoom)
+            if (handle) {
+              setCursorStyle(RESIZE_CURSORS[handle])
+              return
+            }
+          }
+        }
+
+        // Check shape hover
+        const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
+
+        if (hitShape) {
+          setCursorStyle('pointer')
+        } else {
+          setCursorStyle('default')
+        }
+      }
+
+      if (lastPointerRef.current) {
+        lastPointerRef.current = currentPoint
+      }
     },
-    [isPanning, pan]
+    [isPanning, pan, viewport, shapes, shapeIds, updateShape, selectedIds]
   )
 
   /**
@@ -332,10 +537,59 @@ export function Canvas({
         canvas.releasePointerCapture(e.pointerId)
       }
 
+      // If we were resizing, record the final bounds to history
+      if (isResizingRef.current && resizeStartBoundsRef.current.size > 0) {
+        resizeStartBoundsRef.current.forEach((_startBounds, id) => {
+          const shape = shapes.get(id)
+          if (shape) {
+            updateShape(id, {
+              x: shape.x,
+              y: shape.y,
+              width: shape.width,
+              height: shape.height,
+            }, true)
+          }
+        })
+      }
+
+      // Reset resize state
+      isResizingRef.current = false
+      resizeHandleRef.current = null
+      resizeStartCanvasPointRef.current = null
+      resizeStartBoundsRef.current.clear()
+
+      // If we were dragging, record the final positions to history
+      if (isDraggingRef.current && dragStartPositionsRef.current.size > 0) {
+        // Check if shapes actually moved
+        let hasMoved = false
+        dragStartPositionsRef.current.forEach((startPos, id) => {
+          const shape = shapes.get(id)
+          if (shape && (shape.x !== startPos.x || shape.y !== startPos.y)) {
+            hasMoved = true
+          }
+        })
+
+        // Record to history if shapes moved
+        if (hasMoved) {
+          dragStartPositionsRef.current.forEach((_startPos, id) => {
+            const shape = shapes.get(id)
+            if (shape) {
+              // Update with history recording for undo/redo
+              updateShape(id, { x: shape.x, y: shape.y }, true)
+            }
+          })
+        }
+      }
+
+      // Reset drag state
+      isDraggingRef.current = false
+      dragStartCanvasPointRef.current = null
+      dragStartPositionsRef.current.clear()
+
       lastPointerRef.current = null
       setIsPanning(false)
     },
-    [setIsPanning]
+    [setIsPanning, shapes, updateShape]
   )
 
   /**
@@ -508,7 +762,7 @@ export function Canvas({
         onTouchCancel={handleTouchEnd}
         style={{
           display: 'block',
-          cursor: isPanning ? 'grabbing' : 'default',
+          cursor: isPanning ? 'grabbing' : cursorStyle,
         }}
       />
     </div>
