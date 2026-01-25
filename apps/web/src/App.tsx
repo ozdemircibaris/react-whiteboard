@@ -135,10 +135,10 @@ function Instructions() {
 
 export default function App() {
   return (
-    <div className="flex h-screen w-screen flex-col">
+    <div className="flex h-screen w-screen flex-col overflow-hidden">
       <Toolbar />
 
-      <main className="relative flex-1 overflow-hidden">
+      <main className="relative flex-1 w-full min-h-0 overflow-hidden">
         <Canvas showGrid={true} gridSize={20} backgroundColor="#fafafa" />
         <Instructions />
       </main>

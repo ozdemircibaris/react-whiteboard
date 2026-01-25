@@ -29,6 +29,7 @@ export function Canvas({
   const rendererRef = useRef<CanvasRenderer | null>(null)
   const rafRef = useRef<number>(0)
   const lastPointerRef = useRef<Point | null>(null)
+  const renderFnRef = useRef<(() => void) | null>(null)
 
   // Touch gesture tracking
   const touchesRef = useRef<Map<number, Point>>(new Map())
@@ -59,13 +60,32 @@ export function Canvas({
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
     const container = containerRef.current
-    if (!canvas || !container) return
+    if (!canvas || !container) {
+      console.log('[Canvas] setupCanvas: canvas or container is null', { canvas: !!canvas, container: !!container })
+      return
+    }
 
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) {
+      console.log('[Canvas] setupCanvas: ctx is null')
+      return
+    }
 
     const dpr = getDevicePixelRatio()
     const rect = container.getBoundingClientRect()
+
+    console.log('[Canvas] setupCanvas called:', {
+      containerRect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
+      dpr,
+      containerStyle: {
+        width: container.style.width,
+        height: container.style.height,
+        position: getComputedStyle(container).position,
+        display: getComputedStyle(container).display,
+      },
+      parentElement: container.parentElement?.tagName,
+      parentRect: container.parentElement?.getBoundingClientRect(),
+    })
 
     // Set canvas size with DPI scaling
     canvas.width = rect.width * dpr
@@ -73,10 +93,22 @@ export function Canvas({
     canvas.style.width = `${rect.width}px`
     canvas.style.height = `${rect.height}px`
 
+    console.log('[Canvas] canvas size set:', {
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      canvasStyleWidth: canvas.style.width,
+      canvasStyleHeight: canvas.style.height,
+    })
+
     // Create renderer
     rendererRef.current = new CanvasRenderer(ctx)
 
     onReady?.()
+
+    // Trigger initial render after setup
+    requestAnimationFrame(() => {
+      renderFnRef.current?.()
+    })
   }, [onReady])
 
   /**
@@ -123,6 +155,9 @@ export function Canvas({
     renderer.resetTransform()
   }, [shapes, shapeIds, viewport, selectedIds, showGrid, gridSize, backgroundColor])
 
+  // Keep render function ref up to date
+  renderFnRef.current = render
+
   /**
    * Render when state changes (reactive rendering instead of continuous loop)
    */
@@ -138,17 +173,36 @@ export function Canvas({
   }, [render])
 
   /**
-   * Setup canvas on mount and resize
+   * Setup canvas on mount and resize using ResizeObserver
    */
   useEffect(() => {
-    setupCanvas()
+    const container = containerRef.current
+    console.log('[Canvas] useEffect mount, container:', !!container)
+    if (!container) return
 
-    const handleResize = () => {
-      setupCanvas()
-    }
+    // Use ResizeObserver to detect when container actually has dimensions
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      console.log('[Canvas] ResizeObserver fired:', {
+        contentRect: entry?.contentRect,
+        width: entry?.contentRect.width,
+        height: entry?.contentRect.height,
+      })
+      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+        setupCanvas()
+      }
+    })
 
+    resizeObserver.observe(container)
+
+    // Also listen for window resize as fallback
+    const handleResize = () => setupCanvas()
     window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', handleResize)
+    }
   }, [setupCanvas])
 
   /**
@@ -430,8 +484,16 @@ export function Canvas({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden ${className}`}
-      style={{ touchAction: 'none' }}
+      className={className}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflow: 'hidden',
+        touchAction: 'none',
+      }}
     >
       <canvas
         ref={canvasRef}
