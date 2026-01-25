@@ -41,29 +41,32 @@
 - [x] Keyboard event system (Delete, Escape, Cmd+A, Arrow keys)
 - [ ] Event delegation architecture — deferred (not needed yet)
 
-## Phase 4: Shape System
+## Phase 4: Shape System ✅ COMPLETED
 - [x] BaseShape interface/type
-- [ ] Shape registry (plugin system)
+- [ ] Shape registry (plugin system) — deferred
 - [x] Shape ID generation (nanoid)
 - [x] Z-index/layering system
 - [x] Implement shapes:
   - [x] Rectangle
   - [x] Ellipse/Circle
-  - [ ] Line
-  - [ ] Arrow
-  - [ ] Text
+  - [ ] Line — deferred
+  - [ ] Arrow — deferred
+  - [ ] Text — deferred
   - [x] Path (freehand)
-- [ ] Shape bounds calculation
-- [ ] Hit testing (point-in-shape detection)
+- [x] Shape bounds calculation
+- [x] Hit testing (point-in-shape detection)
 
-## Phase 5: Selection & Interaction
-- [ ] Single selection (click)
-- [ ] Multi-selection (shift+click)
-- [ ] Marquee/lasso selection
+**Files created:**
+- `packages/react-whiteboard/src/utils/hitTest.ts` — Hit testing utilities
+
+## Phase 5: Selection & Interaction ✅ COMPLETED
+- [x] Single selection (click)
+- [x] Multi-selection (shift+click)
+- [ ] Marquee/lasso selection — deferred
 - [x] Selection bounds box — rendering only
-- [ ] Drag to move shapes
-- [ ] Resize handles (8-point)
-- [ ] Rotation handle
+- [x] Drag to move shapes
+- [x] Resize handles (8-point)
+- [ ] Rotation handle — deferred
 - [ ] Snapping (optional, can defer)
 
 ## Phase 6: Tools System
@@ -169,13 +172,14 @@
 ---
 
 ## Current Focus
-**Phase 4-5: Shape System + Selection & Interaction** ← NEXT
+**Phase 6: Tools System** ← NEXT
 
 Priority tasks:
-1. Hit testing (detect which shape is clicked)
-2. Single/multi selection with click
-3. Drag to move shapes
-4. Resize handles
+1. Tool state machine
+2. SelectTool implementation
+3. RectangleTool (draw rectangles)
+4. EllipseTool (draw ellipses)
+5. DrawTool (freehand)
 
 ---
 
