@@ -33,13 +33,13 @@
 - `packages/react-whiteboard/src/components/Canvas.tsx` — Canvas component
 - `packages/react-whiteboard/src/utils/canvas.ts` — Coordinate utils
 
-## Phase 3: Event System
+## Phase 3: Event System ✅ COMPLETED
 - [x] Pointer event handling (down, move, up) — basic
 - [x] Mouse wheel zoom
 - [x] Pan with Alt+drag / middle mouse
-- [ ] Touch support (pinch zoom, two-finger pan)
-- [ ] Keyboard event system
-- [ ] Event delegation architecture
+- [x] Touch support (pinch zoom, two-finger pan)
+- [x] Keyboard event system (Delete, Escape, Cmd+A, Arrow keys)
+- [ ] Event delegation architecture — deferred (not needed yet)
 
 ## Phase 4: Shape System
 - [x] BaseShape interface/type
@@ -80,12 +80,12 @@
 - [ ] Tool cursor management
 - [ ] Toolbar state sync
 
-## Phase 7: History (Undo/Redo)
+## Phase 7: History (Undo/Redo) ✅ COMPLETED
 - [x] Command pattern implementation — basic structure
 - [x] History stack
 - [x] Undo action
 - [x] Redo action
-- [ ] Keyboard shortcuts (Cmd+Z, Cmd+Shift+Z)
+- [x] Keyboard shortcuts (Cmd+Z, Cmd+Shift+Z, Ctrl+Y)
 - [x] CRDT-friendly structure (for future collab)
 
 ## Phase 8: HTML Overlay Layer
@@ -112,7 +112,7 @@
 - [x] Toolbar component — basic
 - [ ] Shape properties panel
 - [x] Zoom controls — display only
-- [ ] Keyboard shortcuts help
+- [x] Keyboard shortcuts help (Instructions component)
 - [ ] Dark/light mode
 - [ ] Responsive design
 
@@ -169,7 +169,7 @@
 ---
 
 ## Current Focus
-**Phase 3-5: Event System + Shape Selection + Hit Testing** ← NEXT
+**Phase 4-5: Shape System + Selection & Interaction** ← NEXT
 
 Priority tasks:
 1. Hit testing (detect which shape is clicked)

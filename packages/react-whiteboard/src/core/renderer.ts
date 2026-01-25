@@ -6,11 +6,16 @@ import { getDevicePixelRatio } from '../utils/canvas'
  */
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D
-  private dpr: number
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx
-    this.dpr = getDevicePixelRatio()
+  }
+
+  /**
+   * Get current device pixel ratio (dynamically to handle display changes)
+   */
+  private get dpr(): number {
+    return getDevicePixelRatio()
   }
 
   /**
