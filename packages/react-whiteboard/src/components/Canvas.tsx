@@ -41,6 +41,8 @@ export function Canvas({
   const pan = useWhiteboardStore((s) => s.pan)
   const zoom = useWhiteboardStore((s) => s.zoom)
   const setIsPanning = useWhiteboardStore((s) => s.setIsPanning)
+  const undo = useWhiteboardStore((s) => s.undo)
+  const redo = useWhiteboardStore((s) => s.redo)
 
   /**
    * Setup canvas and renderer
@@ -113,15 +115,11 @@ export function Canvas({
   }, [shapes, shapeIds, viewport, selectedIds, showGrid, gridSize, backgroundColor])
 
   /**
-   * Animation loop
+   * Render when state changes (reactive rendering instead of continuous loop)
    */
   useEffect(() => {
-    const loop = () => {
-      render()
-      rafRef.current = requestAnimationFrame(loop)
-    }
-
-    rafRef.current = requestAnimationFrame(loop)
+    // Use RAF for smooth rendering, but only when state changes
+    rafRef.current = requestAnimationFrame(render)
 
     return () => {
       if (rafRef.current) {
@@ -143,6 +141,31 @@ export function Canvas({
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [setupCanvas])
+
+  /**
+   * Keyboard shortcuts for undo/redo
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Cmd/Ctrl+Z (undo) and Cmd/Ctrl+Shift+Z (redo)
+      const isMod = e.metaKey || e.ctrlKey
+
+      if (isMod && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      } else if (isMod && e.key === 'z' && e.shiftKey) {
+        e.preventDefault()
+        redo()
+      } else if (isMod && e.key === 'y') {
+        // Alternative redo shortcut (Ctrl+Y on Windows)
+        e.preventDefault()
+        redo()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [undo, redo])
 
   /**
    * Handle pointer down

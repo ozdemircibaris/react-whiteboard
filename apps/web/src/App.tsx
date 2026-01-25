@@ -9,6 +9,10 @@ function Toolbar() {
   const clearShapes = useWhiteboardStore((s) => s.clearShapes)
   const viewport = useWhiteboardStore((s) => s.viewport)
   const resetViewport = useWhiteboardStore((s) => s.resetViewport)
+  const undo = useWhiteboardStore((s) => s.undo)
+  const redo = useWhiteboardStore((s) => s.redo)
+  const canUndo = useWhiteboardStore((s) => s.canUndo)
+  const canRedo = useWhiteboardStore((s) => s.canRedo)
 
   const addRectangle = () => {
     const shape: RectangleShape = {
@@ -61,6 +65,21 @@ function Toolbar() {
 
       <div className="flex items-center gap-2">
         <button
+          onClick={() => undo()}
+          disabled={!canUndo()}
+          className="rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Undo
+        </button>
+        <button
+          onClick={() => redo()}
+          disabled={!canRedo()}
+          className="rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Redo
+        </button>
+        <div className="w-px h-6 bg-gray-300" />
+        <button
           onClick={addRectangle}
           className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
         >
@@ -73,7 +92,7 @@ function Toolbar() {
           Add Ellipse
         </button>
         <button
-          onClick={clearShapes}
+          onClick={() => clearShapes()}
           className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
         >
           Clear
@@ -103,6 +122,8 @@ function Instructions() {
         <li>• Scroll to zoom</li>
         <li>• Alt + drag to pan</li>
         <li>• Middle mouse to pan</li>
+        <li>• Cmd/Ctrl + Z to undo</li>
+        <li>• Cmd/Ctrl + Shift + Z to redo</li>
       </ul>
     </div>
   )

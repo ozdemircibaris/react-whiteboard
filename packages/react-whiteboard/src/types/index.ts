@@ -218,7 +218,7 @@ export interface WhiteboardState {
   viewport: Viewport
 
   // Selection
-  selectedIds: string[]
+  selectedIds: Set<string>
 
   // Tools
   currentTool: ToolType
