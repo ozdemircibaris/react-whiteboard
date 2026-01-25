@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
+import { nanoid } from 'nanoid'
 import { useWhiteboardStore } from '../core/store'
 import { CanvasRenderer } from '../core/renderer'
 import { getDevicePixelRatio, screenToCanvas } from '../utils/canvas'
@@ -8,7 +9,8 @@ import {
   RESIZE_CURSORS,
   type ResizeHandle,
 } from '../utils/hitTest'
-import type { Point, Bounds } from '../types'
+import type { Point, Bounds, RectangleShape, EllipseShape, PathShape } from '../types'
+import { TOOL_CURSORS } from '../tools/types'
 
 export interface CanvasProps {
   /** Show grid */
@@ -53,17 +55,25 @@ export function Canvas({
   const resizeStartCanvasPointRef = useRef<Point | null>(null)
   const resizeStartBoundsRef = useRef<Map<string, Bounds>>(new Map())
 
+  // Drawing state tracking (for shape creation tools)
+  const isDrawingShapeRef = useRef(false)
+  const drawingStartPointRef = useRef<Point | null>(null)
+  const drawingCurrentPointRef = useRef<Point | null>(null)
+  const drawingPointsRef = useRef<Point[]>([])
+
   // Store selectors
   const shapes = useWhiteboardStore((s) => s.shapes)
   const shapeIds = useWhiteboardStore((s) => s.shapeIds)
   const viewport = useWhiteboardStore((s) => s.viewport)
   const selectedIds = useWhiteboardStore((s) => s.selectedIds)
   const isPanning = useWhiteboardStore((s) => s.isPanning)
+  const currentTool = useWhiteboardStore((s) => s.currentTool)
 
   // Store actions
   const pan = useWhiteboardStore((s) => s.pan)
   const zoom = useWhiteboardStore((s) => s.zoom)
   const setIsPanning = useWhiteboardStore((s) => s.setIsPanning)
+  const setIsDrawing = useWhiteboardStore((s) => s.setIsDrawing)
   const undo = useWhiteboardStore((s) => s.undo)
   const redo = useWhiteboardStore((s) => s.redo)
   const deleteShapes = useWhiteboardStore((s) => s.deleteShapes)
@@ -72,6 +82,7 @@ export function Canvas({
   const updateShape = useWhiteboardStore((s) => s.updateShape)
   const select = useWhiteboardStore((s) => s.select)
   const toggleSelection = useWhiteboardStore((s) => s.toggleSelection)
+  const addShape = useWhiteboardStore((s) => s.addShape)
 
   // Cursor state for hover detection
   const [cursorStyle, setCursorStyle] = useState<string>('default')
@@ -173,9 +184,66 @@ export function Canvas({
       }
     })
 
+    // Draw preview shape while drawing
+    if (isDrawingShapeRef.current && drawingStartPointRef.current && drawingCurrentPointRef.current && ctx) {
+      const start = drawingStartPointRef.current
+      const end = drawingCurrentPointRef.current
+
+      ctx.save()
+      ctx.globalAlpha = 0.7
+
+      if (currentTool === 'rectangle') {
+        const x = Math.min(start.x, end.x)
+        const y = Math.min(start.y, end.y)
+        const w = Math.abs(end.x - start.x)
+        const h = Math.abs(end.y - start.y)
+
+        ctx.fillStyle = '#e0e0e0'
+        ctx.strokeStyle = '#333333'
+        ctx.lineWidth = 2
+        ctx.fillRect(x, y, w, h)
+        ctx.strokeRect(x, y, w, h)
+      } else if (currentTool === 'ellipse') {
+        const x = Math.min(start.x, end.x)
+        const y = Math.min(start.y, end.y)
+        const w = Math.abs(end.x - start.x)
+        const h = Math.abs(end.y - start.y)
+        const cx = x + w / 2
+        const cy = y + h / 2
+
+        ctx.beginPath()
+        ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2)
+        ctx.fillStyle = '#e0e0e0'
+        ctx.strokeStyle = '#333333'
+        ctx.lineWidth = 2
+        ctx.fill()
+        ctx.stroke()
+      } else if (currentTool === 'draw' && drawingPointsRef.current.length >= 2) {
+        const points = drawingPointsRef.current
+        ctx.beginPath()
+        ctx.moveTo(points[0]!.x, points[0]!.y)
+        for (let i = 1; i < points.length - 1; i++) {
+          const curr = points[i]!
+          const next = points[i + 1]!
+          const midX = (curr.x + next.x) / 2
+          const midY = (curr.y + next.y) / 2
+          ctx.quadraticCurveTo(curr.x, curr.y, midX, midY)
+        }
+        const last = points[points.length - 1]!
+        ctx.lineTo(last.x, last.y)
+        ctx.strokeStyle = '#333333'
+        ctx.lineWidth = 3
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.stroke()
+      }
+
+      ctx.restore()
+    }
+
     // Reset transform
     renderer.resetTransform()
-  }, [shapes, shapeIds, viewport, selectedIds, showGrid, gridSize, backgroundColor])
+  }, [shapes, shapeIds, viewport, selectedIds, showGrid, gridSize, backgroundColor, currentTool])
 
   // Keep render function ref up to date
   renderFnRef.current = render
@@ -323,11 +391,25 @@ export function Canvas({
         return
       }
 
-      // Left click - handle selection, resize, and drag
+      // Left click
       if (e.button === 0) {
         const rect = container.getBoundingClientRect()
         const canvasPoint = screenToCanvas({ x: e.clientX, y: e.clientY }, viewport, rect)
 
+        // Handle drawing tools (rectangle, ellipse, draw)
+        if (currentTool === 'rectangle' || currentTool === 'ellipse' || currentTool === 'draw') {
+          isDrawingShapeRef.current = true
+          drawingStartPointRef.current = canvasPoint
+          drawingCurrentPointRef.current = canvasPoint
+          if (currentTool === 'draw') {
+            drawingPointsRef.current = [canvasPoint]
+            setIsDrawing(true)
+          }
+          clearSelection()
+          return
+        }
+
+        // Select tool behavior below
         // First, check if clicking on a resize handle (only if single shape selected)
         if (selectedIds.size === 1) {
           const selectedId = Array.from(selectedIds)[0]
@@ -397,7 +479,7 @@ export function Canvas({
         }
       }
     },
-    [setIsPanning, viewport, shapes, shapeIds, select, toggleSelection, clearSelection, selectedIds]
+    [setIsPanning, setIsDrawing, viewport, shapes, shapeIds, select, toggleSelection, clearSelection, selectedIds, currentTool]
   )
 
   /**
@@ -413,6 +495,22 @@ export function Canvas({
         const deltaX = currentPoint.x - lastPointerRef.current.x
         const deltaY = currentPoint.y - lastPointerRef.current.y
         pan(deltaX, deltaY)
+        lastPointerRef.current = currentPoint
+        return
+      }
+
+      // Handle drawing shapes (rectangle, ellipse, draw)
+      if (isDrawingShapeRef.current && container && drawingStartPointRef.current) {
+        const rect = container.getBoundingClientRect()
+        const canvasPoint = screenToCanvas(currentPoint, viewport, rect)
+        drawingCurrentPointRef.current = canvasPoint
+
+        if (currentTool === 'draw') {
+          drawingPointsRef.current.push(canvasPoint)
+        }
+
+        // Force re-render for drawing preview
+        requestAnimationFrame(() => renderFnRef.current?.())
         lastPointerRef.current = currentPoint
         return
       }
@@ -510,13 +608,17 @@ export function Canvas({
           }
         }
 
-        // Check shape hover
-        const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
-
-        if (hitShape) {
-          setCursorStyle('pointer')
+        // Check shape hover (only in select mode)
+        if (currentTool === 'select') {
+          const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
+          if (hitShape) {
+            setCursorStyle('pointer')
+          } else {
+            setCursorStyle('default')
+          }
         } else {
-          setCursorStyle('default')
+          // Use tool-specific cursor
+          setCursorStyle(TOOL_CURSORS[currentTool] || 'crosshair')
         }
       }
 
@@ -524,8 +626,29 @@ export function Canvas({
         lastPointerRef.current = currentPoint
       }
     },
-    [isPanning, pan, viewport, shapes, shapeIds, updateShape, selectedIds]
+    [isPanning, pan, viewport, shapes, shapeIds, updateShape, selectedIds, currentTool]
   )
+
+  /**
+   * Calculate bounds from two points (handles negative dimensions)
+   */
+  const calculateBounds = useCallback((start: Point, end: Point, constrain: boolean): Bounds => {
+    let x = Math.min(start.x, end.x)
+    let y = Math.min(start.y, end.y)
+    let width = Math.abs(end.x - start.x)
+    let height = Math.abs(end.y - start.y)
+
+    // Shift key constrains to square/circle
+    if (constrain) {
+      const size = Math.max(width, height)
+      width = size
+      height = size
+      if (end.x < start.x) x = start.x - size
+      if (end.y < start.y) y = start.y - size
+    }
+
+    return { x, y, width, height }
+  }, [])
 
   /**
    * Handle pointer up
@@ -535,6 +658,99 @@ export function Canvas({
       const canvas = canvasRef.current
       if (canvas) {
         canvas.releasePointerCapture(e.pointerId)
+      }
+
+      // Finalize shape drawing
+      if (isDrawingShapeRef.current && drawingStartPointRef.current && drawingCurrentPointRef.current) {
+        const start = drawingStartPointRef.current
+        const end = drawingCurrentPointRef.current
+
+        if (currentTool === 'rectangle') {
+          const bounds = calculateBounds(start, end, e.shiftKey)
+          if (bounds.width > 5 && bounds.height > 5) {
+            const shape: RectangleShape = {
+              id: nanoid(),
+              type: 'rectangle',
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height,
+              rotation: 0,
+              opacity: 1,
+              isLocked: false,
+              parentId: null,
+              props: {
+                fill: '#e0e0e0',
+                stroke: '#333333',
+                strokeWidth: 2,
+                cornerRadius: 0,
+              },
+            }
+            addShape(shape, true)
+            select(shape.id)
+          }
+        } else if (currentTool === 'ellipse') {
+          const bounds = calculateBounds(start, end, e.shiftKey)
+          if (bounds.width > 5 && bounds.height > 5) {
+            const shape: EllipseShape = {
+              id: nanoid(),
+              type: 'ellipse',
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height,
+              rotation: 0,
+              opacity: 1,
+              isLocked: false,
+              parentId: null,
+              props: {
+                fill: '#e0e0e0',
+                stroke: '#333333',
+                strokeWidth: 2,
+              },
+            }
+            addShape(shape, true)
+            select(shape.id)
+          }
+        } else if (currentTool === 'draw' && drawingPointsRef.current.length >= 2) {
+          const points = drawingPointsRef.current
+          // Calculate bounds
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+          for (const pt of points) {
+            minX = Math.min(minX, pt.x)
+            minY = Math.min(minY, pt.y)
+            maxX = Math.max(maxX, pt.x)
+            maxY = Math.max(maxY, pt.y)
+          }
+          // Normalize points relative to shape position
+          const normalizedPoints = points.map(p => ({ x: p.x - minX, y: p.y - minY }))
+          const shape: PathShape = {
+            id: nanoid(),
+            type: 'path',
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+            rotation: 0,
+            opacity: 1,
+            isLocked: false,
+            parentId: null,
+            props: {
+              stroke: '#333333',
+              strokeWidth: 3,
+              points: normalizedPoints,
+              isComplete: true,
+            },
+          }
+          addShape(shape, true)
+          setIsDrawing(false)
+        }
+
+        // Reset drawing state
+        isDrawingShapeRef.current = false
+        drawingStartPointRef.current = null
+        drawingCurrentPointRef.current = null
+        drawingPointsRef.current = []
       }
 
       // If we were resizing, record the final bounds to history
@@ -589,7 +805,7 @@ export function Canvas({
       lastPointerRef.current = null
       setIsPanning(false)
     },
-    [setIsPanning, shapes, updateShape]
+    [setIsPanning, setIsDrawing, shapes, updateShape, currentTool, addShape, select, calculateBounds]
   )
 
   /**

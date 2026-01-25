@@ -69,19 +69,28 @@
 - [ ] Rotation handle — deferred
 - [ ] Snapping (optional, can defer)
 
-## Phase 6: Tools System
-- [ ] Tool state machine
-- [ ] BaseTool interface
-- [ ] Implement tools:
-  - [ ] SelectTool
-  - [ ] RectangleTool
-  - [ ] EllipseTool
-  - [ ] LineTool
-  - [ ] ArrowTool
-  - [ ] DrawTool (freehand)
-  - [ ] TextTool
-- [ ] Tool cursor management
-- [ ] Toolbar state sync
+## Phase 6: Tools System ✅ COMPLETED
+- [x] Tool state machine
+- [x] BaseTool interface
+- [x] Implement tools:
+  - [x] SelectTool
+  - [x] RectangleTool
+  - [x] EllipseTool
+  - [ ] LineTool — deferred
+  - [ ] ArrowTool — deferred
+  - [x] DrawTool (freehand)
+  - [ ] TextTool — deferred
+- [x] Tool cursor management
+- [x] Toolbar state sync
+
+**Files created:**
+- `packages/react-whiteboard/src/tools/types.ts` — Tool types and interfaces
+- `packages/react-whiteboard/src/tools/SelectTool.ts` — Selection tool
+- `packages/react-whiteboard/src/tools/RectangleTool.ts` — Rectangle tool
+- `packages/react-whiteboard/src/tools/EllipseTool.ts` — Ellipse tool
+- `packages/react-whiteboard/src/tools/DrawTool.ts` — Freehand drawing tool
+- `packages/react-whiteboard/src/tools/ToolManager.ts` — Tool manager
+- `packages/react-whiteboard/src/hooks/useTools.ts` — React hook for tools
 
 ## Phase 7: History (Undo/Redo) ✅ COMPLETED
 - [x] Command pattern implementation — basic structure
@@ -172,14 +181,13 @@
 ---
 
 ## Current Focus
-**Phase 6: Tools System** ← NEXT
+**Phase 8: HTML Overlay Layer** ← NEXT
 
 Priority tasks:
-1. Tool state machine
-2. SelectTool implementation
-3. RectangleTool (draw rectangles)
-4. EllipseTool (draw ellipses)
-5. DrawTool (freehand)
+1. Overlay container component
+2. Viewport transform sync (canvas ↔ overlay)
+3. Selection UI overlay (handles, rotation)
+4. Context menu overlay
 
 ---
 
