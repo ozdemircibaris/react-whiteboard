@@ -1,0 +1,144 @@
+import type { Point, Viewport, Bounds } from '../types'
+
+/**
+ * Get the device pixel ratio for high-DPI displays
+ */
+export function getDevicePixelRatio(): number {
+  return typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+}
+
+/**
+ * Convert screen coordinates to canvas coordinates
+ */
+export function screenToCanvas(
+  screenPoint: Point,
+  viewport: Viewport,
+  canvasRect: DOMRect
+): Point {
+  const { x: panX, y: panY, zoom } = viewport
+
+  return {
+    x: (screenPoint.x - canvasRect.left - panX) / zoom,
+    y: (screenPoint.y - canvasRect.top - panY) / zoom,
+  }
+}
+
+/**
+ * Convert canvas coordinates to screen coordinates
+ */
+export function canvasToScreen(
+  canvasPoint: Point,
+  viewport: Viewport,
+  canvasRect: DOMRect
+): Point {
+  const { x: panX, y: panY, zoom } = viewport
+
+  return {
+    x: canvasPoint.x * zoom + panX + canvasRect.left,
+    y: canvasPoint.y * zoom + panY + canvasRect.top,
+  }
+}
+
+/**
+ * Get the visible bounds in canvas coordinates
+ */
+export function getVisibleBounds(
+  viewport: Viewport,
+  canvasWidth: number,
+  canvasHeight: number
+): Bounds {
+  const { x: panX, y: panY, zoom } = viewport
+
+  return {
+    x: -panX / zoom,
+    y: -panY / zoom,
+    width: canvasWidth / zoom,
+    height: canvasHeight / zoom,
+  }
+}
+
+/**
+ * Check if a point is within bounds
+ */
+export function isPointInBounds(point: Point, bounds: Bounds): boolean {
+  return (
+    point.x >= bounds.x &&
+    point.x <= bounds.x + bounds.width &&
+    point.y >= bounds.y &&
+    point.y <= bounds.y + bounds.height
+  )
+}
+
+/**
+ * Check if two bounds intersect
+ */
+export function boundsIntersect(a: Bounds, b: Bounds): boolean {
+  return !(
+    a.x + a.width < b.x ||
+    b.x + b.width < a.x ||
+    a.y + a.height < b.y ||
+    b.y + b.height < a.y
+  )
+}
+
+/**
+ * Get the center point of bounds
+ */
+export function getBoundsCenter(bounds: Bounds): Point {
+  return {
+    x: bounds.x + bounds.width / 2,
+    y: bounds.y + bounds.height / 2,
+  }
+}
+
+/**
+ * Expand bounds by a given amount
+ */
+export function expandBounds(bounds: Bounds, amount: number): Bounds {
+  return {
+    x: bounds.x - amount,
+    y: bounds.y - amount,
+    width: bounds.width + amount * 2,
+    height: bounds.height + amount * 2,
+  }
+}
+
+/**
+ * Calculate distance between two points
+ */
+export function distance(a: Point, b: Point): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+/**
+ * Calculate the angle between two points (in radians)
+ */
+export function angle(from: Point, to: Point): number {
+  return Math.atan2(to.y - from.y, to.x - from.x)
+}
+
+/**
+ * Clamp a value between min and max
+ */
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+/**
+ * Linear interpolation between two values
+ */
+export function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t
+}
+
+/**
+ * Linear interpolation between two points
+ */
+export function lerpPoint(a: Point, b: Point, t: number): Point {
+  return {
+    x: lerp(a.x, b.x, t),
+    y: lerp(a.y, b.y, t),
+  }
+}
