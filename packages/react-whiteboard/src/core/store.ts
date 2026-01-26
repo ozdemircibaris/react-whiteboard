@@ -63,6 +63,7 @@ export interface WhiteboardStore {
   redo: () => void
   canUndo: () => boolean
   canRedo: () => boolean
+  recordBatchUpdate: (before: Shape[], after: Shape[]) => void
 }
 
 // ============================================================================
@@ -508,6 +509,27 @@ export const createWhiteboardStore = () =>
 
       canUndo: () => get().historyIndex >= 0,
       canRedo: () => get().historyIndex < get().history.length - 1,
+
+      recordBatchUpdate: (before, after) => {
+        if (before.length === 0 || after.length === 0) return
+
+        set((state) => {
+          const entry = createHistoryEntry({
+            type: 'update',
+            before,
+            after,
+          })
+          const newHistory = state.history.slice(0, state.historyIndex + 1)
+          newHistory.push(entry)
+          if (newHistory.length > MAX_HISTORY) {
+            newHistory.shift()
+          }
+          return {
+            history: newHistory,
+            historyIndex: newHistory.length - 1,
+          }
+        })
+      },
     }))
   )
 

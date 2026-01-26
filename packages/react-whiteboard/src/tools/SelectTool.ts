@@ -321,34 +321,8 @@ export class SelectTool implements ITool {
     beforeShapes: Shape[],
     afterShapes: Shape[]
   ): void {
-    // Use a workaround: update the first shape with history to record the batch
-    // This is a simplified approach - ideally the store would have a batch update method
     if (beforeShapes.length > 0 && afterShapes.length > 0) {
-      // We've already updated shapes without history
-      // Now we need to manually push to history
-      // Access the store's internal state
-      const storeState = store as unknown as {
-        history: Array<{ id: string; timestamp: number; action: unknown }>
-        historyIndex: number
-      }
-
-      // Create history entry
-      const entry = {
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: Date.now(),
-        action: {
-          type: 'update' as const,
-          before: beforeShapes,
-          after: afterShapes,
-        },
-      }
-
-      // Push to history (truncate forward history)
-      const newHistory = storeState.history.slice(0, storeState.historyIndex + 1)
-      newHistory.push(entry)
-
-      // Update store state directly (this is a workaround)
-      // In a proper implementation, the store would expose a recordHistory method
+      store.recordBatchUpdate(beforeShapes, afterShapes)
     }
   }
 }

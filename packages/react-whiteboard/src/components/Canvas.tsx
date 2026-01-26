@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useState } from 'react'
 import { nanoid } from 'nanoid'
 import { useWhiteboardStore } from '../core/store'
 import { CanvasRenderer } from '../core/renderer'
-import { getDevicePixelRatio, screenToCanvas, snapToAngle } from '../utils/canvas'
+import { getDevicePixelRatio, screenToCanvas, snapToAngle, calculateArrowhead } from '../utils/canvas'
 import {
   getShapeAtPoint,
   hitTestResizeHandles,
@@ -234,22 +234,13 @@ export function Canvas({
         ctx.lineCap = 'round'
         ctx.stroke()
 
-        // Draw arrowhead
-        const angle = Math.atan2(end.y - start.y, end.x - start.x)
-        const headAngle = Math.PI / 6
-        const headSize = 12
-
+        // Draw arrowhead using utility function
+        const [wing1, wing2] = calculateArrowhead(start, end)
         ctx.fillStyle = '#333333'
         ctx.beginPath()
         ctx.moveTo(end.x, end.y)
-        ctx.lineTo(
-          end.x - headSize * Math.cos(angle - headAngle),
-          end.y - headSize * Math.sin(angle - headAngle)
-        )
-        ctx.lineTo(
-          end.x - headSize * Math.cos(angle + headAngle),
-          end.y - headSize * Math.sin(angle + headAngle)
-        )
+        ctx.lineTo(wing1.x, wing1.y)
+        ctx.lineTo(wing2.x, wing2.y)
         ctx.closePath()
         ctx.fill()
       }
@@ -285,22 +276,28 @@ export function Canvas({
     const container = containerRef.current
     if (!container) return
 
-    // Use ResizeObserver to detect when container actually has dimensions
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
-        setupCanvas()
-      }
-    })
+    let resizeObserver: ResizeObserver | null = null
 
-    resizeObserver.observe(container)
+    // Use ResizeObserver if available
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0]
+        if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+          setupCanvas()
+        }
+      })
+      resizeObserver.observe(container)
+    } else {
+      // Fallback: initial setup for browsers without ResizeObserver
+      setupCanvas()
+    }
 
     // Also listen for window resize as fallback
     const handleResize = () => setupCanvas()
     window.addEventListener('resize', handleResize)
 
     return () => {
-      resizeObserver.disconnect()
+      resizeObserver?.disconnect()
       window.removeEventListener('resize', handleResize)
     }
   }, [setupCanvas])
