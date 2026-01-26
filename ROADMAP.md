@@ -1,7 +1,7 @@
 # Whiteboard Project Roadmap
 
 ## Tech Stack (Final)
-- **Rendering**: Canvas + HTML Overlay
+- **Rendering**: Canvas + HTML Overlay (when needed)
 - **State**: Zustand
 - **Collaboration**: Yjs + WebSocket
 - **App**: Vite + React 19 (demo), Next.js (future SaaS)
@@ -49,10 +49,10 @@
 - [x] Implement shapes:
   - [x] Rectangle
   - [x] Ellipse/Circle
-  - [ ] Line — deferred
-  - [ ] Arrow — deferred
-  - [ ] Text — deferred
   - [x] Path (freehand)
+  - [ ] Line — Phase 8
+  - [ ] Arrow — Phase 8
+  - [ ] Text — Phase 8
 - [x] Shape bounds calculation
 - [x] Hit testing (point-in-shape detection)
 
@@ -66,8 +66,8 @@
 - [x] Selection bounds box — rendering only
 - [x] Drag to move shapes
 - [x] Resize handles (8-point)
-- [ ] Rotation handle — deferred
-- [ ] Snapping (optional, can defer)
+- [ ] Rotation handle — Phase 10
+- [ ] Snapping — Phase 10
 
 ## Phase 6: Tools System ✅ COMPLETED
 - [x] Tool state machine
@@ -76,10 +76,10 @@
   - [x] SelectTool
   - [x] RectangleTool
   - [x] EllipseTool
-  - [ ] LineTool — deferred
-  - [ ] ArrowTool — deferred
   - [x] DrawTool (freehand)
-  - [ ] TextTool — deferred
+  - [ ] LineTool — Phase 8
+  - [ ] ArrowTool — Phase 8
+  - [ ] TextTool — Phase 8
 - [x] Tool cursor management
 - [x] Toolbar state sync
 
@@ -100,35 +100,80 @@
 - [x] Keyboard shortcuts (Cmd+Z, Cmd+Shift+Z, Ctrl+Y)
 - [x] CRDT-friendly structure (for future collab)
 
-## Phase 8: HTML Overlay Layer
-- [ ] Overlay container component
-- [ ] Viewport transform sync (canvas ↔ overlay)
-- [ ] ReactComponentShape type
-- [ ] Shape-to-overlay positioning
-- [ ] Selection UI overlay (handles, rotation)
-- [ ] Context menu overlay
-- [ ] Tooltip overlay
+---
 
-## Phase 9: Library API & Export
+## Phase 8: Core Shapes & Tools ← CURRENT
+Complete the essential shapes and tools for a functional whiteboard.
+
+### Text System
+- [ ] Text shape type (position, content, fontSize, fontFamily, color, align)
+- [ ] TextTool implementation
+- [ ] Inline text editing (contenteditable overlay or canvas-based)
+- [ ] Text bounds calculation
+- [ ] Text hit testing
+- [ ] Font size controls
+
+### Line & Arrow
+- [ ] Line shape type (start, end, strokeWidth, color)
+- [ ] Arrow shape type (extends Line with arrowhead options)
+- [ ] LineTool implementation
+- [ ] ArrowTool implementation
+- [ ] Line/Arrow hit testing (proximity-based)
+- [ ] Endpoint handles for editing
+
+### Toolbar Updates
+- [ ] Add Text, Line, Arrow buttons to toolbar
+- [ ] Tool icons
+
+## Phase 9: Export & Import
+Enable sharing and saving work.
+
+- [ ] Export to PNG (canvas.toDataURL)
+- [ ] Export to SVG (shape-to-SVG conversion)
+- [ ] Export to JSON (serialize shapes)
+- [ ] Import from JSON (deserialize)
+- [ ] Download UI (export button, format selection)
+- [ ] Import from Excalidraw (optional, nice-to-have)
+
+## Phase 10: Editing Polish
+Improve the editing experience.
+
+### Copy/Paste
+- [ ] Internal copy (Cmd+C)
+- [ ] Internal paste (Cmd+V)
+- [ ] Duplicate (Cmd+D)
+- [ ] Cut (Cmd+X)
+- [ ] Paste offset (so pastes don't overlap)
+- [ ] External paste (images from clipboard)
+
+### Snapping & Alignment
+- [ ] Snap to grid
+- [ ] Snap to other shapes (edges, centers)
+- [ ] Smart guides (alignment lines)
+- [ ] Align tools (left, center, right, top, middle, bottom)
+- [ ] Distribute evenly
+
+### Rotation
+- [ ] Rotation handle on selection
+- [ ] Rotate shapes (update rotation property)
+- [ ] Shift+rotate for 15° increments
+
+## Phase 11: Library API
+Clean up the public API for library consumers.
+
 - [ ] Clean public API design
-- [ ] `<Whiteboard />` component
-- [ ] Props: initialData, onChange, tools, etc.
+- [ ] `<Whiteboard />` wrapper component
+- [ ] Props: initialData, onChange, tools, readOnly, etc.
 - [ ] Hooks: useWhiteboard, useViewport, useSelection
-- [ ] Event callbacks: onShapeCreate, onShapeUpdate, etc.
+- [ ] Event callbacks: onShapeCreate, onShapeUpdate, onShapeDelete
 - [x] TypeScript types export
 - [x] Build setup (tsup)
 - [x] Package.json exports config
+- [ ] API documentation
 
-## Phase 10: Demo App - Basic
-- [x] App layout (toolbar, canvas)
-- [x] Toolbar component — basic
-- [ ] Shape properties panel
-- [x] Zoom controls — display only
-- [x] Keyboard shortcuts help (Instructions component)
-- [ ] Dark/light mode
-- [ ] Responsive design
+## Phase 12: Persistence (Supabase)
+Save and load boards from the cloud.
 
-## Phase 11: Persistence (Supabase)
 - [ ] Supabase project setup
 - [ ] Auth (email, Google, GitHub)
 - [ ] Database schema (boards, shapes)
@@ -136,10 +181,13 @@
 - [ ] Load board
 - [ ] Auto-save (debounced)
 - [ ] Board list/dashboard
+- [ ] Share board (public link)
 
-## Phase 12: Collaboration (Yjs + WebSocket)
+## Phase 13: Collaboration (Yjs + WebSocket)
+Real-time multi-user editing.
+
 - [ ] Yjs document structure
-- [ ] WebSocket server setup (or Supabase Realtime as transport)
+- [ ] WebSocket server setup (or Supabase Realtime)
 - [ ] Y.Map for shapes
 - [ ] Provider setup (y-websocket or y-supabase)
 - [ ] Cursor presence (awareness)
@@ -147,16 +195,19 @@
 - [ ] Conflict resolution testing
 - [ ] Offline support + sync
 
-## Phase 13: Export & Import
-- [ ] Export to PNG
-- [ ] Export to SVG
-- [ ] Export to JSON
-- [ ] Import from JSON
-- [ ] Import from Excalidraw (optional)
-- [ ] Copy/paste (internal)
-- [ ] Copy/paste (external - images)
+## Phase 14: HTML Overlay Layer
+Add HTML elements on top of canvas when needed.
 
-## Phase 14: Polish & Production
+- [ ] Overlay container component
+- [ ] Viewport transform sync (canvas ↔ overlay)
+- [ ] Text editing overlay (if not canvas-based)
+- [ ] Context menu overlay
+- [ ] Tooltip overlay
+- [ ] Properties panel (shape settings)
+
+## Phase 15: Polish & Production
+Production-ready quality.
+
 - [ ] Performance profiling
 - [ ] Memory leak testing
 - [ ] Large board testing (1000+ shapes)
@@ -164,11 +215,13 @@
 - [ ] Loading states
 - [ ] Empty states
 - [ ] Accessibility (keyboard navigation)
-- [ ] SEO (for app pages)
-- [ ] Analytics setup
+- [ ] Dark/light mode
+- [ ] Responsive design
 - [ ] Error tracking (Sentry)
 
-## Phase 15: Launch Prep
+## Phase 16: Launch Prep
+Ready for public release.
+
 - [ ] Documentation site
 - [ ] README.md
 - [ ] Contributing guide
@@ -176,18 +229,18 @@
 - [ ] npm publish setup
 - [ ] Demo/examples
 - [ ] Landing page
-- [ ] Beta user feedback system
+- [ ] Beta user feedback
 
 ---
 
 ## Current Focus
-**Phase 8: HTML Overlay Layer** ← NEXT
+**Phase 8: Core Shapes & Tools** ← NEXT
 
-Priority tasks:
-1. Overlay container component
-2. Viewport transform sync (canvas ↔ overlay)
-3. Selection UI overlay (handles, rotation)
-4. Context menu overlay
+Priority:
+1. Text shape + TextTool (most requested feature)
+2. Line shape + LineTool
+3. Arrow shape + ArrowTool
+4. Update toolbar with new tools
 
 ---
 
@@ -196,3 +249,4 @@ Priority tasks:
 - Test as you go, don't leave testing for the end
 - Keep the library headless, UI belongs in the app
 - Document public APIs as you build them
+- Focus on core features before fancy additions

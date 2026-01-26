@@ -6,6 +6,9 @@ import { selectTool } from './SelectTool'
 import { rectangleTool } from './RectangleTool'
 import { ellipseTool } from './EllipseTool'
 import { drawTool } from './DrawTool'
+import { lineTool } from './LineTool'
+import { arrowTool } from './ArrowTool'
+import { textTool } from './TextTool'
 
 /**
  * Tool manager - handles tool switching and event routing
@@ -29,6 +32,9 @@ export class ToolManager {
     this.registerTool(rectangleTool)
     this.registerTool(ellipseTool)
     this.registerTool(drawTool)
+    this.registerTool(lineTool)
+    this.registerTool(arrowTool)
+    this.registerTool(textTool)
   }
 
   /**

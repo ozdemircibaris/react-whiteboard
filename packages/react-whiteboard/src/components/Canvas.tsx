@@ -2,15 +2,16 @@ import { useRef, useEffect, useCallback, useState } from 'react'
 import { nanoid } from 'nanoid'
 import { useWhiteboardStore } from '../core/store'
 import { CanvasRenderer } from '../core/renderer'
-import { getDevicePixelRatio, screenToCanvas } from '../utils/canvas'
+import { getDevicePixelRatio, screenToCanvas, snapToAngle } from '../utils/canvas'
 import {
   getShapeAtPoint,
   hitTestResizeHandles,
   RESIZE_CURSORS,
   type ResizeHandle,
 } from '../utils/hitTest'
-import type { Point, Bounds, RectangleShape, EllipseShape, PathShape } from '../types'
+import type { Point, Bounds, RectangleShape, EllipseShape, PathShape, LineShape, ArrowShape, TextShape } from '../types'
 import { TOOL_CURSORS } from '../tools/types'
+import { textTool } from '../tools/TextTool'
 
 export interface CanvasProps {
   /** Show grid */
@@ -34,6 +35,7 @@ export function Canvas({
 }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const textOverlayRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<CanvasRenderer | null>(null)
   const rafRef = useRef<number>(0)
   const lastPointerRef = useRef<Point | null>(null)
@@ -236,6 +238,43 @@ export function Canvas({
         ctx.lineCap = 'round'
         ctx.lineJoin = 'round'
         ctx.stroke()
+      } else if (currentTool === 'line') {
+        // Draw line preview
+        ctx.beginPath()
+        ctx.moveTo(start.x, start.y)
+        ctx.lineTo(end.x, end.y)
+        ctx.strokeStyle = '#333333'
+        ctx.lineWidth = 2
+        ctx.lineCap = 'round'
+        ctx.stroke()
+      } else if (currentTool === 'arrow') {
+        // Draw arrow preview
+        ctx.beginPath()
+        ctx.moveTo(start.x, start.y)
+        ctx.lineTo(end.x, end.y)
+        ctx.strokeStyle = '#333333'
+        ctx.lineWidth = 2
+        ctx.lineCap = 'round'
+        ctx.stroke()
+
+        // Draw arrowhead
+        const angle = Math.atan2(end.y - start.y, end.x - start.x)
+        const headAngle = Math.PI / 6
+        const headSize = 12
+
+        ctx.fillStyle = '#333333'
+        ctx.beginPath()
+        ctx.moveTo(end.x, end.y)
+        ctx.lineTo(
+          end.x - headSize * Math.cos(angle - headAngle),
+          end.y - headSize * Math.sin(angle - headAngle)
+        )
+        ctx.lineTo(
+          end.x - headSize * Math.cos(angle + headAngle),
+          end.y - headSize * Math.sin(angle + headAngle)
+        )
+        ctx.closePath()
+        ctx.fill()
       }
 
       ctx.restore()
@@ -396,8 +435,8 @@ export function Canvas({
         const rect = container.getBoundingClientRect()
         const canvasPoint = screenToCanvas({ x: e.clientX, y: e.clientY }, viewport, rect)
 
-        // Handle drawing tools (rectangle, ellipse, draw)
-        if (currentTool === 'rectangle' || currentTool === 'ellipse' || currentTool === 'draw') {
+        // Handle drawing tools (rectangle, ellipse, draw, line, arrow)
+        if (currentTool === 'rectangle' || currentTool === 'ellipse' || currentTool === 'draw' || currentTool === 'line' || currentTool === 'arrow') {
           isDrawingShapeRef.current = true
           drawingStartPointRef.current = canvasPoint
           drawingCurrentPointRef.current = canvasPoint
@@ -406,6 +445,19 @@ export function Canvas({
             setIsDrawing(true)
           }
           clearSelection()
+          return
+        }
+
+        // Handle text tool - use TextTool's inline editing
+        if (currentTool === 'text') {
+          // Check if clicking on existing text shape for editing
+          const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
+          if (hitShape && hitShape.type === 'text') {
+            textTool.editText(hitShape as TextShape, viewport, useWhiteboardStore.getState())
+          } else {
+            // Create new text with inline input
+            textTool.startTextAt(canvasPoint, viewport, useWhiteboardStore.getState())
+          }
           return
         }
 
@@ -499,10 +551,16 @@ export function Canvas({
         return
       }
 
-      // Handle drawing shapes (rectangle, ellipse, draw)
+      // Handle drawing shapes (rectangle, ellipse, draw, line, arrow)
       if (isDrawingShapeRef.current && container && drawingStartPointRef.current) {
         const rect = container.getBoundingClientRect()
-        const canvasPoint = screenToCanvas(currentPoint, viewport, rect)
+        let canvasPoint = screenToCanvas(currentPoint, viewport, rect)
+
+        // Apply angle snapping for line/arrow with shift key
+        if ((currentTool === 'line' || currentTool === 'arrow') && (window.event as KeyboardEvent)?.shiftKey) {
+          canvasPoint = snapToAngle(drawingStartPointRef.current, canvasPoint)
+        }
+
         drawingCurrentPointRef.current = canvasPoint
 
         if (currentTool === 'draw') {
@@ -744,6 +802,95 @@ export function Canvas({
           }
           addShape(shape, true)
           setIsDrawing(false)
+        } else if (currentTool === 'line') {
+          // Apply angle snapping if shift key is held
+          let finalEnd = end
+          if (e.shiftKey) {
+            finalEnd = snapToAngle(start, end)
+          }
+
+          const length = Math.hypot(finalEnd.x - start.x, finalEnd.y - start.y)
+          if (length >= 5) {
+            // Calculate bounding box
+            const minX = Math.min(start.x, finalEnd.x)
+            const minY = Math.min(start.y, finalEnd.y)
+            const maxX = Math.max(start.x, finalEnd.x)
+            const maxY = Math.max(start.y, finalEnd.y)
+
+            // Normalize points relative to bounding box
+            const normalizedPoints: Point[] = [
+              { x: start.x - minX, y: start.y - minY },
+              { x: finalEnd.x - minX, y: finalEnd.y - minY },
+            ]
+
+            const shape: LineShape = {
+              id: nanoid(),
+              type: 'line',
+              x: minX,
+              y: minY,
+              width: Math.max(maxX - minX, 1),
+              height: Math.max(maxY - minY, 1),
+              rotation: 0,
+              opacity: 1,
+              isLocked: false,
+              parentId: null,
+              props: {
+                stroke: '#333333',
+                strokeWidth: 2,
+                points: normalizedPoints,
+              },
+            }
+            addShape(shape, true)
+            select(shape.id)
+          }
+        } else if (currentTool === 'arrow') {
+          // Apply angle snapping if shift key is held
+          let finalEnd = end
+          if (e.shiftKey) {
+            finalEnd = snapToAngle(start, end)
+          }
+
+          const length = Math.hypot(finalEnd.x - start.x, finalEnd.y - start.y)
+          if (length >= 5) {
+            // Calculate bounding box
+            const minX = Math.min(start.x, finalEnd.x)
+            const minY = Math.min(start.y, finalEnd.y)
+            const maxX = Math.max(start.x, finalEnd.x)
+            const maxY = Math.max(start.y, finalEnd.y)
+
+            // Normalize points relative to bounding box
+            const normalizedStart: Point = {
+              x: start.x - minX,
+              y: start.y - minY,
+            }
+            const normalizedEnd: Point = {
+              x: finalEnd.x - minX,
+              y: finalEnd.y - minY,
+            }
+
+            const shape: ArrowShape = {
+              id: nanoid(),
+              type: 'arrow',
+              x: minX,
+              y: minY,
+              width: Math.max(maxX - minX, 1),
+              height: Math.max(maxY - minY, 1),
+              rotation: 0,
+              opacity: 1,
+              isLocked: false,
+              parentId: null,
+              props: {
+                stroke: '#333333',
+                strokeWidth: 2,
+                start: normalizedStart,
+                end: normalizedEnd,
+                startArrowhead: 'none',
+                endArrowhead: 'arrow',
+              },
+            }
+            addShape(shape, true)
+            select(shape.id)
+          }
         }
 
         // Reset drawing state
@@ -933,6 +1080,18 @@ export function Canvas({
   )
 
   /**
+   * Set up text overlay container for TextTool
+   */
+  useEffect(() => {
+    if (textOverlayRef.current) {
+      textTool.setOverlayContainer(textOverlayRef.current)
+    }
+    return () => {
+      textTool.setOverlayContainer(null)
+    }
+  }, [])
+
+  /**
    * Handle touch end
    */
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
@@ -987,6 +1146,19 @@ export function Canvas({
         style={{
           display: 'block',
           cursor: isPanning ? 'grabbing' : cursorStyle,
+        }}
+      />
+      {/* Text editing overlay container */}
+      <div
+        ref={textOverlayRef}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          pointerEvents: 'none',
+          overflow: 'hidden',
         }}
       />
     </div>

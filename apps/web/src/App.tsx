@@ -45,7 +45,10 @@ function Toolbar() {
     { type: 'select', label: 'Select' },
     { type: 'rectangle', label: 'Rectangle' },
     { type: 'ellipse', label: 'Ellipse' },
+    { type: 'line', label: 'Line' },
+    { type: 'arrow', label: 'Arrow' },
     { type: 'draw', label: 'Draw' },
+    { type: 'text', label: 'Text' },
   ]
 
   return (
@@ -113,7 +116,9 @@ function Instructions() {
       <ul className="mt-1 space-y-0.5">
         <li>• Select: Click to select, drag to move</li>
         <li>• Rectangle/Ellipse: Drag to draw (Shift for square/circle)</li>
+        <li>• Line/Arrow: Drag to draw (Shift for 45° angles)</li>
         <li>• Draw: Freehand drawing</li>
+        <li>• Text: Click to place, Enter to confirm</li>
       </ul>
       <p className="font-medium text-gray-800 mt-2">Navigation:</p>
       <ul className="mt-1 space-y-0.5">

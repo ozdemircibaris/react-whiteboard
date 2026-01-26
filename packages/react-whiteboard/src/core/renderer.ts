@@ -1,4 +1,13 @@
-import type { Shape, Viewport, RectangleShape, EllipseShape, PathShape } from '../types'
+import type {
+  Shape,
+  Viewport,
+  RectangleShape,
+  EllipseShape,
+  PathShape,
+  LineShape,
+  ArrowShape,
+  TextShape,
+} from '../types'
 import { getDevicePixelRatio } from '../utils/canvas'
 
 /**
@@ -88,6 +97,15 @@ export class CanvasRenderer {
         break
       case 'path':
         this.drawPath(shape as PathShape, isSelected)
+        break
+      case 'line':
+        this.drawLine(shape as LineShape, isSelected)
+        break
+      case 'arrow':
+        this.drawArrow(shape as ArrowShape, isSelected)
+        break
+      case 'text':
+        this.drawText(shape as TextShape, isSelected)
         break
       default:
         // Unknown shape type - draw bounding box
@@ -284,6 +302,136 @@ export class CanvasRenderer {
       this.ctx.fillRect(handle.x, handle.y, handleSize, handleSize)
       this.ctx.strokeRect(handle.x, handle.y, handleSize, handleSize)
     })
+  }
+
+  /**
+   * Draw a line
+   */
+  private drawLine(shape: LineShape, isSelected: boolean): void {
+    const { x, y, opacity, props } = shape
+    const { stroke, strokeWidth, points } = props
+
+    const startPoint = points[0]
+    const endPoint = points[1]
+    if (!startPoint || !endPoint) return
+
+    this.ctx.save()
+    this.ctx.globalAlpha = opacity
+
+    this.ctx.beginPath()
+    this.ctx.moveTo(x + startPoint.x, y + startPoint.y)
+    this.ctx.lineTo(x + endPoint.x, y + endPoint.y)
+
+    this.ctx.strokeStyle = stroke
+    this.ctx.lineWidth = strokeWidth
+    this.ctx.lineCap = 'round'
+    this.ctx.stroke()
+
+    if (isSelected) {
+      this.drawSelectionOutline(x, y, shape.width, shape.height)
+    }
+
+    this.ctx.restore()
+  }
+
+  /**
+   * Draw an arrow
+   */
+  private drawArrow(shape: ArrowShape, isSelected: boolean): void {
+    const { x, y, opacity, props } = shape
+    const { stroke, strokeWidth, start, end, endArrowhead } = props
+
+    this.ctx.save()
+    this.ctx.globalAlpha = opacity
+
+    const startX = x + start.x
+    const startY = y + start.y
+    const endX = x + end.x
+    const endY = y + end.y
+
+    // Draw line
+    this.ctx.beginPath()
+    this.ctx.moveTo(startX, startY)
+    this.ctx.lineTo(endX, endY)
+    this.ctx.strokeStyle = stroke
+    this.ctx.lineWidth = strokeWidth
+    this.ctx.lineCap = 'round'
+    this.ctx.stroke()
+
+    // Draw arrowhead at end
+    if (endArrowhead === 'arrow' || endArrowhead === 'triangle') {
+      this.drawArrowhead(startX, startY, endX, endY, strokeWidth * 4, stroke)
+    }
+
+    if (isSelected) {
+      this.drawSelectionOutline(x, y, shape.width, shape.height)
+    }
+
+    this.ctx.restore()
+  }
+
+  /**
+   * Draw arrowhead at the end point
+   */
+  private drawArrowhead(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    size: number,
+    color: string
+  ): void {
+    const angle = Math.atan2(toY - fromY, toX - fromX)
+    const headAngle = Math.PI / 6 // 30 degrees
+
+    this.ctx.fillStyle = color
+    this.ctx.beginPath()
+    this.ctx.moveTo(toX, toY)
+    this.ctx.lineTo(
+      toX - size * Math.cos(angle - headAngle),
+      toY - size * Math.sin(angle - headAngle)
+    )
+    this.ctx.lineTo(
+      toX - size * Math.cos(angle + headAngle),
+      toY - size * Math.sin(angle + headAngle)
+    )
+    this.ctx.closePath()
+    this.ctx.fill()
+  }
+
+  /**
+   * Draw text with multiline support
+   */
+  private drawText(shape: TextShape, isSelected: boolean): void {
+    const { x, y, width, opacity, props } = shape
+    const { text, fontSize, fontFamily, fontWeight, color, align } = props
+
+    this.ctx.save()
+    this.ctx.globalAlpha = opacity
+
+    this.ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
+    this.ctx.fillStyle = color
+    this.ctx.textAlign = align as CanvasTextAlign
+    this.ctx.textBaseline = 'top'
+
+    // Calculate x position based on alignment
+    let textX = x
+    if (align === 'center') textX = x + width / 2
+    else if (align === 'right') textX = x + width
+
+    // Handle multiline text
+    const lineHeight = fontSize * 1.2
+    const lines = text.split('\n')
+
+    lines.forEach((line, index) => {
+      this.ctx.fillText(line, textX, y + index * lineHeight)
+    })
+
+    if (isSelected) {
+      this.drawSelectionOutline(x, y, shape.width, shape.height)
+    }
+
+    this.ctx.restore()
   }
 
   /**
