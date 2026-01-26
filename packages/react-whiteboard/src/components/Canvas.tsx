@@ -89,51 +89,28 @@ export function Canvas({
   // Cursor state for hover detection
   const [cursorStyle, setCursorStyle] = useState<string>('default')
 
+  // Track shift key state for angle snapping
+  const isShiftPressedRef = useRef(false)
+
   /**
    * Setup canvas and renderer
    */
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
     const container = containerRef.current
-    if (!canvas || !container) {
-      console.log('[Canvas] setupCanvas: canvas or container is null', { canvas: !!canvas, container: !!container })
-      return
-    }
+    if (!canvas || !container) return
 
     const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      console.log('[Canvas] setupCanvas: ctx is null')
-      return
-    }
+    if (!ctx) return
 
     const dpr = getDevicePixelRatio()
     const rect = container.getBoundingClientRect()
-
-    console.log('[Canvas] setupCanvas called:', {
-      containerRect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
-      dpr,
-      containerStyle: {
-        width: container.style.width,
-        height: container.style.height,
-        position: getComputedStyle(container).position,
-        display: getComputedStyle(container).display,
-      },
-      parentElement: container.parentElement?.tagName,
-      parentRect: container.parentElement?.getBoundingClientRect(),
-    })
 
     // Set canvas size with DPI scaling
     canvas.width = rect.width * dpr
     canvas.height = rect.height * dpr
     canvas.style.width = `${rect.width}px`
     canvas.style.height = `${rect.height}px`
-
-    console.log('[Canvas] canvas size set:', {
-      canvasWidth: canvas.width,
-      canvasHeight: canvas.height,
-      canvasStyleWidth: canvas.style.width,
-      canvasStyleHeight: canvas.style.height,
-    })
 
     // Create renderer
     rendererRef.current = new CanvasRenderer(ctx)
@@ -306,17 +283,11 @@ export function Canvas({
    */
   useEffect(() => {
     const container = containerRef.current
-    console.log('[Canvas] useEffect mount, container:', !!container)
     if (!container) return
 
     // Use ResizeObserver to detect when container actually has dimensions
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0]
-      console.log('[Canvas] ResizeObserver fired:', {
-        contentRect: entry?.contentRect,
-        width: entry?.contentRect.width,
-        height: entry?.contentRect.height,
-      })
       if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
         setupCanvas()
       }
@@ -333,6 +304,28 @@ export function Canvas({
       window.removeEventListener('resize', handleResize)
     }
   }, [setupCanvas])
+
+  /**
+   * Track shift key for angle snapping during drawing
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        isShiftPressedRef.current = true
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        isShiftPressedRef.current = false
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [])
 
   /**
    * Keyboard shortcuts
@@ -557,7 +550,7 @@ export function Canvas({
         let canvasPoint = screenToCanvas(currentPoint, viewport, rect)
 
         // Apply angle snapping for line/arrow with shift key
-        if ((currentTool === 'line' || currentTool === 'arrow') && (window.event as KeyboardEvent)?.shiftKey) {
+        if ((currentTool === 'line' || currentTool === 'arrow') && isShiftPressedRef.current) {
           canvasPoint = snapToAngle(drawingStartPointRef.current, canvasPoint)
         }
 

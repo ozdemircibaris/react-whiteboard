@@ -1,6 +1,9 @@
 // Tool types and interfaces
 export * from './types'
 
+// Base classes
+export { BaseLineTool } from './BaseLineTool'
+
 // Tool implementations
 export { SelectTool, selectTool } from './SelectTool'
 export { RectangleTool, rectangleTool } from './RectangleTool'
