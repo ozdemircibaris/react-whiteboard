@@ -1,4 +1,4 @@
-import type { Point, Shape, Bounds, PathShape } from '../types'
+import type { Point, Shape, Bounds, PathShape, LineShape, ArrowShape } from '../types'
 
 // ============================================================================
 // Resize Handle Types & Constants
@@ -153,7 +153,7 @@ export function hitTestEllipse(
 /**
  * Calculate distance from point to line segment
  */
-function distanceToLineSegment(point: Point, start: Point, end: Point): number {
+export function distanceToLineSegment(point: Point, start: Point, end: Point): number {
   const dx = end.x - start.x
   const dy = end.y - start.y
   const lengthSq = dx * dx + dy * dy
@@ -210,6 +210,77 @@ export function hitTestPath(
 }
 
 /**
+ * Hit test for line shape
+ */
+export function hitTestLine(
+  point: Point,
+  shape: LineShape,
+  tolerance: number = 5
+): boolean {
+  const { x, y, props } = shape
+  const { points, strokeWidth } = props
+
+  const startPoint = points[0]
+  const endPoint = points[1]
+  if (!startPoint || !endPoint) return false
+
+  const start = { x: x + startPoint.x, y: y + startPoint.y }
+  const end = { x: x + endPoint.x, y: y + endPoint.y }
+
+  const dist = distanceToLineSegment(point, start, end)
+  return dist <= tolerance + strokeWidth / 2
+}
+
+/**
+ * Check if point is inside a triangle
+ */
+function pointInTriangle(p: Point, p1: Point, p2: Point, p3: Point): boolean {
+  const area = 0.5 * (-p2.y * p3.x + p1.y * (-p2.x + p3.x) + p1.x * (p2.y - p3.y) + p2.x * p3.y)
+  if (Math.abs(area) < 0.0001) return false // Degenerate triangle
+
+  const s = (1 / (2 * area)) * (p1.y * p3.x - p1.x * p3.y + (p3.y - p1.y) * p.x + (p1.x - p3.x) * p.y)
+  const t = (1 / (2 * area)) * (p1.x * p2.y - p1.y * p2.x + (p1.y - p2.y) * p.x + (p2.x - p1.x) * p.y)
+
+  return s >= 0 && t >= 0 && 1 - s - t >= 0
+}
+
+/**
+ * Hit test for arrow shape (line + arrowhead)
+ */
+export function hitTestArrow(
+  point: Point,
+  shape: ArrowShape,
+  tolerance: number = 5
+): boolean {
+  const { x, y, props } = shape
+  const { start, end, strokeWidth } = props
+
+  const startPoint = { x: x + start.x, y: y + start.y }
+  const endPoint = { x: x + end.x, y: y + end.y }
+
+  // Test line segment
+  const dist = distanceToLineSegment(point, startPoint, endPoint)
+  if (dist <= tolerance + strokeWidth / 2) return true
+
+  // Test arrowhead triangle
+  const arrowSize = strokeWidth * 4
+  const angle = Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x)
+  const headAngle = Math.PI / 6 // 30 degrees
+
+  const p1 = endPoint
+  const p2 = {
+    x: endPoint.x - arrowSize * Math.cos(angle - headAngle),
+    y: endPoint.y - arrowSize * Math.sin(angle - headAngle),
+  }
+  const p3 = {
+    x: endPoint.x - arrowSize * Math.cos(angle + headAngle),
+    y: endPoint.y - arrowSize * Math.sin(angle + headAngle),
+  }
+
+  return pointInTriangle(point, p1, p2, p3)
+}
+
+/**
  * Hit test a single shape
  */
 export function hitTestShape(
@@ -227,9 +298,9 @@ export function hitTestShape(
     case 'path':
       return hitTestPath(point, shape as PathShape, tolerance)
     case 'line':
+      return hitTestLine(point, shape as LineShape, tolerance)
     case 'arrow':
-      // TODO: Implement line/arrow hit testing
-      return hitTestRectangle(point, shape, tolerance)
+      return hitTestArrow(point, shape as ArrowShape, tolerance)
     case 'text':
       return hitTestRectangle(point, shape, tolerance)
     default:

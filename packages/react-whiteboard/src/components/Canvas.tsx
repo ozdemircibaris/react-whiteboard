@@ -11,6 +11,7 @@ import {
 } from '../utils/hitTest'
 import type { Point, Bounds, RectangleShape, EllipseShape, PathShape } from '../types'
 import { TOOL_CURSORS } from '../tools/types'
+import { TextTool } from '../tools/TextTool'
 
 export interface CanvasProps {
   /** Show grid */
@@ -34,6 +35,7 @@ export function Canvas({
 }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const textOverlayRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<CanvasRenderer | null>(null)
   const rafRef = useRef<number>(0)
   const lastPointerRef = useRef<Point | null>(null)
@@ -933,6 +935,18 @@ export function Canvas({
   )
 
   /**
+   * Set up text overlay container for TextTool
+   */
+  useEffect(() => {
+    if (textOverlayRef.current) {
+      TextTool.setOverlayContainer(textOverlayRef.current)
+    }
+    return () => {
+      TextTool.setOverlayContainer(null)
+    }
+  }, [])
+
+  /**
    * Handle touch end
    */
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
@@ -987,6 +1001,19 @@ export function Canvas({
         style={{
           display: 'block',
           cursor: isPanning ? 'grabbing' : cursorStyle,
+        }}
+      />
+      {/* Text editing overlay container */}
+      <div
+        ref={textOverlayRef}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          pointerEvents: 'none',
+          overflow: 'hidden',
         }}
       />
     </div>
