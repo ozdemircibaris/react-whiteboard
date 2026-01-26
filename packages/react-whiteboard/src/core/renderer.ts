@@ -8,7 +8,7 @@ import type {
   ArrowShape,
   TextShape,
 } from '../types'
-import { getDevicePixelRatio } from '../utils/canvas'
+import { getDevicePixelRatio, calculateArrowhead } from '../utils/canvas'
 
 /**
  * Canvas renderer for drawing shapes
@@ -381,20 +381,17 @@ export class CanvasRenderer {
     size: number,
     color: string
   ): void {
-    const angle = Math.atan2(toY - fromY, toX - fromX)
-    const headAngle = Math.PI / 6 // 30 degrees
+    const [wing1, wing2] = calculateArrowhead(
+      { x: fromX, y: fromY },
+      { x: toX, y: toY },
+      size
+    )
 
     this.ctx.fillStyle = color
     this.ctx.beginPath()
     this.ctx.moveTo(toX, toY)
-    this.ctx.lineTo(
-      toX - size * Math.cos(angle - headAngle),
-      toY - size * Math.sin(angle - headAngle)
-    )
-    this.ctx.lineTo(
-      toX - size * Math.cos(angle + headAngle),
-      toY - size * Math.sin(angle + headAngle)
-    )
+    this.ctx.lineTo(wing1.x, wing1.y)
+    this.ctx.lineTo(wing2.x, wing2.y)
     this.ctx.closePath()
     this.ctx.fill()
   }

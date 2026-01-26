@@ -144,6 +144,35 @@ export function lerpPoint(a: Point, b: Point, t: number): Point {
 }
 
 /**
+ * Calculate arrowhead points for drawing
+ *
+ * @param start - The start point of the line
+ * @param end - The end point (tip of arrow)
+ * @param headSize - The size of the arrowhead (default: 12)
+ * @param headAngle - The angle of the arrowhead wings in radians (default: PI/6 = 30°)
+ * @returns Array of two points forming the arrowhead wings
+ */
+export function calculateArrowhead(
+  start: Point,
+  end: Point,
+  headSize: number = 12,
+  headAngle: number = Math.PI / 6
+): [Point, Point] {
+  const angle = Math.atan2(end.y - start.y, end.x - start.x)
+
+  return [
+    {
+      x: end.x - headSize * Math.cos(angle - headAngle),
+      y: end.y - headSize * Math.sin(angle - headAngle),
+    },
+    {
+      x: end.x - headSize * Math.cos(angle + headAngle),
+      y: end.y - headSize * Math.sin(angle + headAngle),
+    },
+  ]
+}
+
+/**
  * Snap a point to the nearest angle increment from a start point
  * Useful for constraining lines/arrows to fixed angles (e.g., 45°)
  *
