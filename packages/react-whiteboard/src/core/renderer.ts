@@ -400,7 +400,7 @@ export class CanvasRenderer {
   }
 
   /**
-   * Draw text
+   * Draw text with multiline support
    */
   private drawText(shape: TextShape, isSelected: boolean): void {
     const { x, y, width, opacity, props } = shape
@@ -419,7 +419,13 @@ export class CanvasRenderer {
     if (align === 'center') textX = x + width / 2
     else if (align === 'right') textX = x + width
 
-    this.ctx.fillText(text, textX, y)
+    // Handle multiline text
+    const lineHeight = fontSize * 1.2
+    const lines = text.split('\n')
+
+    lines.forEach((line, index) => {
+      this.ctx.fillText(line, textX, y + index * lineHeight)
+    })
 
     if (isSelected) {
       this.drawSelectionOutline(x, y, shape.width, shape.height)

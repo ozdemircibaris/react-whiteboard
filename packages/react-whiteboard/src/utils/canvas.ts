@@ -142,3 +142,30 @@ export function lerpPoint(a: Point, b: Point, t: number): Point {
     y: lerp(a.y, b.y, t),
   }
 }
+
+/**
+ * Snap a point to the nearest angle increment from a start point
+ * Useful for constraining lines/arrows to fixed angles (e.g., 45°)
+ *
+ * @param start - The origin point
+ * @param end - The point to snap
+ * @param snapDegrees - The angle increment in degrees (default: 45)
+ * @returns The snapped point at the same distance but aligned to the nearest angle
+ */
+export function snapToAngle(start: Point, end: Point, snapDegrees: number = 45): Point {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const currentAngle = Math.atan2(dy, dx)
+  const dist = Math.hypot(dx, dy)
+
+  // Convert snap degrees to radians
+  const snapRadians = (snapDegrees * Math.PI) / 180
+
+  // Snap to nearest angle increment
+  const snappedAngle = Math.round(currentAngle / snapRadians) * snapRadians
+
+  return {
+    x: start.x + Math.cos(snappedAngle) * dist,
+    y: start.y + Math.sin(snappedAngle) * dist,
+  }
+}

@@ -9,6 +9,7 @@ import type {
   PointerMoveResult,
   PointerUpResult,
 } from './types'
+import { snapToAngle } from '../utils/canvas'
 
 /**
  * Default arrow properties
@@ -77,7 +78,7 @@ export class ArrowTool implements ITool {
     // Calculate end point, with optional angle snapping
     let endPoint = ctx.canvasPoint
     if (ctx.shiftKey) {
-      endPoint = this.snapToAngle(state.dragStart, ctx.canvasPoint)
+      endPoint = snapToAngle(state.dragStart, ctx.canvasPoint)
     }
 
     state.dragCurrent = endPoint
@@ -99,7 +100,7 @@ export class ArrowTool implements ITool {
     // Calculate end point with optional snapping
     let endPoint = ctx.canvasPoint
     if (ctx.shiftKey) {
-      endPoint = this.snapToAngle(state.dragStart, ctx.canvasPoint)
+      endPoint = snapToAngle(state.dragStart, ctx.canvasPoint)
     }
 
     // Calculate arrow length
@@ -184,24 +185,6 @@ export class ArrowTool implements ITool {
     )
     ctx.closePath()
     ctx.fill()
-  }
-
-  /**
-   * Snap point to 45-degree angles from start
-   */
-  private snapToAngle(start: Point, end: Point): Point {
-    const dx = end.x - start.x
-    const dy = end.y - start.y
-    const angle = Math.atan2(dy, dx)
-    const distance = Math.hypot(dx, dy)
-
-    // Snap to nearest 45-degree angle
-    const snapAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4)
-
-    return {
-      x: start.x + Math.cos(snapAngle) * distance,
-      y: start.y + Math.sin(snapAngle) * distance,
-    }
   }
 
   /**

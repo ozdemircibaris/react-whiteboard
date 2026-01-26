@@ -1,6 +1,13 @@
 import type { Point, Shape, Bounds, PathShape, LineShape, ArrowShape } from '../types'
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/** Threshold for detecting degenerate shapes (near-zero areas) */
+const EPSILON = 0.0001
+
+// ============================================================================
 // Resize Handle Types & Constants
 // ============================================================================
 
@@ -232,11 +239,11 @@ export function hitTestLine(
 }
 
 /**
- * Check if point is inside a triangle
+ * Check if point is inside a triangle using barycentric coordinates
  */
 function pointInTriangle(p: Point, p1: Point, p2: Point, p3: Point): boolean {
   const area = 0.5 * (-p2.y * p3.x + p1.y * (-p2.x + p3.x) + p1.x * (p2.y - p3.y) + p2.x * p3.y)
-  if (Math.abs(area) < 0.0001) return false // Degenerate triangle
+  if (Math.abs(area) < EPSILON) return false // Degenerate triangle
 
   const s = (1 / (2 * area)) * (p1.y * p3.x - p1.x * p3.y + (p3.y - p1.y) * p.x + (p1.x - p3.x) * p.y)
   const t = (1 / (2 * area)) * (p1.x * p2.y - p1.y * p2.x + (p1.y - p2.y) * p.x + (p2.x - p1.x) * p.y)
@@ -245,7 +252,32 @@ function pointInTriangle(p: Point, p1: Point, p2: Point, p3: Point): boolean {
 }
 
 /**
- * Hit test for arrow shape (line + arrowhead)
+ * Calculate arrowhead triangle points
+ */
+function getArrowheadTriangle(
+  tip: Point,
+  fromPoint: Point,
+  size: number
+): { p1: Point; p2: Point; p3: Point } {
+  const angle = Math.atan2(tip.y - fromPoint.y, tip.x - fromPoint.x)
+  const headAngle = Math.PI / 6 // 30 degrees
+
+  return {
+    p1: tip,
+    p2: {
+      x: tip.x - size * Math.cos(angle - headAngle),
+      y: tip.y - size * Math.sin(angle - headAngle),
+    },
+    p3: {
+      x: tip.x - size * Math.cos(angle + headAngle),
+      y: tip.y - size * Math.sin(angle + headAngle),
+    },
+  }
+}
+
+/**
+ * Hit test for arrow shape (line + arrowheads)
+ * Tests both start and end arrowheads based on shape properties
  */
 export function hitTestArrow(
   point: Point,
@@ -253,7 +285,7 @@ export function hitTestArrow(
   tolerance: number = 5
 ): boolean {
   const { x, y, props } = shape
-  const { start, end, strokeWidth } = props
+  const { start, end, strokeWidth, startArrowhead, endArrowhead } = props
 
   const startPoint = { x: x + start.x, y: y + start.y }
   const endPoint = { x: x + end.x, y: y + end.y }
@@ -262,22 +294,25 @@ export function hitTestArrow(
   const dist = distanceToLineSegment(point, startPoint, endPoint)
   if (dist <= tolerance + strokeWidth / 2) return true
 
-  // Test arrowhead triangle
   const arrowSize = strokeWidth * 4
-  const angle = Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x)
-  const headAngle = Math.PI / 6 // 30 degrees
 
-  const p1 = endPoint
-  const p2 = {
-    x: endPoint.x - arrowSize * Math.cos(angle - headAngle),
-    y: endPoint.y - arrowSize * Math.sin(angle - headAngle),
-  }
-  const p3 = {
-    x: endPoint.x - arrowSize * Math.cos(angle + headAngle),
-    y: endPoint.y - arrowSize * Math.sin(angle + headAngle),
+  // Test end arrowhead if present
+  if (endArrowhead === 'arrow' || endArrowhead === 'triangle') {
+    const endTriangle = getArrowheadTriangle(endPoint, startPoint, arrowSize)
+    if (pointInTriangle(point, endTriangle.p1, endTriangle.p2, endTriangle.p3)) {
+      return true
+    }
   }
 
-  return pointInTriangle(point, p1, p2, p3)
+  // Test start arrowhead if present
+  if (startArrowhead === 'arrow' || startArrowhead === 'triangle') {
+    const startTriangle = getArrowheadTriangle(startPoint, endPoint, arrowSize)
+    if (pointInTriangle(point, startTriangle.p1, startTriangle.p2, startTriangle.p3)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 /**

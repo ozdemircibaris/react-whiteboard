@@ -36,18 +36,21 @@ export class TextTool implements ITool {
   private inputElement: HTMLInputElement | null = null
   private currentStore: WhiteboardStore | null = null
 
-  /** Overlay container set by Canvas component */
-  private static overlayContainer: HTMLElement | null = null
+  /** Overlay container - set per instance via setOverlayContainer */
+  private overlayContainer: HTMLElement | null = null
 
   /** Viewport update callback for syncing input position */
   private viewportUnsubscribe: (() => void) | null = null
 
+  /** Blur timeout handle for race condition prevention */
+  private blurTimeoutId: ReturnType<typeof setTimeout> | null = null
+
   /**
    * Set the overlay container for text input
-   * Called by Canvas component
+   * Called by Canvas component - instance method instead of static
    */
-  static setOverlayContainer(container: HTMLElement | null): void {
-    TextTool.overlayContainer = container
+  setOverlayContainer(container: HTMLElement | null): void {
+    this.overlayContainer = container
   }
 
   onActivate(store: WhiteboardStore): void {
@@ -58,6 +61,30 @@ export class TextTool implements ITool {
   onDeactivate(_store: WhiteboardStore): void {
     this.cancelEdit()
     this.currentStore = null
+  }
+
+  /**
+   * Public method to start new text at a position
+   * Can be called directly from Canvas component
+   */
+  startTextAt(position: Point, viewport: Viewport, store: WhiteboardStore): void {
+    // If already editing, confirm first
+    if (this.isEditing) {
+      this.confirmEdit()
+    }
+    this.startNewText(position, viewport, store)
+  }
+
+  /**
+   * Public method to edit existing text shape
+   * Can be called directly from Canvas component
+   */
+  editText(shape: TextShape, viewport: Viewport, store: WhiteboardStore): void {
+    // If already editing, confirm first
+    if (this.isEditing) {
+      this.confirmEdit()
+    }
+    this.startEditing(shape, viewport, store)
   }
 
   onPointerDown(
@@ -157,46 +184,49 @@ export class TextTool implements ITool {
 
   /**
    * Create the HTML input element for text editing
+   * Appends to document.body for reliable pointer events
    */
   private createInputElement(
     initialText: string,
     fontSize: number,
     viewport: Viewport
   ): void {
-    if (!TextTool.overlayContainer || !this.editingPosition) return
+    if (!this.editingPosition) return
 
     this.inputElement = document.createElement('input')
     this.inputElement.type = 'text'
     this.inputElement.value = initialText
     this.inputElement.placeholder = 'Type here...'
 
-    // Calculate screen position
-    const screenX = this.editingPosition.x * viewport.zoom + viewport.x
-    const screenY = this.editingPosition.y * viewport.zoom + viewport.y
+    // Calculate screen position - relative to canvas container if available
+    const containerRect = this.overlayContainer?.getBoundingClientRect() || { left: 0, top: 0 }
+    const screenX = this.editingPosition.x * viewport.zoom + viewport.x + containerRect.left
+    const screenY = this.editingPosition.y * viewport.zoom + viewport.y + containerRect.top
 
     Object.assign(this.inputElement.style, {
-      position: 'absolute',
+      position: 'fixed',
       left: `${screenX}px`,
       top: `${screenY}px`,
       transform: `scale(${viewport.zoom})`,
       transformOrigin: 'top left',
       border: '2px solid #0066ff',
-      borderRadius: '2px',
+      borderRadius: '4px',
       outline: 'none',
       background: 'white',
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
       font: `${DEFAULT_TEXT_PROPS.fontWeight} ${fontSize}px ${DEFAULT_TEXT_PROPS.fontFamily}`,
       color: DEFAULT_TEXT_PROPS.color,
-      padding: '2px 4px',
-      minWidth: '100px',
-      zIndex: '1000',
-      pointerEvents: 'auto',
+      padding: '4px 8px',
+      minWidth: '150px',
+      zIndex: '10000',
     })
 
     // Event handlers
     this.inputElement.addEventListener('keydown', this.handleInputKeyDown)
     this.inputElement.addEventListener('blur', this.handleInputBlur)
 
-    TextTool.overlayContainer.appendChild(this.inputElement)
+    // Append to body for reliable event handling
+    document.body.appendChild(this.inputElement)
 
     // Focus and select all text
     requestAnimationFrame(() => {
@@ -222,10 +252,17 @@ export class TextTool implements ITool {
 
   /**
    * Handle input blur (click outside)
+   * Uses timeout with proper cleanup to prevent race conditions
    */
   private handleInputBlur = (): void => {
+    // Cancel any pending blur timeout
+    if (this.blurTimeoutId !== null) {
+      clearTimeout(this.blurTimeoutId)
+    }
+
     // Small delay to allow click events to process first
-    setTimeout(() => {
+    this.blurTimeoutId = setTimeout(() => {
+      this.blurTimeoutId = null
       if (this.isEditing) {
         this.confirmEdit()
       }
@@ -236,6 +273,12 @@ export class TextTool implements ITool {
    * Confirm the edit and create/update shape
    */
   private confirmEdit(): void {
+    // Cancel any pending blur timeout to prevent double-confirm
+    if (this.blurTimeoutId !== null) {
+      clearTimeout(this.blurTimeoutId)
+      this.blurTimeoutId = null
+    }
+
     if (!this.inputElement || !this.currentStore || !this.editingPosition) {
       this.cleanupEdit()
       return
@@ -246,7 +289,7 @@ export class TextTool implements ITool {
 
     if (text) {
       if (this.editingShapeId) {
-        // Update existing shape - merge with existing props
+        // Update existing shape - verify it still exists first
         const existingShape = store.shapes.get(this.editingShapeId) as TextShape | undefined
         if (existingShape) {
           store.updateShape(
@@ -259,6 +302,7 @@ export class TextTool implements ITool {
           )
           store.select(this.editingShapeId)
         }
+        // If shape was deleted, just cleanup without creating a new one
       } else {
         // Create new shape
         const shape = this.createShape(this.editingPosition, text)
@@ -266,8 +310,11 @@ export class TextTool implements ITool {
         store.select(shape.id)
       }
     } else if (this.editingShapeId) {
-      // Empty text on existing shape - restore opacity
-      store.updateShape(this.editingShapeId, { opacity: 1 }, false)
+      // Empty text on existing shape - restore opacity if shape still exists
+      const existingShape = store.shapes.get(this.editingShapeId)
+      if (existingShape) {
+        store.updateShape(this.editingShapeId, { opacity: 1 }, false)
+      }
     }
 
     this.cleanupEdit()
@@ -277,9 +324,18 @@ export class TextTool implements ITool {
    * Cancel the edit without saving
    */
   private cancelEdit(): void {
+    // Cancel any pending blur timeout
+    if (this.blurTimeoutId !== null) {
+      clearTimeout(this.blurTimeoutId)
+      this.blurTimeoutId = null
+    }
+
     if (this.editingShapeId && this.currentStore) {
-      // Restore the original shape's opacity
-      this.currentStore.updateShape(this.editingShapeId, { opacity: 1 }, false)
+      // Restore the original shape's opacity if it still exists
+      const existingShape = this.currentStore.shapes.get(this.editingShapeId)
+      if (existingShape) {
+        this.currentStore.updateShape(this.editingShapeId, { opacity: 1 }, false)
+      }
     }
     this.cleanupEdit()
   }
@@ -300,6 +356,11 @@ export class TextTool implements ITool {
       this.viewportUnsubscribe = null
     }
 
+    if (this.blurTimeoutId !== null) {
+      clearTimeout(this.blurTimeoutId)
+      this.blurTimeoutId = null
+    }
+
     this.isEditing = false
     this.editingShapeId = null
     this.editingPosition = null
@@ -307,19 +368,47 @@ export class TextTool implements ITool {
 
   /**
    * Subscribe to viewport changes to update input position
+   * Uses Zustand's subscribeWithSelector for efficient updates
    */
   private subscribeToViewport(store: WhiteboardStore): void {
-    // Simple polling approach - check viewport every 100ms
-    // A more sophisticated approach would use store subscription
+    // Store previous viewport to detect changes
+    let prevViewport = store.viewport
+
+    // Use store subscription for viewport changes
+    // Check every frame using requestAnimationFrame for smooth sync
+    let animFrameId: number | null = null
+
     const checkViewport = (): void => {
-      if (!this.isEditing || !this.inputElement || !this.editingPosition) return
+      if (!this.isEditing || !this.inputElement || !this.editingPosition) {
+        if (animFrameId !== null) {
+          cancelAnimationFrame(animFrameId)
+          animFrameId = null
+        }
+        return
+      }
 
       const viewport = store.viewport
-      this.syncInputPosition(viewport)
+      // Only sync if viewport changed
+      if (
+        viewport.x !== prevViewport.x ||
+        viewport.y !== prevViewport.y ||
+        viewport.zoom !== prevViewport.zoom
+      ) {
+        this.syncInputPosition(viewport)
+        prevViewport = viewport
+      }
+
+      animFrameId = requestAnimationFrame(checkViewport)
     }
 
-    const intervalId = setInterval(checkViewport, 100)
-    this.viewportUnsubscribe = () => clearInterval(intervalId)
+    animFrameId = requestAnimationFrame(checkViewport)
+
+    this.viewportUnsubscribe = () => {
+      if (animFrameId !== null) {
+        cancelAnimationFrame(animFrameId)
+        animFrameId = null
+      }
+    }
   }
 
   /**
@@ -328,8 +417,9 @@ export class TextTool implements ITool {
   private syncInputPosition(viewport: Viewport): void {
     if (!this.inputElement || !this.editingPosition) return
 
-    const screenX = this.editingPosition.x * viewport.zoom + viewport.x
-    const screenY = this.editingPosition.y * viewport.zoom + viewport.y
+    const containerRect = this.overlayContainer?.getBoundingClientRect() || { left: 0, top: 0 }
+    const screenX = this.editingPosition.x * viewport.zoom + viewport.x + containerRect.left
+    const screenY = this.editingPosition.y * viewport.zoom + viewport.y + containerRect.top
 
     this.inputElement.style.left = `${screenX}px`
     this.inputElement.style.top = `${screenY}px`
@@ -346,7 +436,7 @@ export class TextTool implements ITool {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     let width = 50
-    let height = fontSize * 1.2
+    const height = fontSize * 1.2
 
     if (ctx) {
       ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
