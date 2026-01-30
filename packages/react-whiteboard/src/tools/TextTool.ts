@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import type { WhiteboardStore } from '../core/store'
-import type { TextShape, Point, Viewport } from '../types'
+import type { TextShape, TextShapeProps, Point, Viewport } from '../types'
 import type {
   ITool,
   ToolEventContext,
@@ -10,10 +10,19 @@ import type {
   PointerUpResult,
 } from './types'
 import { getShapeAtPoint } from '../utils/hitTest'
-import { TextInputManager, DEFAULT_TEXT_PROPS } from './TextInputManager'
+import { measureTextLines } from '../utils/fonts'
+import { TextInputManager } from './TextInputManager'
+import { useWhiteboardStore } from '../core/store'
 
 /**
- * Text tool - click to place text with inline editing
+ * Text tool — click to place text with inline multiline WYSIWYG editing.
+ *
+ * Editing flow:
+ * 1. Click canvas → textarea appears with current text styling defaults
+ * 2. Click existing text → textarea over shape, pre-filled with shape's styling
+ * 3. Type → textarea auto-resizes, Enter creates newlines
+ * 4. Cmd/Ctrl+Enter or click outside → confirm
+ * 5. Escape → cancel
  */
 export class TextTool implements ITool {
   readonly type = 'text' as const
@@ -24,9 +33,6 @@ export class TextTool implements ITool {
   private editingShapeId: string | null = null
   private currentStore: WhiteboardStore | null = null
 
-  /**
-   * Set the overlay container for text input positioning
-   */
   setOverlayContainer(container: HTMLElement | null): void {
     this.inputManager.setOverlayContainer(container)
   }
@@ -41,9 +47,6 @@ export class TextTool implements ITool {
     this.currentStore = null
   }
 
-  /**
-   * Public method to start new text at a position
-   */
   startTextAt(position: Point, viewport: Viewport, store: WhiteboardStore): void {
     if (this.inputManager.isActive()) {
       this.handleConfirm(this.inputManager.getValue())
@@ -51,9 +54,6 @@ export class TextTool implements ITool {
     this.startNewText(position, viewport, store)
   }
 
-  /**
-   * Public method to edit existing text shape
-   */
   editText(shape: TextShape, viewport: Viewport, store: WhiteboardStore): void {
     if (this.inputManager.isActive()) {
       this.handleConfirm(this.inputManager.getValue())
@@ -64,7 +64,7 @@ export class TextTool implements ITool {
   onPointerDown(
     ctx: ToolEventContext,
     store: WhiteboardStore,
-    _state: ToolState
+    _state: ToolState,
   ): PointerDownResult {
     const { canvasPoint } = ctx
 
@@ -86,7 +86,7 @@ export class TextTool implements ITool {
   onPointerMove(
     _ctx: ToolEventContext,
     _store: WhiteboardStore,
-    _state: ToolState
+    _state: ToolState,
   ): PointerMoveResult {
     return { handled: false, cursor: 'text' }
   }
@@ -94,14 +94,13 @@ export class TextTool implements ITool {
   onPointerUp(
     _ctx: ToolEventContext,
     _store: WhiteboardStore,
-    _state: ToolState
+    _state: ToolState,
   ): PointerUpResult {
     return { handled: false }
   }
 
   onDoubleClick(ctx: ToolEventContext, store: WhiteboardStore): void {
     const hitShape = getShapeAtPoint(ctx.canvasPoint, store.shapes, store.shapeIds, 2)
-
     if (hitShape && hitShape.type === 'text') {
       this.startEditing(hitShape as TextShape, ctx.viewport, store)
     }
@@ -117,34 +116,44 @@ export class TextTool implements ITool {
 
     store.updateShape(shape.id, { opacity: 0 }, false)
 
+    // Use the shape's own props for WYSIWYG styling
+    const { text, ...styleProps } = shape.props
     this.inputManager.create(
       { x: shape.x, y: shape.y },
-      shape.props.text,
-      shape.props.fontSize,
+      text,
+      styleProps,
       viewport,
       {
-        onConfirm: (text) => this.handleConfirm(text),
+        onConfirm: (t) => this.handleConfirm(t),
         onCancel: () => this.cancelEdit(),
-      }
+      },
     )
-    this.inputManager.subscribeToViewport(() => store.viewport)
+
+    this.inputManager.subscribeToViewport((listener) =>
+      useWhiteboardStore.subscribe((s) => s.viewport, listener),
+    )
   }
 
   private startNewText(position: Point, viewport: Viewport, store: WhiteboardStore): void {
     this.editingShapeId = null
     this.currentStore = store
 
+    // Use current text defaults from store
+    const textProps = store.currentTextProps
     this.inputManager.create(
       position,
       '',
-      DEFAULT_TEXT_PROPS.fontSize,
+      textProps,
       viewport,
       {
-        onConfirm: (text) => this.handleConfirm(text),
+        onConfirm: (t) => this.handleConfirm(t),
         onCancel: () => this.cancelEdit(),
-      }
+      },
     )
-    this.inputManager.subscribeToViewport(() => store.viewport)
+
+    this.inputManager.subscribeToViewport((listener) =>
+      useWhiteboardStore.subscribe((s) => s.viewport, listener),
+    )
   }
 
   private handleConfirm(text: string): void {
@@ -158,25 +167,23 @@ export class TextTool implements ITool {
 
     if (text) {
       if (this.editingShapeId) {
-        const existingShape = store.shapes.get(this.editingShapeId) as TextShape | undefined
-        if (existingShape) {
+        const existing = store.shapes.get(this.editingShapeId) as TextShape | undefined
+        if (existing) {
+          const { width, height } = this.measure(text, existing.props)
           store.updateShape(
             this.editingShapeId,
-            { opacity: 1, props: { ...existingShape.props, text } },
-            true
+            { opacity: 1, width, height, props: { ...existing.props, text } },
+            true,
           )
           store.select(this.editingShapeId)
         }
       } else {
-        const shape = this.createShape(position, text)
+        const shape = this.createShape(position, text, store.currentTextProps)
         store.addShape(shape, true)
         store.select(shape.id)
       }
     } else if (this.editingShapeId) {
-      const existingShape = store.shapes.get(this.editingShapeId)
-      if (existingShape) {
-        store.updateShape(this.editingShapeId, { opacity: 1 }, false)
-      }
+      store.updateShape(this.editingShapeId, { opacity: 1 }, false)
     }
 
     this.cleanup()
@@ -184,10 +191,7 @@ export class TextTool implements ITool {
 
   private cancelEdit(): void {
     if (this.editingShapeId && this.currentStore) {
-      const existingShape = this.currentStore.shapes.get(this.editingShapeId)
-      if (existingShape) {
-        this.currentStore.updateShape(this.editingShapeId, { opacity: 1 }, false)
-      }
+      this.currentStore.updateShape(this.editingShapeId, { opacity: 1 }, false)
     }
     this.cleanup()
   }
@@ -197,19 +201,19 @@ export class TextTool implements ITool {
     this.editingShapeId = null
   }
 
-  private createShape(position: Point, text: string): TextShape {
-    const { fontSize, fontFamily, fontWeight, color, align } = DEFAULT_TEXT_PROPS
+  private measure(
+    text: string,
+    props: Pick<TextShapeProps, 'fontSize' | 'fontFamily' | 'fontWeight' | 'fontStyle' | 'lineHeight'>,
+  ): { width: number; height: number } {
+    return measureTextLines(text, props)
+  }
 
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    let width = 50
-    const height = fontSize * 1.2
-
-    if (ctx) {
-      ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
-      const metrics = ctx.measureText(text)
-      width = Math.max(metrics.width + 8, 50)
-    }
+  private createShape(
+    position: Point,
+    text: string,
+    styleProps: Omit<TextShapeProps, 'text'>,
+  ): TextShape {
+    const { width, height } = this.measure(text, styleProps)
 
     return {
       id: nanoid(),
@@ -224,7 +228,7 @@ export class TextTool implements ITool {
       parentId: null,
       seed: Math.floor(Math.random() * 2147483647),
       roughness: 0,
-      props: { text, fontSize, fontFamily, fontWeight, color, align },
+      props: { text, ...styleProps },
     }
   }
 }

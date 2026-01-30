@@ -1,150 +1,124 @@
-import type { Point, Viewport } from '../types'
+import type { Point, Viewport, TextShapeProps } from '../types'
+import { resolveFont, measureTextLines, DEFAULT_TEXT_PROPS } from '../utils/fonts'
 
-/**
- * Default text styling properties
- */
-export const DEFAULT_TEXT_PROPS = {
-  fontSize: 16,
-  fontFamily: 'sans-serif',
-  fontWeight: 400,
-  color: '#333333',
-  align: 'left' as const,
-}
+export { DEFAULT_TEXT_PROPS }
 
 export interface TextInputCallbacks {
   onConfirm: (text: string) => void
   onCancel: () => void
 }
 
+/** Minimum dimensions for the editing textarea */
+const MIN_WIDTH = 100
+const PADDING = 4
+
 /**
- * Manages the HTML input element for text editing
- * Handles creation, positioning, events, and cleanup
+ * Manages an HTML textarea for inline WYSIWYG text editing on the canvas.
+ *
+ * The textarea visually matches the final rendered shape:
+ * same font, color, background, alignment, and line height.
  */
 export class TextInputManager {
-  private inputElement: HTMLInputElement | null = null
+  private textareaElement: HTMLTextAreaElement | null = null
   private overlayContainer: HTMLElement | null = null
   private editingPosition: Point | null = null
   private blurTimeoutId: ReturnType<typeof setTimeout> | null = null
   private viewportUnsubscribe: (() => void) | null = null
   private callbacks: TextInputCallbacks | null = null
+  private textProps: Omit<TextShapeProps, 'text'> = DEFAULT_TEXT_PROPS
+  private isConfirming = false
 
-  /**
-   * Set the overlay container for positioning reference
-   */
   setOverlayContainer(container: HTMLElement | null): void {
     this.overlayContainer = container
   }
 
-  /**
-   * Check if currently editing
-   */
   isActive(): boolean {
-    return this.inputElement !== null
+    return this.textareaElement !== null
   }
 
-  /**
-   * Get the current editing position
-   */
   getEditingPosition(): Point | null {
     return this.editingPosition
   }
 
+  getValue(): string {
+    return this.textareaElement?.value.trim() ?? ''
+  }
+
   /**
-   * Create and show the input element
+   * Create and show the textarea element for editing.
+   * Accepts full text props for WYSIWYG styling.
    */
   create(
     position: Point,
     initialText: string,
-    fontSize: number,
+    textProps: Omit<TextShapeProps, 'text'>,
     viewport: Viewport,
-    callbacks: TextInputCallbacks
+    callbacks: TextInputCallbacks,
   ): void {
+    if (this.isActive()) {
+      this.destroy()
+    }
+
     this.editingPosition = position
     this.callbacks = callbacks
+    this.textProps = textProps
+    this.isConfirming = false
 
-    this.inputElement = document.createElement('input')
-    this.inputElement.type = 'text'
-    this.inputElement.value = initialText
-    this.inputElement.placeholder = 'Type here...'
+    const textarea = document.createElement('textarea')
+    textarea.value = initialText
+    textarea.placeholder = 'Type here...'
+    textarea.rows = 1
+    this.textareaElement = textarea
 
+    this.applyStyles(textProps, viewport.zoom)
     this.updatePosition(viewport)
-    this.applyStyles(fontSize, viewport.zoom)
+    this.autoResize()
 
-    this.inputElement.addEventListener('keydown', this.handleKeyDown)
-    this.inputElement.addEventListener('blur', this.handleBlur)
+    textarea.addEventListener('keydown', this.handleKeyDown)
+    textarea.addEventListener('blur', this.handleBlur)
+    textarea.addEventListener('input', this.handleInput)
 
-    document.body.appendChild(this.inputElement)
+    const container = this.overlayContainer ?? document.body
+    container.appendChild(textarea)
 
     requestAnimationFrame(() => {
-      this.inputElement?.focus()
-      this.inputElement?.select()
+      textarea.focus()
+      if (initialText) {
+        textarea.select()
+      }
     })
   }
 
   /**
-   * Get the current input value
+   * Subscribe to viewport changes via Zustand store.subscribe().
    */
-  getValue(): string {
-    return this.inputElement?.value.trim() ?? ''
+  subscribeToViewport(
+    subscribe: (listener: (viewport: Viewport) => void) => () => void,
+  ): void {
+    if (this.viewportUnsubscribe) {
+      this.viewportUnsubscribe()
+    }
+
+    this.viewportUnsubscribe = subscribe((viewport) => {
+      this.updatePosition(viewport)
+      if (this.textareaElement) {
+        this.textareaElement.style.transform = `scale(${viewport.zoom})`
+      }
+    })
   }
 
-  /**
-   * Update input position based on viewport
-   */
   updatePosition(viewport: Viewport): void {
-    if (!this.inputElement || !this.editingPosition) return
+    if (!this.textareaElement || !this.editingPosition) return
 
     const containerRect = this.overlayContainer?.getBoundingClientRect() || { left: 0, top: 0 }
     const screenX = this.editingPosition.x * viewport.zoom + viewport.x + containerRect.left
     const screenY = this.editingPosition.y * viewport.zoom + viewport.y + containerRect.top
 
-    this.inputElement.style.left = `${screenX}px`
-    this.inputElement.style.top = `${screenY}px`
-    this.inputElement.style.transform = `scale(${viewport.zoom})`
+    this.textareaElement.style.left = `${screenX}px`
+    this.textareaElement.style.top = `${screenY}px`
+    this.textareaElement.style.transform = `scale(${viewport.zoom})`
   }
 
-  /**
-   * Subscribe to viewport changes for position sync
-   */
-  subscribeToViewport(getViewport: () => Viewport): void {
-    let prevViewport = getViewport()
-    let animFrameId: number | null = null
-
-    const checkViewport = (): void => {
-      if (!this.inputElement || !this.editingPosition) {
-        if (animFrameId !== null) {
-          cancelAnimationFrame(animFrameId)
-          animFrameId = null
-        }
-        return
-      }
-
-      const viewport = getViewport()
-      if (
-        viewport.x !== prevViewport.x ||
-        viewport.y !== prevViewport.y ||
-        viewport.zoom !== prevViewport.zoom
-      ) {
-        this.updatePosition(viewport)
-        prevViewport = viewport
-      }
-
-      animFrameId = requestAnimationFrame(checkViewport)
-    }
-
-    animFrameId = requestAnimationFrame(checkViewport)
-
-    this.viewportUnsubscribe = () => {
-      if (animFrameId !== null) {
-        cancelAnimationFrame(animFrameId)
-        animFrameId = null
-      }
-    }
-  }
-
-  /**
-   * Clean up and remove the input element
-   */
   destroy(): void {
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId)
@@ -156,79 +130,108 @@ export class TextInputManager {
       this.viewportUnsubscribe = null
     }
 
-    if (this.inputElement) {
-      this.inputElement.removeEventListener('keydown', this.handleKeyDown)
-      this.inputElement.removeEventListener('blur', this.handleBlur)
-      this.inputElement.remove()
-      this.inputElement = null
+    if (this.textareaElement) {
+      this.textareaElement.removeEventListener('keydown', this.handleKeyDown)
+      this.textareaElement.removeEventListener('blur', this.handleBlur)
+      this.textareaElement.removeEventListener('input', this.handleInput)
+      this.textareaElement.remove()
+      this.textareaElement = null
     }
 
     this.editingPosition = null
     this.callbacks = null
+    this.isConfirming = false
   }
 
   /**
-   * Apply styles to the input element
+   * Apply WYSIWYG styles — textarea matches the final canvas rendering.
    */
-  private applyStyles(fontSize: number, zoom: number): void {
-    if (!this.inputElement) return
+  private applyStyles(props: Omit<TextShapeProps, 'text'>, zoom: number): void {
+    if (!this.textareaElement) return
 
-    Object.assign(this.inputElement.style, {
+    const hasBg = props.backgroundColor && props.backgroundColor !== 'transparent'
+
+    Object.assign(this.textareaElement.style, {
       position: 'fixed',
       transform: `scale(${zoom})`,
       transformOrigin: 'top left',
       border: '2px solid #0066ff',
       borderRadius: '4px',
       outline: 'none',
-      background: 'white',
+      background: hasBg ? props.backgroundColor : 'rgba(255, 255, 255, 0.9)',
       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-      font: `${DEFAULT_TEXT_PROPS.fontWeight} ${fontSize}px ${DEFAULT_TEXT_PROPS.fontFamily}`,
-      color: DEFAULT_TEXT_PROPS.color,
-      padding: '4px 8px',
-      minWidth: '150px',
+      font: resolveFont(props),
+      color: props.color,
+      textAlign: props.align,
+      lineHeight: String(props.lineHeight),
+      padding: `${PADDING}px`,
+      minWidth: `${MIN_WIDTH}px`,
       zIndex: '10000',
+      resize: 'none',
+      overflow: 'hidden',
+      whiteSpace: 'pre',
+      boxSizing: 'border-box',
     })
   }
 
-  /**
-   * Handle keyboard events
-   */
+  private autoResize(): void {
+    if (!this.textareaElement) return
+
+    const { width, height } = measureTextLines(
+      this.textareaElement.value || ' ',
+      this.textProps,
+    )
+
+    this.textareaElement.style.width = `${width}px`
+    this.textareaElement.style.height = `${height + PADDING * 2}px`
+  }
+
   private handleKeyDown = (e: KeyboardEvent): void => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      e.stopPropagation()
-      this.triggerConfirm()
-    } else if (e.key === 'Escape') {
+    if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
       this.callbacks?.onCancel()
+      return
     }
+
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      e.stopPropagation()
+      this.triggerConfirm()
+      return
+    }
+
+    e.stopPropagation()
   }
 
-  /**
-   * Handle blur event with debounce
-   */
   private handleBlur = (): void => {
+    if (this.isConfirming) return
+
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId)
     }
 
     this.blurTimeoutId = setTimeout(() => {
       this.blurTimeoutId = null
-      if (this.inputElement) {
+      if (this.textareaElement && !this.isConfirming) {
         this.triggerConfirm()
       }
-    }, 100)
+    }, 150)
   }
 
-  /**
-   * Trigger confirm callback
-   */
+  private handleInput = (): void => {
+    this.autoResize()
+  }
+
   private triggerConfirm(): void {
+    if (this.isConfirming) return
+    this.isConfirming = true
+
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId)
       this.blurTimeoutId = null
     }
+
     this.callbacks?.onConfirm(this.getValue())
   }
 }
