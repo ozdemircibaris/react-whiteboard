@@ -11,9 +11,17 @@ import type {
 } from './types'
 import { getShapeAtPoint } from '../utils/hitTest'
 import { TextInputManager, DEFAULT_TEXT_PROPS } from './TextInputManager'
+import { useWhiteboardStore } from '../core/store'
 
 /**
- * Text tool - click to place text with inline editing
+ * Text tool — click to place text with inline multiline editing.
+ *
+ * Editing flow:
+ * 1. Click canvas → textarea appears at click position
+ * 2. Click existing text → textarea over shape, pre-filled
+ * 3. Type → textarea auto-resizes, Enter creates newlines
+ * 4. Cmd/Ctrl+Enter or click outside → confirm
+ * 5. Escape → cancel
  */
 export class TextTool implements ITool {
   readonly type = 'text' as const
@@ -24,9 +32,6 @@ export class TextTool implements ITool {
   private editingShapeId: string | null = null
   private currentStore: WhiteboardStore | null = null
 
-  /**
-   * Set the overlay container for text input positioning
-   */
   setOverlayContainer(container: HTMLElement | null): void {
     this.inputManager.setOverlayContainer(container)
   }
@@ -41,9 +46,6 @@ export class TextTool implements ITool {
     this.currentStore = null
   }
 
-  /**
-   * Public method to start new text at a position
-   */
   startTextAt(position: Point, viewport: Viewport, store: WhiteboardStore): void {
     if (this.inputManager.isActive()) {
       this.handleConfirm(this.inputManager.getValue())
@@ -51,9 +53,6 @@ export class TextTool implements ITool {
     this.startNewText(position, viewport, store)
   }
 
-  /**
-   * Public method to edit existing text shape
-   */
   editText(shape: TextShape, viewport: Viewport, store: WhiteboardStore): void {
     if (this.inputManager.isActive()) {
       this.handleConfirm(this.inputManager.getValue())
@@ -64,7 +63,7 @@ export class TextTool implements ITool {
   onPointerDown(
     ctx: ToolEventContext,
     store: WhiteboardStore,
-    _state: ToolState
+    _state: ToolState,
   ): PointerDownResult {
     const { canvasPoint } = ctx
 
@@ -86,7 +85,7 @@ export class TextTool implements ITool {
   onPointerMove(
     _ctx: ToolEventContext,
     _store: WhiteboardStore,
-    _state: ToolState
+    _state: ToolState,
   ): PointerMoveResult {
     return { handled: false, cursor: 'text' }
   }
@@ -94,7 +93,7 @@ export class TextTool implements ITool {
   onPointerUp(
     _ctx: ToolEventContext,
     _store: WhiteboardStore,
-    _state: ToolState
+    _state: ToolState,
   ): PointerUpResult {
     return { handled: false }
   }
@@ -115,6 +114,7 @@ export class TextTool implements ITool {
     this.editingShapeId = shape.id
     this.currentStore = store
 
+    // Hide shape while editing — textarea renders over it
     store.updateShape(shape.id, { opacity: 0 }, false)
 
     this.inputManager.create(
@@ -125,9 +125,13 @@ export class TextTool implements ITool {
       {
         onConfirm: (text) => this.handleConfirm(text),
         onCancel: () => this.cancelEdit(),
-      }
+      },
     )
-    this.inputManager.subscribeToViewport(() => store.viewport)
+
+    // Subscribe to viewport changes via Zustand selector
+    this.inputManager.subscribeToViewport((listener) =>
+      useWhiteboardStore.subscribe((s) => s.viewport, listener),
+    )
   }
 
   private startNewText(position: Point, viewport: Viewport, store: WhiteboardStore): void {
@@ -142,9 +146,12 @@ export class TextTool implements ITool {
       {
         onConfirm: (text) => this.handleConfirm(text),
         onCancel: () => this.cancelEdit(),
-      }
+      },
     )
-    this.inputManager.subscribeToViewport(() => store.viewport)
+
+    this.inputManager.subscribeToViewport((listener) =>
+      useWhiteboardStore.subscribe((s) => s.viewport, listener),
+    )
   }
 
   private handleConfirm(text: string): void {
@@ -160,10 +167,11 @@ export class TextTool implements ITool {
       if (this.editingShapeId) {
         const existingShape = store.shapes.get(this.editingShapeId) as TextShape | undefined
         if (existingShape) {
+          const { width, height } = this.measureTextDimensions(text, existingShape.props.fontSize)
           store.updateShape(
             this.editingShapeId,
-            { opacity: 1, props: { ...existingShape.props, text } },
-            true
+            { opacity: 1, width, height, props: { ...existingShape.props, text } },
+            true,
           )
           store.select(this.editingShapeId)
         }
@@ -173,10 +181,8 @@ export class TextTool implements ITool {
         store.select(shape.id)
       }
     } else if (this.editingShapeId) {
-      const existingShape = store.shapes.get(this.editingShapeId)
-      if (existingShape) {
-        store.updateShape(this.editingShapeId, { opacity: 1 }, false)
-      }
+      // Empty text on existing shape — restore opacity
+      store.updateShape(this.editingShapeId, { opacity: 1 }, false)
     }
 
     this.cleanup()
@@ -184,10 +190,8 @@ export class TextTool implements ITool {
 
   private cancelEdit(): void {
     if (this.editingShapeId && this.currentStore) {
-      const existingShape = this.currentStore.shapes.get(this.editingShapeId)
-      if (existingShape) {
-        this.currentStore.updateShape(this.editingShapeId, { opacity: 1 }, false)
-      }
+      // Always restore opacity on cancel
+      this.currentStore.updateShape(this.editingShapeId, { opacity: 1 }, false)
     }
     this.cleanup()
   }
@@ -197,19 +201,35 @@ export class TextTool implements ITool {
     this.editingShapeId = null
   }
 
-  private createShape(position: Point, text: string): TextShape {
-    const { fontSize, fontFamily, fontWeight, color, align } = DEFAULT_TEXT_PROPS
-
+  private measureTextDimensions(
+    text: string,
+    fontSize: number,
+  ): { width: number; height: number } {
+    const { fontFamily, fontWeight } = DEFAULT_TEXT_PROPS
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
-    let width = 50
-    const height = fontSize * 1.2
 
-    if (ctx) {
-      ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
-      const metrics = ctx.measureText(text)
-      width = Math.max(metrics.width + 8, 50)
+    if (!ctx) return { width: 50, height: fontSize * 1.2 }
+
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
+    const lines = text.split('\n')
+    const lineHeight = fontSize * 1.2
+
+    let maxWidth = 0
+    for (const line of lines) {
+      const metrics = ctx.measureText(line || ' ')
+      maxWidth = Math.max(maxWidth, metrics.width)
     }
+
+    return {
+      width: Math.max(maxWidth + 8, 50),
+      height: lines.length * lineHeight,
+    }
+  }
+
+  private createShape(position: Point, text: string): TextShape {
+    const { fontSize, fontFamily, fontWeight, color, align } = DEFAULT_TEXT_PROPS
+    const { width, height } = this.measureTextDimensions(text, fontSize)
 
     return {
       id: nanoid(),

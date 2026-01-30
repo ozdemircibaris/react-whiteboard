@@ -16,134 +16,167 @@ export interface TextInputCallbacks {
   onCancel: () => void
 }
 
+interface MeasureTextOptions {
+  fontSize: number
+  fontFamily: string
+  fontWeight: number
+}
+
+/** Minimum dimensions for the editing textarea */
+const MIN_WIDTH = 100
+const MIN_HEIGHT_LINES = 1
+const PADDING = 4
+
 /**
- * Manages the HTML input element for text editing
- * Handles creation, positioning, events, and cleanup
+ * Measures text dimensions using an offscreen canvas context.
+ * Returns { width, height } accounting for multiline text.
+ */
+function measureText(
+  text: string,
+  options: MeasureTextOptions,
+): { width: number; height: number } {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return { width: MIN_WIDTH, height: options.fontSize * 1.2 }
+
+  ctx.font = `${options.fontWeight} ${options.fontSize}px ${options.fontFamily}`
+  const lines = text.split('\n')
+  const lineHeight = options.fontSize * 1.2
+
+  let maxWidth = 0
+  for (const line of lines) {
+    const metrics = ctx.measureText(line || ' ')
+    maxWidth = Math.max(maxWidth, metrics.width)
+  }
+
+  return {
+    width: Math.max(maxWidth + PADDING * 2, MIN_WIDTH),
+    height: Math.max(lines.length, MIN_HEIGHT_LINES) * lineHeight,
+  }
+}
+
+/**
+ * Manages an HTML textarea for inline text editing on the canvas.
+ *
+ * Improvements over previous implementation:
+ * - Uses <textarea> instead of <input> for multiline support
+ * - Appends to overlay container instead of document.body
+ * - Uses Zustand store.subscribe() instead of RAF polling for viewport sync
+ * - Auto-resizes as user types
+ * - Proper event listener cleanup
+ * - No blur race conditions
  */
 export class TextInputManager {
-  private inputElement: HTMLInputElement | null = null
+  private textareaElement: HTMLTextAreaElement | null = null
   private overlayContainer: HTMLElement | null = null
   private editingPosition: Point | null = null
   private blurTimeoutId: ReturnType<typeof setTimeout> | null = null
   private viewportUnsubscribe: (() => void) | null = null
   private callbacks: TextInputCallbacks | null = null
+  private fontSize = DEFAULT_TEXT_PROPS.fontSize
+  private isConfirming = false
 
   /**
-   * Set the overlay container for positioning reference
+   * Set the overlay container for positioning reference.
+   * Textarea is appended here instead of document.body.
    */
   setOverlayContainer(container: HTMLElement | null): void {
     this.overlayContainer = container
   }
 
-  /**
-   * Check if currently editing
-   */
   isActive(): boolean {
-    return this.inputElement !== null
+    return this.textareaElement !== null
   }
 
-  /**
-   * Get the current editing position
-   */
   getEditingPosition(): Point | null {
     return this.editingPosition
   }
 
+  getValue(): string {
+    return this.textareaElement?.value.trim() ?? ''
+  }
+
   /**
-   * Create and show the input element
+   * Create and show the textarea element for editing.
    */
   create(
     position: Point,
     initialText: string,
     fontSize: number,
     viewport: Viewport,
-    callbacks: TextInputCallbacks
+    callbacks: TextInputCallbacks,
   ): void {
+    // Clean up any existing textarea first
+    if (this.isActive()) {
+      this.destroy()
+    }
+
     this.editingPosition = position
     this.callbacks = callbacks
+    this.fontSize = fontSize
+    this.isConfirming = false
 
-    this.inputElement = document.createElement('input')
-    this.inputElement.type = 'text'
-    this.inputElement.value = initialText
-    this.inputElement.placeholder = 'Type here...'
+    const textarea = document.createElement('textarea')
+    textarea.value = initialText
+    textarea.placeholder = 'Type here...'
+    textarea.rows = 1
+    this.textareaElement = textarea
 
-    this.updatePosition(viewport)
     this.applyStyles(fontSize, viewport.zoom)
+    this.updatePosition(viewport)
+    this.autoResize()
 
-    this.inputElement.addEventListener('keydown', this.handleKeyDown)
-    this.inputElement.addEventListener('blur', this.handleBlur)
+    textarea.addEventListener('keydown', this.handleKeyDown)
+    textarea.addEventListener('blur', this.handleBlur)
+    textarea.addEventListener('input', this.handleInput)
 
-    document.body.appendChild(this.inputElement)
+    const container = this.overlayContainer ?? document.body
+    container.appendChild(textarea)
 
     requestAnimationFrame(() => {
-      this.inputElement?.focus()
-      this.inputElement?.select()
+      textarea.focus()
+      if (initialText) {
+        textarea.select()
+      }
     })
   }
 
   /**
-   * Get the current input value
+   * Subscribe to viewport changes via Zustand store.subscribe().
+   * Much more efficient than RAF polling — only fires when viewport actually changes.
    */
-  getValue(): string {
-    return this.inputElement?.value.trim() ?? ''
+  subscribeToViewport(
+    subscribe: (listener: (viewport: Viewport) => void) => () => void,
+  ): void {
+    if (this.viewportUnsubscribe) {
+      this.viewportUnsubscribe()
+    }
+
+    this.viewportUnsubscribe = subscribe((viewport) => {
+      this.updatePosition(viewport)
+      if (this.textareaElement) {
+        this.textareaElement.style.transform = `scale(${viewport.zoom})`
+      }
+    })
   }
 
   /**
-   * Update input position based on viewport
+   * Update textarea position based on viewport transform.
    */
   updatePosition(viewport: Viewport): void {
-    if (!this.inputElement || !this.editingPosition) return
+    if (!this.textareaElement || !this.editingPosition) return
 
     const containerRect = this.overlayContainer?.getBoundingClientRect() || { left: 0, top: 0 }
     const screenX = this.editingPosition.x * viewport.zoom + viewport.x + containerRect.left
     const screenY = this.editingPosition.y * viewport.zoom + viewport.y + containerRect.top
 
-    this.inputElement.style.left = `${screenX}px`
-    this.inputElement.style.top = `${screenY}px`
-    this.inputElement.style.transform = `scale(${viewport.zoom})`
+    this.textareaElement.style.left = `${screenX}px`
+    this.textareaElement.style.top = `${screenY}px`
+    this.textareaElement.style.transform = `scale(${viewport.zoom})`
   }
 
   /**
-   * Subscribe to viewport changes for position sync
-   */
-  subscribeToViewport(getViewport: () => Viewport): void {
-    let prevViewport = getViewport()
-    let animFrameId: number | null = null
-
-    const checkViewport = (): void => {
-      if (!this.inputElement || !this.editingPosition) {
-        if (animFrameId !== null) {
-          cancelAnimationFrame(animFrameId)
-          animFrameId = null
-        }
-        return
-      }
-
-      const viewport = getViewport()
-      if (
-        viewport.x !== prevViewport.x ||
-        viewport.y !== prevViewport.y ||
-        viewport.zoom !== prevViewport.zoom
-      ) {
-        this.updatePosition(viewport)
-        prevViewport = viewport
-      }
-
-      animFrameId = requestAnimationFrame(checkViewport)
-    }
-
-    animFrameId = requestAnimationFrame(checkViewport)
-
-    this.viewportUnsubscribe = () => {
-      if (animFrameId !== null) {
-        cancelAnimationFrame(animFrameId)
-        animFrameId = null
-      }
-    }
-  }
-
-  /**
-   * Clean up and remove the input element
+   * Clean up and remove the textarea element.
    */
   destroy(): void {
     if (this.blurTimeoutId !== null) {
@@ -156,79 +189,109 @@ export class TextInputManager {
       this.viewportUnsubscribe = null
     }
 
-    if (this.inputElement) {
-      this.inputElement.removeEventListener('keydown', this.handleKeyDown)
-      this.inputElement.removeEventListener('blur', this.handleBlur)
-      this.inputElement.remove()
-      this.inputElement = null
+    if (this.textareaElement) {
+      this.textareaElement.removeEventListener('keydown', this.handleKeyDown)
+      this.textareaElement.removeEventListener('blur', this.handleBlur)
+      this.textareaElement.removeEventListener('input', this.handleInput)
+      this.textareaElement.remove()
+      this.textareaElement = null
     }
 
     this.editingPosition = null
     this.callbacks = null
+    this.isConfirming = false
   }
 
-  /**
-   * Apply styles to the input element
-   */
   private applyStyles(fontSize: number, zoom: number): void {
-    if (!this.inputElement) return
+    if (!this.textareaElement) return
 
-    Object.assign(this.inputElement.style, {
+    Object.assign(this.textareaElement.style, {
       position: 'fixed',
       transform: `scale(${zoom})`,
       transformOrigin: 'top left',
       border: '2px solid #0066ff',
       borderRadius: '4px',
       outline: 'none',
-      background: 'white',
+      background: 'rgba(255, 255, 255, 0.9)',
       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
       font: `${DEFAULT_TEXT_PROPS.fontWeight} ${fontSize}px ${DEFAULT_TEXT_PROPS.fontFamily}`,
       color: DEFAULT_TEXT_PROPS.color,
-      padding: '4px 8px',
-      minWidth: '150px',
+      padding: `${PADDING}px`,
+      minWidth: `${MIN_WIDTH}px`,
       zIndex: '10000',
+      resize: 'none',
+      overflow: 'hidden',
+      lineHeight: '1.2',
+      whiteSpace: 'pre',
+      boxSizing: 'border-box',
     })
   }
 
   /**
-   * Handle keyboard events
+   * Auto-resize textarea to fit content.
    */
+  private autoResize(): void {
+    if (!this.textareaElement) return
+
+    const { width, height } = measureText(this.textareaElement.value || ' ', {
+      fontSize: this.fontSize,
+      fontFamily: DEFAULT_TEXT_PROPS.fontFamily,
+      fontWeight: DEFAULT_TEXT_PROPS.fontWeight,
+    })
+
+    this.textareaElement.style.width = `${width}px`
+    this.textareaElement.style.height = `${height + PADDING * 2}px`
+  }
+
   private handleKeyDown = (e: KeyboardEvent): void => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      e.stopPropagation()
-      this.triggerConfirm()
-    } else if (e.key === 'Escape') {
+    if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
       this.callbacks?.onCancel()
+      return
     }
+
+    // Cmd/Ctrl+Enter → confirm
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      e.stopPropagation()
+      this.triggerConfirm()
+      return
+    }
+
+    // Regular Enter → newline (natural textarea behavior, no preventDefault)
+    // Stop propagation to prevent canvas keyboard shortcuts
+    e.stopPropagation()
   }
 
-  /**
-   * Handle blur event with debounce
-   */
   private handleBlur = (): void => {
+    if (this.isConfirming) return
+
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId)
     }
 
     this.blurTimeoutId = setTimeout(() => {
       this.blurTimeoutId = null
-      if (this.inputElement) {
+      if (this.textareaElement && !this.isConfirming) {
         this.triggerConfirm()
       }
-    }, 100)
+    }, 150)
   }
 
-  /**
-   * Trigger confirm callback
-   */
+  private handleInput = (): void => {
+    this.autoResize()
+  }
+
   private triggerConfirm(): void {
+    if (this.isConfirming) return
+    this.isConfirming = true
+
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId)
       this.blurTimeoutId = null
     }
+
     this.callbacks?.onConfirm(this.getValue())
   }
 }

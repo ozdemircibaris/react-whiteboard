@@ -101,6 +101,12 @@ An open-source, high-quality whiteboard library for React that competes with Exc
 - [x] **Animated zoom**: easeOutCubic + RAF-driven `animateZoom` for smooth zoom button transitions. Cancellable (new animation overrides in-progress one)
 - [x] **RoughJS tool overlays**: Live drag previews use RoughJS with fixed seed for stable, non-jittery preview shapes
 
+### Structural Refactor: Store, Renderer & TextTool
+- [x] **Store decomposition**: 579 lines -> 4 modules (createStore 120, shapeActions 157, viewportActions 102, historyActions 145). Action creators accept set/get for clean separation
+- [x] **Renderer decomposition**: 440 lines -> 2 modules (renderer 156, shapeRenderers 301). Shape-specific draw functions extracted with dependency injection
+- [x] **TextTool rewrite**: `<input>` → `<textarea>` for multiline. Appends to overlay container instead of document.body. Zustand subscribe() instead of RAF polling for viewport sync. Auto-resizing textarea. Cmd/Ctrl+Enter to confirm, Enter for newlines. Proper blur race condition fix with isConfirming guard
+- [x] **All files under 400 lines**: Zero files exceeding the limit (largest: shapeRenderers.ts at 301 lines)
+
 ---
 
 ## Next Up
@@ -209,34 +215,42 @@ Go public.
 ```
 packages/react-whiteboard/src/
   components/
-    Canvas.tsx              # Thin shell (203 lines), delegates to hooks
+    Canvas.tsx                      # Thin shell (203 lines), delegates to hooks
   core/
-    store.ts                # Zustand store: shapes, viewport, selection, history
-    renderer.ts             # RoughJS + perfect-freehand canvas renderer
+    store/
+      createStore.ts                # Zustand store: interface + wiring (120 lines)
+      shapeActions.ts               # Shape CRUD with history tracking (157 lines)
+      viewportActions.ts            # Pan, zoom, animateZoom (102 lines)
+      historyActions.ts             # Undo/redo logic (145 lines)
+      types.ts                      # StoreApi type for action creators
+      index.ts                      # Barrel exports
+    renderer/
+      index.ts                      # CanvasRenderer class: grid, dispatch, selection (156 lines)
+      shapeRenderers.ts             # Shape draw functions: rect, ellipse, path, line, arrow, text (301 lines)
   hooks/
-    useCanvasSetup.ts       # Canvas init, resize, DPI
-    useKeyboardShortcuts.ts # Keyboard event handling
-    useTouchGestures.ts     # Pinch zoom, two-finger pan
-    useTools.ts             # Pointer events <-> ToolManager bridge
+    useCanvasSetup.ts               # Canvas init, resize, DPI
+    useKeyboardShortcuts.ts         # Keyboard event handling
+    useTouchGestures.ts             # Pinch zoom, two-finger pan
+    useTools.ts                     # Pointer events <-> ToolManager bridge
   tools/
-    ToolManager.ts          # Singleton tool router
-    types.ts                # ITool interface, ToolEventContext, ToolState
-    SelectTool.ts           # Click/drag select, move, resize
-    RectangleTool.ts        # Drag-to-draw rectangles
-    EllipseTool.ts          # Drag-to-draw ellipses
-    DrawTool.ts             # Freehand with pressure capture
-    LineTool.ts             # Lines with angle snapping
-    ArrowTool.ts            # Arrows with arrowhead options
-    TextTool.ts             # Click-to-place text with HTML overlay
-    BaseLineTool.ts         # Shared Line/Arrow base class
-    TextInputManager.ts     # Manages contenteditable lifecycle
+    ToolManager.ts                  # Singleton tool router
+    types.ts                        # ITool interface, ToolEventContext, ToolState
+    SelectTool.ts                   # Click/drag select, move, resize
+    RectangleTool.ts                # Drag-to-draw rectangles
+    EllipseTool.ts                  # Drag-to-draw ellipses
+    DrawTool.ts                     # Freehand with pressure capture
+    LineTool.ts                     # Lines with angle snapping
+    ArrowTool.ts                    # Arrows with arrowhead options
+    TextTool.ts                     # Multiline text with textarea overlay (252 lines)
+    BaseLineTool.ts                 # Shared Line/Arrow base class
+    TextInputManager.ts             # Textarea lifecycle, auto-resize, viewport sync (297 lines)
   types/
-    index.ts                # All type definitions
+    index.ts                        # All type definitions
   utils/
-    canvas.ts               # Coordinate math, easing, arrowheads
-    hitTest.ts              # Point-in-shape detection
-    shapeHitTest.ts         # Shape-specific hit test logic
-    resizeHandles.ts        # Handle position calculations
+    canvas.ts                       # Coordinate math, easing, arrowheads
+    hitTest.ts                      # Point-in-shape detection
+    shapeHitTest.ts                 # Shape-specific hit test logic
+    resizeHandles.ts                # Handle position calculations
 ```
 
 ---
