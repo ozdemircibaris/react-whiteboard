@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid'
+import rough from 'roughjs'
 import type { WhiteboardStore } from '../core/store'
 import type { Point, Viewport, Shape } from '../types'
 import type {
@@ -171,7 +172,7 @@ export abstract class BaseLineTool implements ITool {
   }
 
   /**
-   * Render preview overlay - can be overridden by subclasses
+   * Render preview overlay with RoughJS hand-drawn style
    */
   renderOverlay(
     ctx: CanvasRenderingContext2D,
@@ -182,14 +183,18 @@ export abstract class BaseLineTool implements ITool {
 
     ctx.save()
     ctx.globalAlpha = 0.7
-    ctx.strokeStyle = this.defaultStroke
-    ctx.lineWidth = this.defaultStrokeWidth
-    ctx.lineCap = 'round'
 
-    ctx.beginPath()
-    ctx.moveTo(this.previewStart.x, this.previewStart.y)
-    ctx.lineTo(this.previewEnd.x, this.previewEnd.y)
-    ctx.stroke()
+    const rc = rough.canvas(ctx.canvas)
+    rc.line(
+      this.previewStart.x, this.previewStart.y,
+      this.previewEnd.x, this.previewEnd.y,
+      {
+        seed: 42,
+        roughness: 1,
+        stroke: this.defaultStroke,
+        strokeWidth: this.defaultStrokeWidth,
+      }
+    )
 
     this.renderAdditionalOverlay(ctx, this.previewStart, this.previewEnd)
 

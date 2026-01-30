@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid'
+import rough from 'roughjs'
 import type { WhiteboardStore } from '../core/store'
 import type { EllipseShape, Viewport } from '../types'
 import type {
@@ -127,20 +128,15 @@ export class EllipseTool implements ITool {
     const cx = x + width / 2
     const cy = y + height / 2
 
-    // Draw preview ellipse
-    ctx.beginPath()
-    ctx.ellipse(cx, cy, width / 2, height / 2, 0, 0, Math.PI * 2)
-
-    if (fill && fill !== 'transparent') {
-      ctx.fillStyle = fill
-      ctx.fill()
-    }
-
-    if (stroke && strokeWidth > 0) {
-      ctx.strokeStyle = stroke
-      ctx.lineWidth = strokeWidth
-      ctx.stroke()
-    }
+    const rc = rough.canvas(ctx.canvas)
+    rc.ellipse(cx, cy, width, height, {
+      seed: 42,
+      roughness: 1,
+      stroke,
+      strokeWidth,
+      fill: fill && fill !== 'transparent' ? fill : undefined,
+      fillStyle: 'solid',
+    })
 
     ctx.restore()
   }
@@ -162,6 +158,8 @@ export class EllipseTool implements ITool {
       opacity: 1,
       isLocked: false,
       parentId: null,
+      seed: Math.floor(Math.random() * 2147483647),
+      roughness: 1,
       props: { ...DEFAULT_ELLIPSE_PROPS },
     }
   }

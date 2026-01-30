@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid'
+import { getStroke } from 'perfect-freehand'
 import type { WhiteboardStore } from '../core/store'
-import type { PathShape, Point, Viewport } from '../types'
+import type { PathShape, PathPoint, Viewport } from '../types'
 import type {
   ITool,
   ToolEventContext,
@@ -19,14 +20,26 @@ const DEFAULT_PATH_PROPS = {
 }
 
 /**
- * Draw tool - freehand drawing
+ * Shared stroke options for perfect-freehand
+ */
+const STROKE_OPTIONS = {
+  size: DEFAULT_PATH_PROPS.strokeWidth * 3,
+  thinning: 0.5,
+  smoothing: 0.5,
+  streamline: 0.5,
+  start: { cap: true, taper: 0 },
+  end: { cap: true, taper: 0 },
+}
+
+/**
+ * Draw tool - freehand drawing with pressure-sensitive variable-width strokes
  */
 export class DrawTool implements ITool {
   readonly type = 'draw' as const
   readonly cursor = 'crosshair'
   readonly name = 'Draw'
 
-  private points: Point[] = []
+  private points: PathPoint[] = []
   private currentShapeId: string | null = null
 
   onActivate(store: WhiteboardStore): void {
@@ -45,15 +58,13 @@ export class DrawTool implements ITool {
     store: WhiteboardStore,
     state: ToolState
   ): PointerDownResult {
-    const { canvasPoint } = ctx
+    const { canvasPoint, pressure } = ctx
 
-    // Start drawing
     state.isDragging = true
     state.dragStart = canvasPoint
     state.dragCurrent = canvasPoint
 
-    // Initialize points array with first point
-    this.points = [{ x: canvasPoint.x, y: canvasPoint.y }]
+    this.points = [{ x: canvasPoint.x, y: canvasPoint.y, pressure }]
     this.currentShapeId = nanoid()
     state.activeShapeId = this.currentShapeId
 
@@ -73,8 +84,11 @@ export class DrawTool implements ITool {
 
     state.dragCurrent = ctx.canvasPoint
 
-    // Add point to path
-    this.points.push({ x: ctx.canvasPoint.x, y: ctx.canvasPoint.y })
+    this.points.push({
+      x: ctx.canvasPoint.x,
+      y: ctx.canvasPoint.y,
+      pressure: ctx.pressure,
+    })
 
     return { handled: true, cursor: 'crosshair' }
   }
@@ -85,7 +99,6 @@ export class DrawTool implements ITool {
     state: ToolState
   ): PointerUpResult {
     if (!state.isDragging || this.points.length < 2) {
-      // Reset if not enough points
       state.isDragging = false
       state.dragStart = null
       state.dragCurrent = null
@@ -96,11 +109,9 @@ export class DrawTool implements ITool {
       return { handled: false }
     }
 
-    // Create the path shape
     const shape = this.createShape(this.points)
     store.addShape(shape, true)
 
-    // Reset state
     state.isDragging = false
     state.dragStart = null
     state.dragCurrent = null
@@ -115,6 +126,9 @@ export class DrawTool implements ITool {
     }
   }
 
+  /**
+   * Render live preview using perfect-freehand for variable-width strokes
+   */
   renderOverlay(
     ctx: CanvasRenderingContext2D,
     state: ToolState,
@@ -122,42 +136,50 @@ export class DrawTool implements ITool {
   ): void {
     if (!state.isDragging || this.points.length < 2) return
 
+    const outlinePoints = getStroke(this.points, {
+      ...STROKE_OPTIONS,
+      last: false,
+      simulatePressure: !this.hasRealPressure(),
+    })
+
+    if (outlinePoints.length < 2) return
+
     ctx.save()
-    ctx.strokeStyle = DEFAULT_PATH_PROPS.stroke
-    ctx.lineWidth = DEFAULT_PATH_PROPS.strokeWidth
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
     ctx.globalAlpha = 0.8
+    ctx.fillStyle = DEFAULT_PATH_PROPS.stroke
 
-    const firstPoint = this.points[0]
-    if (!firstPoint) return
+    this.fillStrokeOutline(ctx, outlinePoints)
 
-    ctx.beginPath()
-    ctx.moveTo(firstPoint.x, firstPoint.y)
-
-    // Use quadratic curves for smoother preview
-    for (let i = 1; i < this.points.length - 1; i++) {
-      const current = this.points[i]
-      const next = this.points[i + 1]
-      if (!current || !next) continue
-
-      const midX = (current.x + next.x) / 2
-      const midY = (current.y + next.y) / 2
-      ctx.quadraticCurveTo(current.x, current.y, midX, midY)
-    }
-
-    // Draw to the last point
-    const lastPoint = this.points[this.points.length - 1]
-    if (lastPoint) {
-      ctx.lineTo(lastPoint.x, lastPoint.y)
-    }
-
-    ctx.stroke()
     ctx.restore()
   }
 
-  private createShape(points: Point[]): PathShape {
-    // Calculate bounds
+  /**
+   * Check if any point has non-default pressure (real pen input)
+   */
+  private hasRealPressure(): boolean {
+    return this.points.some((p) => p.pressure !== undefined && p.pressure !== 0.5)
+  }
+
+  /**
+   * Fill the stroke outline polygon on canvas
+   */
+  private fillStrokeOutline(ctx: CanvasRenderingContext2D, outline: number[][]): void {
+    const first = outline[0]
+    if (!first) return
+
+    ctx.beginPath()
+    ctx.moveTo(first[0]!, first[1]!)
+
+    for (let i = 1; i < outline.length; i++) {
+      const pt = outline[i]!
+      ctx.lineTo(pt[0]!, pt[1]!)
+    }
+
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  private createShape(points: PathPoint[]): PathShape {
     let minX = Infinity
     let minY = Infinity
     let maxX = -Infinity
@@ -173,10 +195,10 @@ export class DrawTool implements ITool {
     const width = maxX - minX
     const height = maxY - minY
 
-    // Normalize points relative to (0, 0)
-    const normalizedPoints = points.map((p) => ({
+    const normalizedPoints: PathPoint[] = points.map((p) => ({
       x: p.x - minX,
       y: p.y - minY,
+      pressure: p.pressure,
     }))
 
     return {
@@ -190,6 +212,8 @@ export class DrawTool implements ITool {
       opacity: 1,
       isLocked: false,
       parentId: null,
+      seed: Math.floor(Math.random() * 2147483647),
+      roughness: 1,
       props: {
         stroke: DEFAULT_PATH_PROPS.stroke,
         strokeWidth: DEFAULT_PATH_PROPS.strokeWidth,

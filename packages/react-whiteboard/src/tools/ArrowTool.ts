@@ -30,6 +30,8 @@ export class ArrowTool extends BaseLineTool {
       opacity: 1,
       isLocked: false,
       parentId: null,
+      seed: Math.floor(Math.random() * 2147483647),
+      roughness: 1,
       props: {
         stroke: this.defaultStroke,
         strokeWidth: this.defaultStrokeWidth,

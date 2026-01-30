@@ -3,7 +3,7 @@ import type { Point, Viewport } from '../types'
 import { screenToCanvas } from '../utils/canvas'
 
 interface TouchGesturesOptions {
-  containerRef: React.RefObject<HTMLDivElement>
+  containerRef: React.RefObject<HTMLDivElement | null>
   viewport: Viewport
   pan: (dx: number, dy: number) => void
   zoom: (delta: number, center: Point) => void

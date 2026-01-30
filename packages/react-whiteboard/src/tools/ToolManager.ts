@@ -17,11 +17,18 @@ export class ToolManager {
   private tools: Map<ToolType, ITool> = new Map()
   private activeTool: ITool | null = null
   private state: ToolState
-  private store: WhiteboardStore | null = null
+  private storeGetter: (() => WhiteboardStore) | null = null
 
   constructor() {
     this.state = createToolState()
     this.registerDefaultTools()
+  }
+
+  /**
+   * Get fresh store state (always current)
+   */
+  private get store(): WhiteboardStore | null {
+    return this.storeGetter?.() ?? null
   }
 
   /**
@@ -66,10 +73,10 @@ export class ToolManager {
   }
 
   /**
-   * Set the store reference
+   * Set the store getter for always-fresh state access
    */
-  setStore(store: WhiteboardStore): void {
-    this.store = store
+  setStoreGetter(getter: () => WhiteboardStore): void {
+    this.storeGetter = getter
   }
 
   /**
