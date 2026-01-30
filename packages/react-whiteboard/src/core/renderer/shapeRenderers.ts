@@ -11,6 +11,7 @@ import type {
   Shape,
 } from '../../types'
 import { calculateArrowhead } from '../../utils/canvas'
+import { resolveFont } from '../../utils/fonts'
 
 /**
  * Shared stroke options for perfect-freehand rendering
@@ -255,13 +256,23 @@ export function drawText(
   isSelected: boolean,
   drawSelection: DrawSelectionOutlineFn,
 ): void {
-  const { x, y, width, opacity, props } = shape
-  const { text, fontSize, fontFamily, fontWeight, color, align } = props
+  const { x, y, width, height, opacity, props } = shape
+  const { text, fontSize, color, backgroundColor, align, lineHeight } = props
 
   ctx.save()
   ctx.globalAlpha = opacity
 
-  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
+  // Background fill
+  if (backgroundColor && backgroundColor !== 'transparent') {
+    const pad = 4
+    ctx.fillStyle = backgroundColor
+    ctx.beginPath()
+    roundRect(ctx, x - pad, y - pad, width + pad * 2, height + pad * 2, 4)
+    ctx.fill()
+  }
+
+  // Text rendering
+  ctx.font = resolveFont(props)
   ctx.fillStyle = color
   ctx.textAlign = align as CanvasTextAlign
   ctx.textBaseline = 'top'
@@ -270,15 +281,36 @@ export function drawText(
   if (align === 'center') textX = x + width / 2
   else if (align === 'right') textX = x + width
 
-  const lineHeight = fontSize * 1.2
+  const lineSpacing = fontSize * (lineHeight ?? 1.25)
   const lines = text.split('\n')
 
   lines.forEach((line, index) => {
-    ctx.fillText(line, textX, y + index * lineHeight)
+    ctx.fillText(line, textX, y + index * lineSpacing)
   })
 
-  if (isSelected) drawSelection(x, y, shape.width, shape.height)
+  if (isSelected) drawSelection(x, y, width, height)
   ctx.restore()
+}
+
+/** Draw a rounded rectangle path (no stroke/fill — caller does that) */
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+): void {
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + w - r, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + h - r)
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  ctx.lineTo(x + r, y + h)
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
 }
 
 export function drawBoundingBox(

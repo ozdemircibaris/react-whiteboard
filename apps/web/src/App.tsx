@@ -2,6 +2,7 @@
 
 import { Canvas, useWhiteboardStore } from '@ozdemircibaris/react-whiteboard'
 import type { ToolType } from '@ozdemircibaris/react-whiteboard'
+import { TextPropertiesPanel } from './TextPropertiesPanel'
 
 // Tool button component
 function ToolButton({
@@ -161,6 +162,7 @@ export default function App() {
 
       <main className="relative flex-1 w-full min-h-0 overflow-hidden">
         <Canvas showGrid={true} gridSize={20} backgroundColor="#fafafa" />
+        <TextPropertiesPanel />
         <Instructions />
       </main>
     </div>

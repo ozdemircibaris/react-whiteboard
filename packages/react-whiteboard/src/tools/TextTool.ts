@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import type { WhiteboardStore } from '../core/store'
-import type { TextShape, Point, Viewport } from '../types'
+import type { TextShape, TextShapeProps, Point, Viewport } from '../types'
 import type {
   ITool,
   ToolEventContext,
@@ -10,15 +10,16 @@ import type {
   PointerUpResult,
 } from './types'
 import { getShapeAtPoint } from '../utils/hitTest'
-import { TextInputManager, DEFAULT_TEXT_PROPS } from './TextInputManager'
+import { measureTextLines } from '../utils/fonts'
+import { TextInputManager } from './TextInputManager'
 import { useWhiteboardStore } from '../core/store'
 
 /**
- * Text tool — click to place text with inline multiline editing.
+ * Text tool — click to place text with inline multiline WYSIWYG editing.
  *
  * Editing flow:
- * 1. Click canvas → textarea appears at click position
- * 2. Click existing text → textarea over shape, pre-filled
+ * 1. Click canvas → textarea appears with current text styling defaults
+ * 2. Click existing text → textarea over shape, pre-filled with shape's styling
  * 3. Type → textarea auto-resizes, Enter creates newlines
  * 4. Cmd/Ctrl+Enter or click outside → confirm
  * 5. Escape → cancel
@@ -100,7 +101,6 @@ export class TextTool implements ITool {
 
   onDoubleClick(ctx: ToolEventContext, store: WhiteboardStore): void {
     const hitShape = getShapeAtPoint(ctx.canvasPoint, store.shapes, store.shapeIds, 2)
-
     if (hitShape && hitShape.type === 'text') {
       this.startEditing(hitShape as TextShape, ctx.viewport, store)
     }
@@ -114,21 +114,21 @@ export class TextTool implements ITool {
     this.editingShapeId = shape.id
     this.currentStore = store
 
-    // Hide shape while editing — textarea renders over it
     store.updateShape(shape.id, { opacity: 0 }, false)
 
+    // Use the shape's own props for WYSIWYG styling
+    const { text, ...styleProps } = shape.props
     this.inputManager.create(
       { x: shape.x, y: shape.y },
-      shape.props.text,
-      shape.props.fontSize,
+      text,
+      styleProps,
       viewport,
       {
-        onConfirm: (text) => this.handleConfirm(text),
+        onConfirm: (t) => this.handleConfirm(t),
         onCancel: () => this.cancelEdit(),
       },
     )
 
-    // Subscribe to viewport changes via Zustand selector
     this.inputManager.subscribeToViewport((listener) =>
       useWhiteboardStore.subscribe((s) => s.viewport, listener),
     )
@@ -138,13 +138,15 @@ export class TextTool implements ITool {
     this.editingShapeId = null
     this.currentStore = store
 
+    // Use current text defaults from store
+    const textProps = store.currentTextProps
     this.inputManager.create(
       position,
       '',
-      DEFAULT_TEXT_PROPS.fontSize,
+      textProps,
       viewport,
       {
-        onConfirm: (text) => this.handleConfirm(text),
+        onConfirm: (t) => this.handleConfirm(t),
         onCancel: () => this.cancelEdit(),
       },
     )
@@ -165,23 +167,22 @@ export class TextTool implements ITool {
 
     if (text) {
       if (this.editingShapeId) {
-        const existingShape = store.shapes.get(this.editingShapeId) as TextShape | undefined
-        if (existingShape) {
-          const { width, height } = this.measureTextDimensions(text, existingShape.props.fontSize)
+        const existing = store.shapes.get(this.editingShapeId) as TextShape | undefined
+        if (existing) {
+          const { width, height } = this.measure(text, existing.props)
           store.updateShape(
             this.editingShapeId,
-            { opacity: 1, width, height, props: { ...existingShape.props, text } },
+            { opacity: 1, width, height, props: { ...existing.props, text } },
             true,
           )
           store.select(this.editingShapeId)
         }
       } else {
-        const shape = this.createShape(position, text)
+        const shape = this.createShape(position, text, store.currentTextProps)
         store.addShape(shape, true)
         store.select(shape.id)
       }
     } else if (this.editingShapeId) {
-      // Empty text on existing shape — restore opacity
       store.updateShape(this.editingShapeId, { opacity: 1 }, false)
     }
 
@@ -190,7 +191,6 @@ export class TextTool implements ITool {
 
   private cancelEdit(): void {
     if (this.editingShapeId && this.currentStore) {
-      // Always restore opacity on cancel
       this.currentStore.updateShape(this.editingShapeId, { opacity: 1 }, false)
     }
     this.cleanup()
@@ -201,35 +201,19 @@ export class TextTool implements ITool {
     this.editingShapeId = null
   }
 
-  private measureTextDimensions(
+  private measure(
     text: string,
-    fontSize: number,
+    props: Pick<TextShapeProps, 'fontSize' | 'fontFamily' | 'fontWeight' | 'fontStyle' | 'lineHeight'>,
   ): { width: number; height: number } {
-    const { fontFamily, fontWeight } = DEFAULT_TEXT_PROPS
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-
-    if (!ctx) return { width: 50, height: fontSize * 1.2 }
-
-    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
-    const lines = text.split('\n')
-    const lineHeight = fontSize * 1.2
-
-    let maxWidth = 0
-    for (const line of lines) {
-      const metrics = ctx.measureText(line || ' ')
-      maxWidth = Math.max(maxWidth, metrics.width)
-    }
-
-    return {
-      width: Math.max(maxWidth + 8, 50),
-      height: lines.length * lineHeight,
-    }
+    return measureTextLines(text, props)
   }
 
-  private createShape(position: Point, text: string): TextShape {
-    const { fontSize, fontFamily, fontWeight, color, align } = DEFAULT_TEXT_PROPS
-    const { width, height } = this.measureTextDimensions(text, fontSize)
+  private createShape(
+    position: Point,
+    text: string,
+    styleProps: Omit<TextShapeProps, 'text'>,
+  ): TextShape {
+    const { width, height } = this.measure(text, styleProps)
 
     return {
       id: nanoid(),
@@ -244,7 +228,7 @@ export class TextTool implements ITool {
       parentId: null,
       seed: Math.floor(Math.random() * 2147483647),
       roughness: 0,
-      props: { text, fontSize, fontFamily, fontWeight, color, align },
+      props: { text, ...styleProps },
     }
   }
 }

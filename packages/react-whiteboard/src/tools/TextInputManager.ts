@@ -1,70 +1,22 @@
-import type { Point, Viewport } from '../types'
+import type { Point, Viewport, TextShapeProps } from '../types'
+import { resolveFont, measureTextLines, DEFAULT_TEXT_PROPS } from '../utils/fonts'
 
-/**
- * Default text styling properties
- */
-export const DEFAULT_TEXT_PROPS = {
-  fontSize: 16,
-  fontFamily: 'sans-serif',
-  fontWeight: 400,
-  color: '#333333',
-  align: 'left' as const,
-}
+export { DEFAULT_TEXT_PROPS }
 
 export interface TextInputCallbacks {
   onConfirm: (text: string) => void
   onCancel: () => void
 }
 
-interface MeasureTextOptions {
-  fontSize: number
-  fontFamily: string
-  fontWeight: number
-}
-
 /** Minimum dimensions for the editing textarea */
 const MIN_WIDTH = 100
-const MIN_HEIGHT_LINES = 1
 const PADDING = 4
 
 /**
- * Measures text dimensions using an offscreen canvas context.
- * Returns { width, height } accounting for multiline text.
- */
-function measureText(
-  text: string,
-  options: MeasureTextOptions,
-): { width: number; height: number } {
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return { width: MIN_WIDTH, height: options.fontSize * 1.2 }
-
-  ctx.font = `${options.fontWeight} ${options.fontSize}px ${options.fontFamily}`
-  const lines = text.split('\n')
-  const lineHeight = options.fontSize * 1.2
-
-  let maxWidth = 0
-  for (const line of lines) {
-    const metrics = ctx.measureText(line || ' ')
-    maxWidth = Math.max(maxWidth, metrics.width)
-  }
-
-  return {
-    width: Math.max(maxWidth + PADDING * 2, MIN_WIDTH),
-    height: Math.max(lines.length, MIN_HEIGHT_LINES) * lineHeight,
-  }
-}
-
-/**
- * Manages an HTML textarea for inline text editing on the canvas.
+ * Manages an HTML textarea for inline WYSIWYG text editing on the canvas.
  *
- * Improvements over previous implementation:
- * - Uses <textarea> instead of <input> for multiline support
- * - Appends to overlay container instead of document.body
- * - Uses Zustand store.subscribe() instead of RAF polling for viewport sync
- * - Auto-resizes as user types
- * - Proper event listener cleanup
- * - No blur race conditions
+ * The textarea visually matches the final rendered shape:
+ * same font, color, background, alignment, and line height.
  */
 export class TextInputManager {
   private textareaElement: HTMLTextAreaElement | null = null
@@ -73,13 +25,9 @@ export class TextInputManager {
   private blurTimeoutId: ReturnType<typeof setTimeout> | null = null
   private viewportUnsubscribe: (() => void) | null = null
   private callbacks: TextInputCallbacks | null = null
-  private fontSize = DEFAULT_TEXT_PROPS.fontSize
+  private textProps: Omit<TextShapeProps, 'text'> = DEFAULT_TEXT_PROPS
   private isConfirming = false
 
-  /**
-   * Set the overlay container for positioning reference.
-   * Textarea is appended here instead of document.body.
-   */
   setOverlayContainer(container: HTMLElement | null): void {
     this.overlayContainer = container
   }
@@ -98,22 +46,22 @@ export class TextInputManager {
 
   /**
    * Create and show the textarea element for editing.
+   * Accepts full text props for WYSIWYG styling.
    */
   create(
     position: Point,
     initialText: string,
-    fontSize: number,
+    textProps: Omit<TextShapeProps, 'text'>,
     viewport: Viewport,
     callbacks: TextInputCallbacks,
   ): void {
-    // Clean up any existing textarea first
     if (this.isActive()) {
       this.destroy()
     }
 
     this.editingPosition = position
     this.callbacks = callbacks
-    this.fontSize = fontSize
+    this.textProps = textProps
     this.isConfirming = false
 
     const textarea = document.createElement('textarea')
@@ -122,7 +70,7 @@ export class TextInputManager {
     textarea.rows = 1
     this.textareaElement = textarea
 
-    this.applyStyles(fontSize, viewport.zoom)
+    this.applyStyles(textProps, viewport.zoom)
     this.updatePosition(viewport)
     this.autoResize()
 
@@ -143,7 +91,6 @@ export class TextInputManager {
 
   /**
    * Subscribe to viewport changes via Zustand store.subscribe().
-   * Much more efficient than RAF polling — only fires when viewport actually changes.
    */
   subscribeToViewport(
     subscribe: (listener: (viewport: Viewport) => void) => () => void,
@@ -160,9 +107,6 @@ export class TextInputManager {
     })
   }
 
-  /**
-   * Update textarea position based on viewport transform.
-   */
   updatePosition(viewport: Viewport): void {
     if (!this.textareaElement || !this.editingPosition) return
 
@@ -175,9 +119,6 @@ export class TextInputManager {
     this.textareaElement.style.transform = `scale(${viewport.zoom})`
   }
 
-  /**
-   * Clean up and remove the textarea element.
-   */
   destroy(): void {
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId)
@@ -202,8 +143,13 @@ export class TextInputManager {
     this.isConfirming = false
   }
 
-  private applyStyles(fontSize: number, zoom: number): void {
+  /**
+   * Apply WYSIWYG styles — textarea matches the final canvas rendering.
+   */
+  private applyStyles(props: Omit<TextShapeProps, 'text'>, zoom: number): void {
     if (!this.textareaElement) return
+
+    const hasBg = props.backgroundColor && props.backgroundColor !== 'transparent'
 
     Object.assign(this.textareaElement.style, {
       position: 'fixed',
@@ -212,32 +158,29 @@ export class TextInputManager {
       border: '2px solid #0066ff',
       borderRadius: '4px',
       outline: 'none',
-      background: 'rgba(255, 255, 255, 0.9)',
+      background: hasBg ? props.backgroundColor : 'rgba(255, 255, 255, 0.9)',
       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-      font: `${DEFAULT_TEXT_PROPS.fontWeight} ${fontSize}px ${DEFAULT_TEXT_PROPS.fontFamily}`,
-      color: DEFAULT_TEXT_PROPS.color,
+      font: resolveFont(props),
+      color: props.color,
+      textAlign: props.align,
+      lineHeight: String(props.lineHeight),
       padding: `${PADDING}px`,
       minWidth: `${MIN_WIDTH}px`,
       zIndex: '10000',
       resize: 'none',
       overflow: 'hidden',
-      lineHeight: '1.2',
       whiteSpace: 'pre',
       boxSizing: 'border-box',
     })
   }
 
-  /**
-   * Auto-resize textarea to fit content.
-   */
   private autoResize(): void {
     if (!this.textareaElement) return
 
-    const { width, height } = measureText(this.textareaElement.value || ' ', {
-      fontSize: this.fontSize,
-      fontFamily: DEFAULT_TEXT_PROPS.fontFamily,
-      fontWeight: DEFAULT_TEXT_PROPS.fontWeight,
-    })
+    const { width, height } = measureTextLines(
+      this.textareaElement.value || ' ',
+      this.textProps,
+    )
 
     this.textareaElement.style.width = `${width}px`
     this.textareaElement.style.height = `${height + PADDING * 2}px`
@@ -251,7 +194,6 @@ export class TextInputManager {
       return
     }
 
-    // Cmd/Ctrl+Enter → confirm
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       e.stopPropagation()
@@ -259,8 +201,6 @@ export class TextInputManager {
       return
     }
 
-    // Regular Enter → newline (natural textarea behavior, no preventDefault)
-    // Stop propagation to prevent canvas keyboard shortcuts
     e.stopPropagation()
   }
 

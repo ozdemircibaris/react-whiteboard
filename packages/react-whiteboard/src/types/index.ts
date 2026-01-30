@@ -124,16 +124,23 @@ export interface ArrowShape extends BaseShape {
   }
 }
 
+export type TextFontFamily = 'hand' | 'sans' | 'serif' | 'mono'
+
+export interface TextShapeProps {
+  text: string
+  fontSize: number
+  fontFamily: TextFontFamily
+  fontWeight: number
+  fontStyle: 'normal' | 'italic'
+  color: string
+  backgroundColor: string
+  align: 'left' | 'center' | 'right'
+  lineHeight: number
+}
+
 export interface TextShape extends BaseShape {
   type: 'text'
-  props: {
-    text: string
-    fontSize: number
-    fontFamily: string
-    fontWeight: number
-    color: string
-    align: 'left' | 'center' | 'right'
-  }
+  props: TextShapeProps
 }
 
 export interface PathPoint {

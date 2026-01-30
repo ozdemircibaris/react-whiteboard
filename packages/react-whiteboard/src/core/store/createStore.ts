@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import type { Shape, ToolType, Viewport, Point, HistoryEntry } from '../../types'
+import type { Shape, ToolType, Viewport, Point, HistoryEntry, TextShapeProps } from '../../types'
 import { createShapeActions } from './shapeActions'
 import { createViewportActions } from './viewportActions'
 import { createHistoryActions } from './historyActions'
+import { DEFAULT_TEXT_PROPS } from '../../utils/fonts'
 
 // ============================================================================
 // Store State Interface
@@ -57,6 +58,10 @@ export interface WhiteboardStore {
   canUndo: () => boolean
   canRedo: () => boolean
   recordBatchUpdate: (before: Shape[], after: Shape[]) => void
+
+  // Text styling defaults (applied to new text shapes)
+  currentTextProps: Omit<TextShapeProps, 'text'>
+  setCurrentTextProps: (props: Partial<Omit<TextShapeProps, 'text'>>) => void
 }
 
 // ============================================================================
@@ -113,6 +118,13 @@ export const createWhiteboardStore = () =>
       // Interaction actions
       setIsDrawing: (isDrawing) => set({ isDrawing }),
       setIsPanning: (isPanning) => set({ isPanning }),
+
+      // Text styling defaults
+      currentTextProps: { ...DEFAULT_TEXT_PROPS },
+      setCurrentTextProps: (props) =>
+        set((state) => ({
+          currentTextProps: { ...state.currentTextProps, ...props },
+        })),
     }))
   )
 
