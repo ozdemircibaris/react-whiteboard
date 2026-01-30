@@ -1,138 +1,201 @@
-import { useRef, useCallback, useEffect } from 'react'
-import { useWhiteboardStore, type WhiteboardStore } from '../core/store'
-import { ToolManager, toolManager } from '../tools/ToolManager'
+import { useRef, useCallback, useEffect, useState } from 'react'
+import { useWhiteboardStore } from '../core/store'
+import { toolManager } from '../tools/ToolManager'
+import { textTool } from '../tools/TextTool'
+import { screenToCanvas } from '../utils/canvas'
+import { TOOL_CURSORS } from '../tools/types'
 import type { ToolEventContext } from '../tools/types'
 import type { Point } from '../types'
 
-/**
- * Hook for integrating tools with React components
- */
-export function useTools() {
-  const managerRef = useRef<ToolManager>(toolManager)
+interface UseToolsOptions {
+  containerRef: React.RefObject<HTMLDivElement | null>
+  canvasRef: React.RefObject<HTMLCanvasElement | null>
+  renderFnRef: React.RefObject<(() => void) | null>
+}
 
-  // Get state from the store
+/**
+ * Hook that bridges React pointer events to the ToolManager system.
+ * Handles pointer capture, panning, coordinate conversion, cursor updates,
+ * tool overlay rendering, and text overlay setup.
+ */
+export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptions) {
+  const lastPointerRef = useRef<Point | null>(null)
+  const isPanningRef = useRef(false)
+  const [cursorStyle, setCursorStyle] = useState('default')
+
+  // Store selectors
   const currentTool = useWhiteboardStore((s) => s.currentTool)
   const viewport = useWhiteboardStore((s) => s.viewport)
-  const setTool = useWhiteboardStore((s) => s.setTool)
 
-  // Initialize manager with store on mount
+  // Store actions
+  const pan = useWhiteboardStore((s) => s.pan)
+  const setIsPanning = useWhiteboardStore((s) => s.setIsPanning)
+
+  // Initialize ToolManager with store getter on mount
   useEffect(() => {
-    const manager = managerRef.current
-    // Get the store state directly for the tool manager
-    const storeApi = useWhiteboardStore as unknown as { getState: () => WhiteboardStore }
-    manager.setStore(storeApi.getState())
-    manager.setActiveTool(currentTool)
+    toolManager.setStoreGetter(() => useWhiteboardStore.getState())
+    toolManager.setActiveTool(currentTool)
   }, [])
 
-  // Update active tool when currentTool changes
+  // Sync active tool when currentTool changes
   useEffect(() => {
-    managerRef.current.setActiveTool(currentTool)
+    toolManager.setActiveTool(currentTool)
+    setCursorStyle(TOOL_CURSORS[currentTool] || 'default')
   }, [currentTool])
 
-  /**
-   * Create event context from pointer event
-   */
+  // Build ToolEventContext from a React pointer event
   const createEventContext = useCallback(
-    (
-      screenPoint: Point,
-      canvasPoint: Point,
-      event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean; button?: number; pressure?: number }
-    ): ToolEventContext => ({
-      screenPoint,
-      canvasPoint,
-      viewport,
-      shiftKey: event.shiftKey,
-      ctrlKey: event.ctrlKey,
-      metaKey: event.metaKey,
-      altKey: event.altKey,
-      button: event.button ?? 0,
-      pressure: event.pressure ?? 0.5,
-    }),
-    [viewport]
+    (e: React.PointerEvent): ToolEventContext | null => {
+      const container = containerRef.current
+      if (!container) return null
+
+      const rect = container.getBoundingClientRect()
+      const screenPoint: Point = { x: e.clientX, y: e.clientY }
+      const canvasPoint = screenToCanvas(screenPoint, viewport, rect)
+
+      return {
+        screenPoint,
+        canvasPoint,
+        viewport,
+        shiftKey: e.shiftKey,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        altKey: e.altKey,
+        button: e.button,
+        pressure: e.pressure || 0.5,
+      }
+    },
+    [containerRef, viewport],
   )
 
   /**
-   * Handle pointer down event
+   * Request a re-render after tool events (for overlay updates)
+   */
+  const requestRender = useCallback(() => {
+    requestAnimationFrame(() => renderFnRef.current?.())
+  }, [renderFnRef])
+
+  /**
+   * Pointer down: check panning first, then delegate to ToolManager
    */
   const handlePointerDown = useCallback(
-    (screenPoint: Point, canvasPoint: Point, event: React.PointerEvent) => {
-      const ctx = createEventContext(screenPoint, canvasPoint, event)
-      return managerRef.current.handlePointerDown(ctx)
+    (e: React.PointerEvent) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      canvas.setPointerCapture(e.pointerId)
+      lastPointerRef.current = { x: e.clientX, y: e.clientY }
+
+      // Middle mouse or alt+left click → panning
+      if (e.button === 1 || (e.button === 0 && e.altKey)) {
+        isPanningRef.current = true
+        setIsPanning(true)
+        e.preventDefault()
+        return
+      }
+
+      // Left click → delegate to active tool
+      if (e.button === 0) {
+        const ctx = createEventContext(e)
+        if (!ctx) return
+
+        const result = toolManager.handlePointerDown(ctx)
+        if (result.cursor) {
+          setCursorStyle(result.cursor)
+        }
+        requestRender()
+      }
     },
-    [createEventContext]
+    [canvasRef, createEventContext, setIsPanning, requestRender],
   )
 
   /**
-   * Handle pointer move event
+   * Pointer move: handle panning or delegate to ToolManager
    */
   const handlePointerMove = useCallback(
-    (screenPoint: Point, canvasPoint: Point, event: React.PointerEvent) => {
-      const ctx = createEventContext(screenPoint, canvasPoint, event)
-      return managerRef.current.handlePointerMove(ctx)
+    (e: React.PointerEvent) => {
+      const currentPoint = { x: e.clientX, y: e.clientY }
+
+      // Panning mode
+      if (isPanningRef.current && lastPointerRef.current) {
+        const dx = currentPoint.x - lastPointerRef.current.x
+        const dy = currentPoint.y - lastPointerRef.current.y
+        pan(dx, dy)
+        lastPointerRef.current = currentPoint
+        return
+      }
+
+      // Delegate to tool
+      const ctx = createEventContext(e)
+      if (!ctx) return
+
+      const result = toolManager.handlePointerMove(ctx)
+      if (result.cursor) {
+        setCursorStyle(result.cursor)
+      }
+
+      lastPointerRef.current = currentPoint
+      requestRender()
     },
-    [createEventContext]
+    [pan, createEventContext, requestRender],
   )
 
   /**
-   * Handle pointer up event
+   * Pointer up: finalize pan or delegate to ToolManager
    */
   const handlePointerUp = useCallback(
-    (screenPoint: Point, canvasPoint: Point, event: React.PointerEvent) => {
-      const ctx = createEventContext(screenPoint, canvasPoint, event)
-      return managerRef.current.handlePointerUp(ctx)
+    (e: React.PointerEvent) => {
+      const canvas = canvasRef.current
+      if (canvas) {
+        try {
+          canvas.releasePointerCapture(e.pointerId)
+        } catch {
+          // Pointer capture may have already been released
+        }
+      }
+
+      if (isPanningRef.current) {
+        isPanningRef.current = false
+        setIsPanning(false)
+        lastPointerRef.current = null
+        return
+      }
+
+      const ctx = createEventContext(e)
+      if (ctx) {
+        toolManager.handlePointerUp(ctx)
+      }
+
+      lastPointerRef.current = null
+      requestRender()
     },
-    [createEventContext]
+    [canvasRef, createEventContext, setIsPanning, requestRender],
   )
 
   /**
-   * Handle key down event
-   */
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    return managerRef.current.handleKeyDown(event)
-  }, [])
-
-  /**
-   * Render tool overlay
+   * Render tool overlay (preview shapes during drawing)
    */
   const renderOverlay = useCallback(
     (ctx: CanvasRenderingContext2D) => {
-      managerRef.current.renderOverlay(ctx, viewport)
+      toolManager.renderOverlay(ctx, viewport)
     },
-    [viewport]
+    [viewport],
   )
 
   /**
-   * Get current cursor
+   * Set text overlay container for TextTool inline editing
    */
-  const getCursor = useCallback(() => {
-    return managerRef.current.getCursor()
-  }, [])
-
-  /**
-   * Check if tool is dragging
-   */
-  const isDragging = useCallback(() => {
-    return managerRef.current.isDragging()
-  }, [])
-
-  /**
-   * Get all registered tools
-   */
-  const getAllTools = useCallback(() => {
-    return managerRef.current.getAllTools()
+  const setTextOverlayContainer = useCallback((el: HTMLDivElement | null) => {
+    textTool.setOverlayContainer(el)
   }, [])
 
   return {
-    manager: managerRef.current,
-    currentTool,
-    setTool,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
-    handleKeyDown,
     renderOverlay,
-    getCursor,
-    isDragging,
-    getAllTools,
+    cursorStyle,
+    setTextOverlayContainer,
+    isPanningRef,
   }
 }

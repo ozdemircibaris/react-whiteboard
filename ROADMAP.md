@@ -1,252 +1,250 @@
-# Whiteboard Project Roadmap
+# react-whiteboard — Vision & Roadmap
 
-## Tech Stack (Final)
-- **Rendering**: Canvas + HTML Overlay (when needed)
-- **State**: Zustand
-- **Collaboration**: Yjs + WebSocket
-- **App**: Vite + React 19 (demo), Next.js (future SaaS)
-- **Structure**: Monorepo (pnpm + turborepo)
+## Vision
+
+An open-source, high-quality whiteboard library for React that competes with Excalidraw and tldraw on polish and features, while being designed from the ground up as a **composable library** — not just an app.
+
+### What makes this different
+
+| | Excalidraw | tldraw | react-whiteboard |
+|---|---|---|---|
+| **Form factor** | App (with library wrapper) | Editor SDK | Library-first |
+| **Rendering** | Canvas 2D + RoughJS | Canvas 2D + custom | Canvas 2D + RoughJS + perfect-freehand |
+| **State** | Custom Redux-like | Custom signals | Zustand (standard React) |
+| **Collaboration** | Socket + custom sync | Y.js built-in | Y.js (pluggable) |
+| **Extensibility** | Fork the app | Plugin SDK | Composable hooks + tool interface |
+| **License** | MIT | Custom (tldraw license) | MIT |
+
+### Core principles
+
+1. **Library-first**: `<Whiteboard />` is a React component you drop into your app, not a standalone application you wrap
+2. **Hand-drawn identity**: RoughJS sketchy aesthetic + perfect-freehand pressure-sensitive strokes give it the warm, approachable feel that defines modern whiteboards
+3. **Composable architecture**: Tools, renderers, and state are all swappable. Bring your own tool, bring your own renderer, bring your own persistence
+4. **Performance without compromise**: Single-canvas rendering, viewport culling, RAF-driven render loop, minimal re-renders through Zustand selectors
+5. **Open source, high quality**: MIT license, production-grade code, comprehensive types, clean API surface
 
 ---
 
-## Phase 1: Project Setup ✅ COMPLETED
-- [x] Initialize monorepo with pnpm workspaces
-- [x] Setup Turborepo
-- [x] Create `packages/react-whiteboard` structure
-- [x] Create `apps/web` (Vite + React 19)
-- [x] Shared TypeScript config
-- [x] ESLint + Prettier config
-- [ ] Git hooks (husky + lint-staged) — deferred
+## Tech Stack
 
-## Phase 2: Core Canvas Engine ✅ COMPLETED
-- [x] Create Canvas component with ref
-- [x] Implement render loop (requestAnimationFrame)
-- [x] Viewport state (pan, zoom, bounds)
-- [x] Camera/viewport transforms
-- [x] Canvas coordinate ↔ screen coordinate utils
-- [x] DPI/retina display handling
-- [x] Zustand store setup
+- **Rendering**: HTML5 Canvas 2D + RoughJS (hand-drawn shapes) + perfect-freehand (pressure-sensitive strokes)
+- **State**: Zustand with `subscribeWithSelector`
+- **Collaboration**: Y.js + WebSocket (planned)
+- **Framework**: React 19 + TypeScript
+- **Build**: tsup (library), Vite (demo app)
+- **Structure**: Monorepo — pnpm workspaces + Turborepo
+- **Packages**: `@ozdemircibaris/react-whiteboard` (library) + `@whiteboard/web` (demo)
 
-**Files created:**
-- `packages/react-whiteboard/src/core/store.ts` — Zustand store
-- `packages/react-whiteboard/src/core/renderer.ts` — Canvas renderer
-- `packages/react-whiteboard/src/components/Canvas.tsx` — Canvas component
-- `packages/react-whiteboard/src/utils/canvas.ts` — Coordinate utils
+---
 
-## Phase 3: Event System ✅ COMPLETED
-- [x] Pointer event handling (down, move, up) — basic
-- [x] Mouse wheel zoom
-- [x] Pan with Alt+drag / middle mouse
-- [x] Touch support (pinch zoom, two-finger pan)
-- [x] Keyboard event system (Delete, Escape, Cmd+A, Arrow keys)
-- [ ] Event delegation architecture — deferred (not needed yet)
+## Completed
 
-## Phase 4: Shape System ✅ COMPLETED
-- [x] BaseShape interface/type
-- [ ] Shape registry (plugin system) — deferred
-- [x] Shape ID generation (nanoid)
-- [x] Z-index/layering system
-- [x] Implement shapes:
-  - [x] Rectangle
-  - [x] Ellipse/Circle
-  - [x] Path (freehand)
-  - [ ] Line — Phase 8
-  - [ ] Arrow — Phase 8
-  - [ ] Text — Phase 8
-- [x] Shape bounds calculation
-- [x] Hit testing (point-in-shape detection)
+### Phase 1: Project Setup
+- [x] Monorepo with pnpm workspaces + Turborepo
+- [x] `packages/react-whiteboard` — library with tsup build (CJS + ESM + DTS)
+- [x] `apps/web` — Vite + React 19 demo app
+- [x] Shared TypeScript config, ESLint, Prettier
 
-**Files created:**
-- `packages/react-whiteboard/src/utils/hitTest.ts` — Hit testing utilities
+### Phase 2: Core Canvas Engine
+- [x] Canvas component with requestAnimationFrame render loop
+- [x] Viewport state (pan, zoom, bounds) in Zustand
+- [x] Camera transforms + DPI/retina handling
+- [x] Screen <-> canvas coordinate conversion
+- [x] Grid rendering
 
-## Phase 5: Selection & Interaction ✅ COMPLETED
+### Phase 3: Event System
+- [x] Pointer events (down, move, up) with pointer capture
+- [x] Mouse wheel zoom (passive: false)
+- [x] Pan: Alt+drag, middle mouse button
+- [x] Touch: pinch zoom, two-finger pan
+- [x] Keyboard shortcuts: Cmd+Z, Cmd+Shift+Z, Delete, Escape, Cmd+A, arrow keys
+
+### Phase 4: Shape System
+- [x] BaseShape interface with id, bounds, rotation, opacity, locking, seed, roughness
+- [x] Shape types: Rectangle, Ellipse, Path, Line, Arrow, Text, ReactComponent
+- [x] Z-index ordering via shapeIds array
+- [x] Hit testing (point-in-shape, proximity-based for lines)
+
+### Phase 5: Selection & Interaction
 - [x] Single selection (click)
 - [x] Multi-selection (shift+click)
-- [ ] Marquee/lasso selection — deferred
-- [x] Selection bounds box — rendering only
 - [x] Drag to move shapes
-- [x] Resize handles (8-point)
-- [ ] Rotation handle — Phase 10
-- [ ] Snapping — Phase 10
+- [x] 8-point resize handles
+- [x] Selection bounds rendering
 
-## Phase 6: Tools System ✅ COMPLETED
-- [x] Tool state machine
-- [x] BaseTool interface
-- [x] Implement tools:
-  - [x] SelectTool
-  - [x] RectangleTool
-  - [x] EllipseTool
-  - [x] DrawTool (freehand)
-  - [ ] LineTool — Phase 8
-  - [ ] ArrowTool — Phase 8
-  - [ ] TextTool — Phase 8
+### Phase 6: Tools System
+- [x] ITool interface with lifecycle (activate, deactivate, pointer events, overlay)
+- [x] ToolManager singleton with storeGetter pattern
+- [x] Tools: SelectTool, RectangleTool, EllipseTool, DrawTool, LineTool, ArrowTool, TextTool
+- [x] BaseLineTool base class (shared Line/Arrow logic with angle snapping)
 - [x] Tool cursor management
-- [x] Toolbar state sync
+- [x] useTools hook — full event bridge between Canvas and ToolManager
 
-**Files created:**
-- `packages/react-whiteboard/src/tools/types.ts` — Tool types and interfaces
-- `packages/react-whiteboard/src/tools/SelectTool.ts` — Selection tool
-- `packages/react-whiteboard/src/tools/RectangleTool.ts` — Rectangle tool
-- `packages/react-whiteboard/src/tools/EllipseTool.ts` — Ellipse tool
-- `packages/react-whiteboard/src/tools/DrawTool.ts` — Freehand drawing tool
-- `packages/react-whiteboard/src/tools/ToolManager.ts` — Tool manager
-- `packages/react-whiteboard/src/hooks/useTools.ts` — React hook for tools
+### Phase 7: History (Undo/Redo)
+- [x] History stack with HistoryEntry/HistoryAction types
+- [x] Undo/redo actions in store
+- [x] recordBatchUpdate for drag operations (single history entry per drag)
+- [x] Keyboard shortcuts
 
-## Phase 7: History (Undo/Redo) ✅ COMPLETED
-- [x] Command pattern implementation — basic structure
-- [x] History stack
-- [x] Undo action
-- [x] Redo action
-- [x] Keyboard shortcuts (Cmd+Z, Cmd+Shift+Z, Ctrl+Y)
-- [x] CRDT-friendly structure (for future collab)
+### Phase 8: Text, Line & Arrow
+- [x] TextTool with HTML overlay (contenteditable) for inline editing
+- [x] TextInputManager for managing text input lifecycle
+- [x] LineTool with shift+drag 45-degree angle snapping
+- [x] ArrowTool with arrowhead rendering (none/arrow/triangle)
+- [x] Line/Arrow hit testing (proximity-based)
+- [x] All tools wired into toolbar
+
+### Foundation: Architecture & Identity
+- [x] **Canvas decomposition**: 1156 lines -> 203 lines, delegates to 4 hooks (useCanvasSetup, useKeyboardShortcuts, useTouchGestures, useTools)
+- [x] **RoughJS integration**: Hand-drawn rendering for rectangles, ellipses, lines, arrows. Deterministic seed per shape for consistent re-renders
+- [x] **perfect-freehand integration**: Pressure-sensitive variable-width freehand strokes. Auto-detects real pen pressure vs mouse simulation
+- [x] **Animated zoom**: easeOutCubic + RAF-driven `animateZoom` for smooth zoom button transitions. Cancellable (new animation overrides in-progress one)
+- [x] **RoughJS tool overlays**: Live drag previews use RoughJS with fixed seed for stable, non-jittery preview shapes
 
 ---
 
-## Phase 8: Core Shapes & Tools ← CURRENT
-Complete the essential shapes and tools for a functional whiteboard.
+## Next Up
 
-### Text System
-- [ ] Text shape type (position, content, fontSize, fontFamily, color, align)
-- [ ] TextTool implementation
-- [ ] Inline text editing (contenteditable overlay or canvas-based)
-- [ ] Text bounds calculation
-- [ ] Text hit testing
-- [ ] Font size controls
+### Phase 9: Rendering Quality
+Bring the rendering closer to Excalidraw's level of polish.
 
-### Line & Arrow
-- [ ] Line shape type (start, end, strokeWidth, color)
-- [ ] Arrow shape type (extends Line with arrowhead options)
-- [ ] LineTool implementation
-- [ ] ArrowTool implementation
-- [ ] Line/Arrow hit testing (proximity-based)
-- [ ] Endpoint handles for editing
+- [ ] Hand-drawn font (Virgil/Excalifont) for text shapes
+- [ ] Fill style options per shape: solid, hachure, cross-hatch, dots
+- [ ] Stroke style options: solid, dashed, dotted
+- [ ] Shape opacity control in UI
+- [ ] Color picker (stroke + fill) per shape
+- [ ] Stroke width control per shape
+- [ ] Corner radius control for rectangles
+- [ ] Dual-canvas architecture: static canvas (shapes that haven't changed) + interactive canvas (active shape + selection). Eliminates full redraw on every frame
 
-### Toolbar Updates
-- [ ] Add Text, Line, Arrow buttons to toolbar
-- [ ] Tool icons
+### Phase 10: Editing Polish
+Production-level editing UX.
 
-## Phase 9: Export & Import
-Enable sharing and saving work.
-
-- [ ] Export to PNG (canvas.toDataURL)
-- [ ] Export to SVG (shape-to-SVG conversion)
-- [ ] Export to JSON (serialize shapes)
-- [ ] Import from JSON (deserialize)
-- [ ] Download UI (export button, format selection)
-- [ ] Import from Excalidraw (optional, nice-to-have)
-
-## Phase 10: Editing Polish
-Improve the editing experience.
-
-### Copy/Paste
-- [ ] Internal copy (Cmd+C)
-- [ ] Internal paste (Cmd+V)
-- [ ] Duplicate (Cmd+D)
-- [ ] Cut (Cmd+X)
-- [ ] Paste offset (so pastes don't overlap)
+- [ ] Copy/Paste (Cmd+C, Cmd+V, Cmd+D, Cmd+X)
+- [ ] Paste offset (so duplicates don't overlap)
 - [ ] External paste (images from clipboard)
-
-### Snapping & Alignment
 - [ ] Snap to grid
-- [ ] Snap to other shapes (edges, centers)
-- [ ] Smart guides (alignment lines)
-- [ ] Align tools (left, center, right, top, middle, bottom)
-- [ ] Distribute evenly
+- [ ] Snap to shape edges/centers (smart guides)
+- [ ] Alignment tools (left, center, right, top, middle, bottom, distribute)
+- [ ] Rotation handle on selection + Shift for 15-degree increments
+- [ ] Marquee/lasso selection (drag to select multiple)
+- [ ] Group/ungroup shapes
+- [ ] Lock/unlock shapes
+- [ ] Z-order controls (bring forward, send backward, front, back)
+- [ ] Minimap
 
-### Rotation
-- [ ] Rotation handle on selection
-- [ ] Rotate shapes (update rotation property)
-- [ ] Shift+rotate for 15° increments
+### Phase 11: Export & Import
+Enable sharing and saving.
 
-## Phase 11: Library API
-Clean up the public API for library consumers.
+- [ ] Export to PNG (canvas.toDataURL with background)
+- [ ] Export to SVG (shape-to-SVG conversion with RoughJS SVG mode)
+- [ ] Export to JSON (serialize shapes + viewport)
+- [ ] Import from JSON
+- [ ] Import from Excalidraw format (.excalidraw files)
+- [ ] Download/export UI
 
-- [ ] Clean public API design
-- [ ] `<Whiteboard />` wrapper component
-- [ ] Props: initialData, onChange, tools, readOnly, etc.
-- [ ] Hooks: useWhiteboard, useViewport, useSelection
-- [ ] Event callbacks: onShapeCreate, onShapeUpdate, onShapeDelete
-- [x] TypeScript types export
-- [x] Build setup (tsup)
-- [x] Package.json exports config
-- [ ] API documentation
+### Phase 12: Library API
+Clean, composable public API for library consumers.
 
-## Phase 12: Persistence (Supabase)
-Save and load boards from the cloud.
+- [ ] `<Whiteboard />` wrapper component with sensible defaults
+- [ ] Props: initialData, onChange, tools, readOnly, theme, locale
+- [ ] Hooks: useWhiteboard(), useViewport(), useSelection(), useShapes()
+- [ ] Event callbacks: onShapeCreate, onShapeUpdate, onShapeDelete, onViewportChange
+- [ ] Custom tool registration API
+- [ ] Custom shape renderer API
+- [ ] Headless mode (bring your own UI)
+- [ ] API documentation + Storybook
+
+### Phase 13: Persistence (Supabase)
+Cloud save/load for the SaaS layer.
 
 - [ ] Supabase project setup
 - [ ] Auth (email, Google, GitHub)
-- [ ] Database schema (boards, shapes)
-- [ ] Save board
-- [ ] Load board
+- [ ] Database schema (boards, shapes, users)
+- [ ] Save/load boards
 - [ ] Auto-save (debounced)
 - [ ] Board list/dashboard
-- [ ] Share board (public link)
+- [ ] Share via public link
 
-## Phase 13: Collaboration (Yjs + WebSocket)
+### Phase 14: Collaboration (Y.js)
 Real-time multi-user editing.
 
-- [ ] Yjs document structure
-- [ ] WebSocket server setup (or Supabase Realtime)
-- [ ] Y.Map for shapes
-- [ ] Provider setup (y-websocket or y-supabase)
-- [ ] Cursor presence (awareness)
-- [ ] User colors/avatars
-- [ ] Conflict resolution testing
-- [ ] Offline support + sync
+- [ ] Y.js document structure (Y.Map for shapes, Y.Array for ordering)
+- [ ] WebSocket provider (y-websocket or Supabase Realtime)
+- [ ] Shape CRDT: create, update, delete sync
+- [ ] Cursor presence (awareness protocol)
+- [ ] User colors + name labels
+- [ ] Conflict resolution
+- [ ] Offline support + reconnection sync
 
-## Phase 14: HTML Overlay Layer
-Add HTML elements on top of canvas when needed.
+### Phase 15: Production Polish
+Ship-quality reliability.
 
-- [ ] Overlay container component
-- [ ] Viewport transform sync (canvas ↔ overlay)
-- [ ] Text editing overlay (if not canvas-based)
-- [ ] Context menu overlay
-- [ ] Tooltip overlay
-- [ ] Properties panel (shape settings)
-
-## Phase 15: Polish & Production
-Production-ready quality.
-
-- [ ] Performance profiling
-- [ ] Memory leak testing
+- [ ] Performance: viewport culling (skip off-screen shapes), shape caching, render budgeting
 - [ ] Large board testing (1000+ shapes)
+- [ ] Memory leak profiling
 - [ ] Error boundaries
-- [ ] Loading states
-- [ ] Empty states
-- [ ] Accessibility (keyboard navigation)
-- [ ] Dark/light mode
-- [ ] Responsive design
-- [ ] Error tracking (Sentry)
+- [ ] Accessibility (keyboard navigation, screen reader)
+- [ ] Dark mode / light mode / custom themes
+- [ ] Mobile responsive
+- [ ] i18n support
+- [ ] Comprehensive test suite
 
-## Phase 16: Launch Prep
-Ready for public release.
+### Phase 16: Launch
+Go public.
 
 - [ ] Documentation site
-- [ ] README.md
+- [ ] README with quickstart
 - [ ] Contributing guide
-- [ ] License (MIT)
-- [ ] npm publish setup
-- [ ] Demo/examples
+- [ ] MIT license
+- [ ] npm publish
 - [ ] Landing page
-- [ ] Beta user feedback
+- [ ] Demo gallery (examples)
+- [ ] Launch on Product Hunt / Hacker News
 
 ---
 
-## Current Focus
-**Phase 8: Core Shapes & Tools** ← NEXT
+## Architecture Overview
 
-Priority:
-1. Text shape + TextTool (most requested feature)
-2. Line shape + LineTool
-3. Arrow shape + ArrowTool
-4. Update toolbar with new tools
+```
+packages/react-whiteboard/src/
+  components/
+    Canvas.tsx              # Thin shell (203 lines), delegates to hooks
+  core/
+    store.ts                # Zustand store: shapes, viewport, selection, history
+    renderer.ts             # RoughJS + perfect-freehand canvas renderer
+  hooks/
+    useCanvasSetup.ts       # Canvas init, resize, DPI
+    useKeyboardShortcuts.ts # Keyboard event handling
+    useTouchGestures.ts     # Pinch zoom, two-finger pan
+    useTools.ts             # Pointer events <-> ToolManager bridge
+  tools/
+    ToolManager.ts          # Singleton tool router
+    types.ts                # ITool interface, ToolEventContext, ToolState
+    SelectTool.ts           # Click/drag select, move, resize
+    RectangleTool.ts        # Drag-to-draw rectangles
+    EllipseTool.ts          # Drag-to-draw ellipses
+    DrawTool.ts             # Freehand with pressure capture
+    LineTool.ts             # Lines with angle snapping
+    ArrowTool.ts            # Arrows with arrowhead options
+    TextTool.ts             # Click-to-place text with HTML overlay
+    BaseLineTool.ts         # Shared Line/Arrow base class
+    TextInputManager.ts     # Manages contenteditable lifecycle
+  types/
+    index.ts                # All type definitions
+  utils/
+    canvas.ts               # Coordinate math, easing, arrowheads
+    hitTest.ts              # Point-in-shape detection
+    shapeHitTest.ts         # Shape-specific hit test logic
+    resizeHandles.ts        # Handle position calculations
+```
 
 ---
 
 ## Notes
-- Each phase should be completable independently
-- Test as you go, don't leave testing for the end
-- Keep the library headless, UI belongs in the app
-- Document public APIs as you build them
-- Focus on core features before fancy additions
+
+- Every file stays under 400 lines (ideal: 150-300)
+- The library is headless — UI (toolbar, panels) belongs in the consuming app
+- Shapes have deterministic `seed` values so RoughJS renders identically across re-renders
+- The `pressure` field on path points enables stylus support while gracefully falling back to velocity-based simulation for mouse input
+- `animateZoom` uses RAF + easeOutCubic and is cancellable — calling it while an animation is running smoothly transitions to the new target

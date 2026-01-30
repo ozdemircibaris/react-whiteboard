@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid'
+import rough from 'roughjs'
 import type { WhiteboardStore } from '../core/store'
 import type { RectangleShape, Viewport } from '../types'
 import type {
@@ -120,29 +121,20 @@ export class RectangleTool implements ITool {
     if (!this.previewShape || !state.isDragging) return
 
     const { x, y, width, height, props } = this.previewShape
-    const { fill, stroke, strokeWidth, cornerRadius } = props
+    const { fill, stroke, strokeWidth } = props
 
     ctx.save()
     ctx.globalAlpha = 0.7
 
-    // Draw preview rectangle
-    ctx.beginPath()
-    if (cornerRadius > 0) {
-      this.roundRect(ctx, x, y, width, height, cornerRadius)
-    } else {
-      ctx.rect(x, y, width, height)
-    }
-
-    if (fill && fill !== 'transparent') {
-      ctx.fillStyle = fill
-      ctx.fill()
-    }
-
-    if (stroke && strokeWidth > 0) {
-      ctx.strokeStyle = stroke
-      ctx.lineWidth = strokeWidth
-      ctx.stroke()
-    }
+    const rc = rough.canvas(ctx.canvas)
+    rc.rectangle(x, y, width, height, {
+      seed: 42,
+      roughness: 1,
+      stroke,
+      strokeWidth,
+      fill: fill && fill !== 'transparent' ? fill : undefined,
+      fillStyle: 'solid',
+    })
 
     ctx.restore()
   }
@@ -164,6 +156,8 @@ export class RectangleTool implements ITool {
       opacity: 1,
       isLocked: false,
       parentId: null,
+      seed: Math.floor(Math.random() * 2147483647),
+      roughness: 1,
       props: { ...DEFAULT_RECTANGLE_PROPS },
     }
   }
@@ -196,22 +190,6 @@ export class RectangleTool implements ITool {
     return { x, y, width, height }
   }
 
-  private roundRect(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    radius: number
-  ): void {
-    const r = Math.min(radius, width / 2, height / 2)
-    ctx.moveTo(x + r, y)
-    ctx.arcTo(x + width, y, x + width, y + height, r)
-    ctx.arcTo(x + width, y + height, x, y + height, r)
-    ctx.arcTo(x, y + height, x, y, r)
-    ctx.arcTo(x, y, x + width, y, r)
-    ctx.closePath()
-  }
 }
 
 export const rectangleTool = new RectangleTool()

@@ -78,6 +78,10 @@ export interface BaseShape {
   isLocked: boolean
   parentId: string | null
   meta?: Record<string, unknown>
+  /** Deterministic randomization seed for consistent hand-drawn rendering */
+  seed: number
+  /** Sketchiness level: 0 = clean, 1 = normal, 2 = very sketchy */
+  roughness: number
 }
 
 export interface RectangleShape extends BaseShape {
@@ -132,12 +136,19 @@ export interface TextShape extends BaseShape {
   }
 }
 
+export interface PathPoint {
+  x: number
+  y: number
+  /** Pen pressure (0-1). Defaults to 0.5 when not available */
+  pressure?: number
+}
+
 export interface PathShape extends BaseShape {
   type: 'path'
   props: {
     stroke: string
     strokeWidth: number
-    points: Point[]
+    points: PathPoint[]
     isComplete: boolean
   }
 }

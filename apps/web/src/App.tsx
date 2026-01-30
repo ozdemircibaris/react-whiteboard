@@ -34,6 +34,7 @@ function Toolbar() {
   const clearShapes = useWhiteboardStore((s) => s.clearShapes)
   const viewport = useWhiteboardStore((s) => s.viewport)
   const resetViewport = useWhiteboardStore((s) => s.resetViewport)
+  const animateZoom = useWhiteboardStore((s) => s.animateZoom)
   const undo = useWhiteboardStore((s) => s.undo)
   const redo = useWhiteboardStore((s) => s.redo)
   const canUndo = useWhiteboardStore((s) => s.canUndo)
@@ -94,15 +95,29 @@ function Toolbar() {
         </button>
       </div>
 
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-gray-500">
-          Zoom: {Math.round(viewport.zoom * 100)}%
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => animateZoom(viewport.zoom - 0.25)}
+          disabled={viewport.zoom <= 0.1}
+          className="rounded-md bg-gray-200 px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          -
+        </button>
+        <span className="min-w-[4rem] text-center text-sm text-gray-500">
+          {Math.round(viewport.zoom * 100)}%
         </span>
+        <button
+          onClick={() => animateZoom(viewport.zoom + 0.25)}
+          disabled={viewport.zoom >= 10}
+          className="rounded-md bg-gray-200 px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          +
+        </button>
         <button
           onClick={resetViewport}
           className="rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300"
         >
-          Reset View
+          Reset
         </button>
       </div>
     </header>

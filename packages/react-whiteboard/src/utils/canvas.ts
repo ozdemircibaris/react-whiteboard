@@ -198,3 +198,14 @@ export function snapToAngle(start: Point, end: Point, snapDegrees: number = 45):
     y: start.y + Math.sin(snappedAngle) * dist,
   }
 }
+
+/**
+ * Cubic ease-out function for smooth animations
+ * Starts fast and decelerates toward the end
+ *
+ * @param t Progress value (0-1)
+ * @returns Eased value (0-1)
+ */
+export function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3)
+}
