@@ -1,7 +1,8 @@
 import type { WhiteboardStore } from '../core/store'
-import type { Shape, TextShape, LineShape, ArrowShape, PathShape } from '../types'
+import type { Shape, TextShape, LineShape, ArrowShape, PathShape, Viewport } from '../types'
 import {
   getShapeAtPoint,
+  getShapesInBounds,
   hitTestSelectionResizeHandles,
   getSelectionBounds,
   calculateResizedBounds,
@@ -29,6 +30,7 @@ export class SelectTool implements ITool {
 
   private moveBeforeStates: Shape[] = []
   private resizeStartFontSizes: Map<string, number> = new Map()
+  private isMarquee = false
 
   /** Check if all given shapes are text — used to restrict handles to corners only */
   private allText(shapes: Shape[]): boolean {
@@ -140,12 +142,15 @@ export class SelectTool implements ITool {
       return { handled: true, capture: true, cursor: 'move' }
     }
 
-    // Clicked on empty space - clear selection
+    // Clicked on empty space — start marquee selection
     if (!shiftKey) {
       store.clearSelection()
     }
-
-    return { handled: false }
+    this.isMarquee = true
+    state.isDragging = true
+    state.dragStart = canvasPoint
+    state.dragCurrent = canvasPoint
+    return { handled: true, capture: true, cursor: 'crosshair' }
   }
 
   onPointerMove(
@@ -161,6 +166,12 @@ export class SelectTool implements ITool {
       state.dragCurrent = canvasPoint
       this.handleResize(store, state)
       return { handled: true, cursor: RESIZE_CURSORS[state.resizeHandle] }
+    }
+
+    // Marquee selection drag
+    if (state.isDragging && this.isMarquee && state.dragStart) {
+      state.dragCurrent = canvasPoint
+      return { handled: true, cursor: 'crosshair' }
     }
 
     // If dragging shapes (move)
@@ -212,6 +223,18 @@ export class SelectTool implements ITool {
       return { handled: false }
     }
 
+    // Marquee selection — select shapes within bounds
+    if (this.isMarquee && state.dragStart && state.dragCurrent) {
+      const x = Math.min(state.dragStart.x, state.dragCurrent.x)
+      const y = Math.min(state.dragStart.y, state.dragCurrent.y)
+      const w = Math.abs(state.dragCurrent.x - state.dragStart.x)
+      const h = Math.abs(state.dragCurrent.y - state.dragStart.y)
+      if (w > 3 || h > 3) {
+        const found = getShapesInBounds({ x, y, width: w, height: h }, store.shapes, store.shapeIds)
+        if (found.length > 0) store.selectMultiple(found.map((s) => s.id))
+      }
+    }
+
     // Record history if shapes were moved/resized
     if (state.dragStart && state.dragCurrent && this.moveBeforeStates.length > 0) {
       const hasMoved =
@@ -241,8 +264,25 @@ export class SelectTool implements ITool {
     state.startPositions.clear()
     this.moveBeforeStates = []
     this.resizeStartFontSizes.clear()
+    this.isMarquee = false
 
     return { handled: true }
+  }
+
+  renderOverlay(ctx: CanvasRenderingContext2D, state: ToolState, _viewport: Viewport): void {
+    if (!this.isMarquee || !state.dragStart || !state.dragCurrent) return
+    const x = Math.min(state.dragStart.x, state.dragCurrent.x)
+    const y = Math.min(state.dragStart.y, state.dragCurrent.y)
+    const w = Math.abs(state.dragCurrent.x - state.dragStart.x)
+    const h = Math.abs(state.dragCurrent.y - state.dragStart.y)
+    ctx.save()
+    ctx.fillStyle = 'rgba(0, 102, 255, 0.08)'
+    ctx.strokeStyle = 'rgba(0, 102, 255, 0.4)'
+    ctx.lineWidth = 1
+    ctx.setLineDash([4, 4])
+    ctx.fillRect(x, y, w, h)
+    ctx.strokeRect(x, y, w, h)
+    ctx.restore()
   }
 
   private handleMove(store: WhiteboardStore, state: ToolState): void {

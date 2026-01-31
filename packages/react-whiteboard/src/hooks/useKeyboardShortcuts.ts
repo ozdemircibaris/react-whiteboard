@@ -12,6 +12,14 @@ interface KeyboardShortcutsOptions {
   selectMultiple: (ids: string[]) => void
   updateShape: (id: string, updates: Partial<Shape>, recordHistory?: boolean) => void
   recordBatchUpdate: (before: Shape[], after: Shape[]) => void
+  copySelectedShapes: () => void
+  cutSelectedShapes: () => void
+  pasteShapes: () => void
+  duplicateSelectedShapes: () => void
+  bringToFront: () => void
+  sendToBack: () => void
+  bringForward: () => void
+  sendBackward: () => void
 }
 
 /**
@@ -29,6 +37,14 @@ export function useKeyboardShortcuts({
   selectMultiple,
   updateShape,
   recordBatchUpdate,
+  copySelectedShapes,
+  cutSelectedShapes,
+  pasteShapes,
+  duplicateSelectedShapes,
+  bringToFront,
+  sendToBack,
+  bringForward,
+  sendBackward,
 }: KeyboardShortcutsOptions) {
   const isShiftPressedRef = useRef(false)
 
@@ -73,6 +89,50 @@ export function useKeyboardShortcuts({
       if ((isMod && e.key.toLowerCase() === 'z' && e.shiftKey) || (isMod && e.key === 'y')) {
         e.preventDefault()
         redo()
+        return
+      }
+
+      // Copy: Cmd/Ctrl+C
+      if (isMod && e.key.toLowerCase() === 'c') {
+        e.preventDefault()
+        copySelectedShapes()
+        return
+      }
+
+      // Cut: Cmd/Ctrl+X
+      if (isMod && e.key.toLowerCase() === 'x') {
+        e.preventDefault()
+        cutSelectedShapes()
+        return
+      }
+
+      // Paste: Cmd/Ctrl+V
+      if (isMod && e.key.toLowerCase() === 'v') {
+        e.preventDefault()
+        pasteShapes()
+        return
+      }
+
+      // Duplicate: Cmd/Ctrl+D
+      if (isMod && e.key.toLowerCase() === 'd') {
+        e.preventDefault()
+        duplicateSelectedShapes()
+        return
+      }
+
+      // Z-order: Cmd/Ctrl+] (bring forward), Cmd/Ctrl+Shift+] (bring to front)
+      if (isMod && e.key === ']') {
+        e.preventDefault()
+        if (e.shiftKey) bringToFront()
+        else bringForward()
+        return
+      }
+
+      // Z-order: Cmd/Ctrl+[ (send backward), Cmd/Ctrl+Shift+[ (send to back)
+      if (isMod && e.key === '[') {
+        e.preventDefault()
+        if (e.shiftKey) sendToBack()
+        else sendBackward()
         return
       }
 
@@ -140,7 +200,12 @@ export function useKeyboardShortcuts({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, selectedIds, shapeIds, shapes, deleteShapes, clearSelection, selectMultiple, updateShape, recordBatchUpdate])
+  }, [
+    undo, redo, selectedIds, shapeIds, shapes, deleteShapes, clearSelection,
+    selectMultiple, updateShape, recordBatchUpdate, copySelectedShapes,
+    cutSelectedShapes, pasteShapes, duplicateSelectedShapes, bringToFront,
+    sendToBack, bringForward, sendBackward,
+  ])
 
   return isShiftPressedRef
 }
