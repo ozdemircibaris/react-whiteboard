@@ -88,6 +88,7 @@ export function Canvas({
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
+    handleDoubleClick,
     renderOverlay,
     cursorStyle,
     setTextOverlayContainer,
@@ -190,6 +191,7 @@ export function Canvas({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
+        onDoubleClick={handleDoubleClick}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

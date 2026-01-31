@@ -10,7 +10,7 @@ import type {
   PointerUpResult,
 } from './types'
 import { getShapeAtPoint } from '../utils/hitTest'
-import { measureTextLines } from '../utils/fonts'
+import { wrapTextLines, measureTextLines, DEFAULT_TEXT_MAX_WIDTH } from '../utils/fonts'
 import { TextInputManager } from './TextInputManager'
 import { useWhiteboardStore } from '../core/store'
 
@@ -18,9 +18,9 @@ import { useWhiteboardStore } from '../core/store'
  * Text tool — click to place text with inline multiline WYSIWYG editing.
  *
  * Editing flow:
- * 1. Click canvas → textarea appears with current text styling defaults
- * 2. Click existing text → textarea over shape, pre-filled with shape's styling
- * 3. Type → textarea auto-resizes, Enter creates newlines
+ * 1. Click canvas → textarea appears (300px default width, word-wrapping)
+ * 2. Click existing text → textarea over shape, wraps at shape.width
+ * 3. Type → text wraps, height auto-grows, Enter creates newlines
  * 4. Cmd/Ctrl+Enter or click outside → confirm
  * 5. Escape → cancel
  */
@@ -75,9 +75,12 @@ export class TextTool implements ITool {
     _state: ToolState,
   ): PointerDownResult {
     const { canvasPoint } = ctx
+    const wasEditing = this.inputManager.isActive()
 
-    if (this.inputManager.isActive()) {
+    if (wasEditing) {
       this.handleConfirm(this.inputManager.getValue())
+      // Just confirmed — don't start a new text on the same click
+      return { handled: true, capture: false, cursor: 'text' }
     }
 
     const hitShape = getShapeAtPoint(canvasPoint, store.shapes, store.shapeIds, 2)
@@ -124,7 +127,6 @@ export class TextTool implements ITool {
 
     store.updateShape(shape.id, { opacity: 0 }, false)
 
-    // Use the shape's own props for WYSIWYG styling
     const { text, ...styleProps } = shape.props
     this.inputManager.create(
       { x: shape.x, y: shape.y },
@@ -135,6 +137,7 @@ export class TextTool implements ITool {
         onConfirm: (t) => this.handleConfirm(t),
         onCancel: () => this.cancelEdit(),
       },
+      shape.width,
     )
 
     this.inputManager.subscribeToViewport((listener) =>
@@ -146,7 +149,6 @@ export class TextTool implements ITool {
     this.editingShapeId = null
     this.currentStore = store
 
-    // Use current text defaults from store
     const textProps = store.currentTextProps
     this.inputManager.create(
       position,
@@ -157,6 +159,7 @@ export class TextTool implements ITool {
         onConfirm: (t) => this.handleConfirm(t),
         onCancel: () => this.cancelEdit(),
       },
+      DEFAULT_TEXT_MAX_WIDTH,
     )
 
     this.inputManager.subscribeToViewport((listener) =>
@@ -167,6 +170,7 @@ export class TextTool implements ITool {
   private handleConfirm(text: string): void {
     const store = this.currentStore
     const position = this.inputManager.getEditingPosition()
+    const maxWidth = this.inputManager.getMaxWidth()
 
     if (!store || !position) {
       this.cleanup()
@@ -175,23 +179,24 @@ export class TextTool implements ITool {
 
     if (text) {
       if (this.editingShapeId) {
+        // Editing existing shape — wrap at existing width, update height
         const existing = store.shapes.get(this.editingShapeId) as TextShape | undefined
         if (existing) {
-          const { width, height } = this.measure(text, existing.props)
+          const { height } = wrapTextLines(text, existing.width, existing.props)
           store.updateShape(
             this.editingShapeId,
-            { opacity: 1, width, height, props: { ...existing.props, text } },
+            { opacity: 1, height, props: { ...existing.props, text } },
             true,
           )
           store.select(this.editingShapeId)
         }
       } else {
-        const shape = this.createShape(position, text, store.currentTextProps)
+        // New shape — shrink width to fit for short text
+        const shape = this.createShape(position, text, store.currentTextProps, maxWidth)
         store.addShape(shape, true)
         store.select(shape.id)
       }
     } else if (this.editingShapeId) {
-      // Empty text on existing shape — delete it
       store.deleteShape(this.editingShapeId, true)
     }
 
@@ -210,19 +215,20 @@ export class TextTool implements ITool {
     this.editingShapeId = null
   }
 
-  private measure(
-    text: string,
-    props: Pick<TextShapeProps, 'fontSize' | 'fontFamily' | 'fontWeight' | 'fontStyle' | 'lineHeight'>,
-  ): { width: number; height: number } {
-    return measureTextLines(text, props)
-  }
-
   private createShape(
     position: Point,
     text: string,
     styleProps: Omit<TextShapeProps, 'text'>,
+    maxWidth: number,
   ): TextShape {
-    const { width, height } = this.measure(text, styleProps)
+    // Measure natural width (no wrap) to shrink short text
+    const natural = measureTextLines(text, styleProps)
+    // Measure wrapped dimensions at the given maxWidth
+    const wrapped = wrapTextLines(text, maxWidth, styleProps)
+
+    // Use the smaller of natural width and maxWidth (shrink to fit for short text)
+    const width = natural.width <= maxWidth ? natural.width : maxWidth
+    const height = natural.width <= maxWidth ? natural.height : wrapped.height
 
     return {
       id: nanoid(),

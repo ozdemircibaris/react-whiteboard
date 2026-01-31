@@ -1,5 +1,5 @@
 import type { WhiteboardStore } from '../core/store'
-import type { Shape } from '../types'
+import type { Shape, TextShape } from '../types'
 import {
   getShapeAtPoint,
   hitTestSelectionResizeHandles,
@@ -15,6 +15,8 @@ import type {
   PointerMoveResult,
   PointerUpResult,
 } from './types'
+import { textTool } from './TextTool'
+import { wrapTextLines } from '../utils/fonts'
 
 /**
  * Select tool - handles selection, moving, and resizing shapes
@@ -178,6 +180,14 @@ export class SelectTool implements ITool {
     return { handled: false, cursor: 'default' }
   }
 
+  onDoubleClick(ctx: ToolEventContext, store: WhiteboardStore): void {
+    const hitShape = getShapeAtPoint(ctx.canvasPoint, store.shapes, store.shapeIds, 2)
+    if (hitShape && hitShape.type === 'text') {
+      store.setTool('text')
+      textTool.editText(hitShape as TextShape, ctx.viewport, store)
+    }
+  }
+
   onPointerUp(
     _ctx: ToolEventContext,
     store: WhiteboardStore,
@@ -250,6 +260,15 @@ export class SelectTool implements ITool {
         dx,
         dy
       )
+
+      // Text shapes: height is determined by word-wrap, not manual drag
+      const shape = store.shapes.get(id)
+      if (shape?.type === 'text') {
+        const textShape = shape as TextShape
+        const { height } = wrapTextLines(textShape.props.text, newBounds.width, textShape.props)
+        newBounds.height = height
+      }
+
       store.updateShape(id, newBounds, false)
     })
   }
