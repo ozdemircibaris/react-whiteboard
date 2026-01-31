@@ -5,10 +5,10 @@ import type { TextFontFamily, TextShapeProps } from '../types'
  * Each key maps to a full CSS font-family fallback chain.
  */
 export const FONT_FAMILIES: Record<TextFontFamily, string> = {
-  hand: 'Virgil, "Comic Sans MS", cursive',
+  hand: 'Virgil, "Segoe Print", "Bradley Hand", "Marker Felt", cursive',
   sans: '"Helvetica Neue", Helvetica, Arial, sans-serif',
   serif: 'Georgia, "Times New Roman", serif',
-  mono: '"Cascadia Code", "Fira Code", "Courier New", monospace',
+  mono: '"Cascadia Code", "Fira Code", "JetBrains Mono", "Courier New", monospace',
 }
 
 /**
@@ -45,6 +45,49 @@ export function resolveFont(props: Pick<TextShapeProps, 'fontStyle' | 'fontWeigh
   const style = props.fontStyle === 'italic' ? 'italic ' : ''
   const family = FONT_FAMILIES[props.fontFamily] ?? FONT_FAMILIES.sans
   return `${style}${props.fontWeight} ${props.fontSize}px ${family}`
+}
+
+/**
+ * Default CDN URLs for whiteboard fonts.
+ * Consumers can override these or load fonts via @font-face CSS.
+ */
+const DEFAULT_FONT_URLS: Record<string, string> = {
+  Virgil:
+    'https://unpkg.com/@excalidraw/excalidraw@0.17.6/dist/excalidraw-assets/Virgil.woff2',
+  'Cascadia Code':
+    'https://unpkg.com/@excalidraw/excalidraw@0.17.6/dist/excalidraw-assets/Cascadia.woff2',
+}
+
+/**
+ * Load whiteboard fonts using the FontFace API.
+ * Call this once at app startup to ensure hand-drawn and mono fonts render correctly.
+ *
+ * If fonts are already loaded (e.g. via CSS @font-face), this is a no-op for those fonts.
+ *
+ * @param urls - Optional map of font name → URL. Defaults to CDN-hosted Virgil + Cascadia Code.
+ * @returns Promise that resolves when all fonts have loaded (or failed gracefully).
+ */
+export async function loadFonts(
+  urls?: Record<string, string>,
+): Promise<void> {
+  if (typeof document === 'undefined' || !('FontFace' in globalThis)) return
+
+  const fontsToLoad = urls ?? DEFAULT_FONT_URLS
+
+  const promises = Object.entries(fontsToLoad).map(async ([name, url]) => {
+    // Skip if already loaded
+    if (document.fonts.check(`16px "${name}"`)) return
+
+    try {
+      const font = new FontFace(name, `url(${url})`)
+      const loaded = await font.load()
+      document.fonts.add(loaded)
+    } catch {
+      // Font load failed — fallback fonts will be used
+    }
+  })
+
+  await Promise.allSettled(promises)
 }
 
 /** Module-level cached canvas/context for text measurement (avoids DOM allocation per call) */

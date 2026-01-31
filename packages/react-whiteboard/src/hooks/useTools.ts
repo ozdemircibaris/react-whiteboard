@@ -173,6 +173,36 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
   )
 
   /**
+   * Double click: delegate to ToolManager (e.g. edit text from select tool)
+   */
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      const container = containerRef.current
+      if (!container) return
+
+      const rect = container.getBoundingClientRect()
+      const screenPoint: Point = { x: e.clientX, y: e.clientY }
+      const canvasPoint = screenToCanvas(screenPoint, viewport, rect)
+
+      const ctx: ToolEventContext = {
+        screenPoint,
+        canvasPoint,
+        viewport,
+        shiftKey: e.shiftKey,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        altKey: e.altKey,
+        button: e.button,
+        pressure: 0.5,
+      }
+
+      toolManager.handleDoubleClick(ctx)
+      requestRender()
+    },
+    [containerRef, viewport, requestRender],
+  )
+
+  /**
    * Render tool overlay (preview shapes during drawing)
    */
   const renderOverlay = useCallback(
@@ -193,6 +223,7 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
+    handleDoubleClick,
     renderOverlay,
     cursorStyle,
     setTextOverlayContainer,

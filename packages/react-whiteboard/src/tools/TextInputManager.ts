@@ -9,8 +9,7 @@ export interface TextInputCallbacks {
 }
 
 /** Minimum dimensions for the editing textarea */
-const MIN_WIDTH = 100
-const PADDING = 4
+const MIN_WIDTH = 20
 
 /**
  * Manages an HTML textarea for inline WYSIWYG text editing on the canvas.
@@ -66,7 +65,6 @@ export class TextInputManager {
 
     const textarea = document.createElement('textarea')
     textarea.value = initialText
-    textarea.placeholder = 'Type here...'
     textarea.rows = 1
     this.textareaElement = textarea
 
@@ -144,7 +142,9 @@ export class TextInputManager {
   }
 
   /**
-   * Apply WYSIWYG styles — textarea matches the final canvas rendering.
+   * Apply WYSIWYG styles — textarea is invisible except for text and cursor.
+   * No border, no shadow, no background (unless shape has one).
+   * Padding=0 so text position matches canvas rendering exactly.
    */
   private applyStyles(props: Omit<TextShapeProps, 'text'>, zoom: number): void {
     if (!this.textareaElement) return
@@ -155,22 +155,25 @@ export class TextInputManager {
       position: 'fixed',
       transform: `scale(${zoom})`,
       transformOrigin: 'top left',
-      border: '2px solid #0066ff',
-      borderRadius: '4px',
+      border: 'none',
       outline: 'none',
-      background: hasBg ? props.backgroundColor : 'rgba(255, 255, 255, 0.9)',
-      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+      background: hasBg ? props.backgroundColor : 'transparent',
+      boxShadow: 'none',
       font: resolveFont(props),
       color: props.color,
       textAlign: props.align,
       lineHeight: String(props.lineHeight),
-      padding: `${PADDING}px`,
+      padding: '0',
+      margin: '0',
       minWidth: `${MIN_WIDTH}px`,
+      minHeight: `${Math.ceil(props.fontSize * props.lineHeight)}px`,
       zIndex: '10000',
       resize: 'none',
       overflow: 'hidden',
       whiteSpace: 'pre',
       boxSizing: 'border-box',
+      caretColor: props.color || '#1e1e1e',
+      pointerEvents: 'auto',
     })
   }
 
@@ -182,8 +185,8 @@ export class TextInputManager {
       this.textProps,
     )
 
-    this.textareaElement.style.width = `${width}px`
-    this.textareaElement.style.height = `${height + PADDING * 2}px`
+    this.textareaElement.style.width = `${Math.ceil(width)}px`
+    this.textareaElement.style.height = `${Math.ceil(height)}px`
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
