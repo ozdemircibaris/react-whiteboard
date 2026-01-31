@@ -9,6 +9,7 @@ import { createZOrderActions } from './zOrderActions'
 import { createShapeStyleActions, type ShapeStyleDefaults } from './shapeStyleActions'
 import { createAlignmentActions } from './alignmentActions'
 import { createGroupActions } from './groupActions'
+import { createExportImportActions } from './exportImportActions'
 import { DEFAULT_TEXT_PROPS } from '../../utils/fonts'
 
 // ============================================================================
@@ -103,6 +104,9 @@ export interface WhiteboardStore {
   // Group actions
   groupSelectedShapes: () => void
   ungroupSelectedShapes: () => void
+
+  // Export/import actions
+  loadDocument: (shapes: Map<string, Shape>, shapeIds: string[], viewport: Viewport) => void
 }
 
 // ============================================================================
@@ -134,6 +138,7 @@ export const createWhiteboardStore = () =>
       ...createShapeStyleActions(set, get),
       ...createAlignmentActions(set, get),
       ...createGroupActions(set, get),
+      ...createExportImportActions(set, get),
 
       // Selection actions (inline — small)
       select: (id) => set({ selectedIds: new Set([id]) }),
