@@ -1,9 +1,10 @@
 import type { WhiteboardStore } from '../core/store'
-import type { Shape, TextShape, LineShape, ArrowShape } from '../types'
+import type { Shape, TextShape, LineShape, ArrowShape, PathShape } from '../types'
 import {
   getShapeAtPoint,
   hitTestSelectionResizeHandles,
   getSelectionBounds,
+  calculateResizedBounds,
   RESIZE_CURSORS,
   type ResizeHandle,
 } from '../utils/hitTest'
@@ -270,7 +271,7 @@ export class SelectTool implements ITool {
     const isCornerHandle = !state.resizeHandle.includes('center')
 
     state.startPositions.forEach((startBounds, id) => {
-      const newBounds = this.calculateResizedBounds(
+      const newBounds = calculateResizedBounds(
         startBounds,
         state.resizeHandle!,
         dx,
@@ -322,73 +323,25 @@ export class SelectTool implements ITool {
         } else {
           store.updateShape(id, newBounds, false)
         }
+      } else if (shape?.type === 'path') {
+        // Scale freehand path points proportionally
+        const original = this.moveBeforeStates.find((s) => s.id === id) as PathShape | undefined
+        if (original && startBounds.width > 0 && startBounds.height > 0) {
+          const scaleX = newBounds.width / startBounds.width
+          const scaleY = newBounds.height / startBounds.height
+          const newPoints = original.props.points.map((p) => ({
+            x: p.x * scaleX,
+            y: p.y * scaleY,
+            pressure: p.pressure,
+          }))
+          store.updateShape(id, { ...newBounds, props: { ...(shape as PathShape).props, points: newPoints } }, false)
+        } else {
+          store.updateShape(id, newBounds, false)
+        }
       } else {
         store.updateShape(id, newBounds, false)
       }
     })
-  }
-
-  private calculateResizedBounds(
-    startBounds: { x: number; y: number; width: number; height: number },
-    handle: ResizeHandle,
-    dx: number,
-    dy: number
-  ): { x: number; y: number; width: number; height: number } {
-    let { x, y, width, height } = startBounds
-    const minSize = 10
-
-    switch (handle) {
-      case 'top-left':
-        x += dx
-        y += dy
-        width -= dx
-        height -= dy
-        break
-      case 'top-center':
-        y += dy
-        height -= dy
-        break
-      case 'top-right':
-        y += dy
-        width += dx
-        height -= dy
-        break
-      case 'right-center':
-        width += dx
-        break
-      case 'bottom-right':
-        width += dx
-        height += dy
-        break
-      case 'bottom-center':
-        height += dy
-        break
-      case 'bottom-left':
-        x += dx
-        width -= dx
-        height += dy
-        break
-      case 'left-center':
-        x += dx
-        width -= dx
-        break
-    }
-
-    // Enforce minimum size and handle negative dimensions
-    if (width < minSize) {
-      if (handle.includes('left')) {
-        x = startBounds.x + startBounds.width - minSize
-      }
-      width = minSize
-    }
-    if (height < minSize) {
-      if (handle.includes('top')) {
-        y = startBounds.y + startBounds.height - minSize
-      }
-      height = minSize
-    }
-
-    return { x, y, width, height }
   }
 
   private recordMoveHistory(
