@@ -42,8 +42,16 @@ export class TextTool implements ITool {
     this.currentStore = store
   }
 
-  onDeactivate(_store: WhiteboardStore): void {
+  onDeactivate(store: WhiteboardStore): void {
     this.cancelEdit()
+
+    // Safety net: restore any shapes accidentally left with opacity=0
+    for (const [id, shape] of store.shapes) {
+      if (shape.type === 'text' && shape.opacity === 0) {
+        store.updateShape(id, { opacity: 1 }, false)
+      }
+    }
+
     this.currentStore = null
   }
 
@@ -183,7 +191,8 @@ export class TextTool implements ITool {
         store.select(shape.id)
       }
     } else if (this.editingShapeId) {
-      store.updateShape(this.editingShapeId, { opacity: 1 }, false)
+      // Empty text on existing shape — delete it
+      store.deleteShape(this.editingShapeId, true)
     }
 
     this.cleanup()

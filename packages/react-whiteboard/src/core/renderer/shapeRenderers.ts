@@ -25,6 +25,9 @@ const FREEHAND_OPTIONS = {
   last: true,
 }
 
+/** Stroke cache for completed paths — avoids recomputing every frame */
+const strokeCache = new WeakMap<PathShape, number[][]>()
+
 /** Selection outline drawing callback type */
 export type DrawSelectionOutlineFn = (
   x: number,
@@ -44,6 +47,27 @@ export function buildRoughOptions(
   return { seed, roughness, ...extra }
 }
 
+/**
+ * Apply rotation transform around the center of a bounding box.
+ * Must be paired with ctx.restore() after drawing.
+ */
+function applyRotation(
+  ctx: CanvasRenderingContext2D,
+  rotation: number,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  if (rotation !== 0) {
+    const cx = x + width / 2
+    const cy = y + height / 2
+    ctx.translate(cx, cy)
+    ctx.rotate(rotation)
+    ctx.translate(-cx, -cy)
+  }
+}
+
 export function drawRectangle(
   ctx: CanvasRenderingContext2D,
   rc: RoughCanvas,
@@ -52,28 +76,27 @@ export function drawRectangle(
   drawSelection: DrawSelectionOutlineFn,
 ): void {
   const { x, y, width, height, rotation, opacity, props, seed, roughness } = shape
-  const { fill, stroke, strokeWidth } = props
+  const { fill, stroke, strokeWidth, cornerRadius } = props
 
   ctx.save()
   ctx.globalAlpha = opacity
+  applyRotation(ctx, rotation, x, y, width, height)
 
-  if (rotation !== 0) {
-    const cx = x + width / 2
-    const cy = y + height / 2
-    ctx.translate(cx, cy)
-    ctx.rotate(rotation)
-    ctx.translate(-cx, -cy)
+  const fillOpt = fill && fill !== 'transparent' ? fill : undefined
+  const roughOpts = buildRoughOptions(seed, roughness, {
+    stroke,
+    strokeWidth,
+    fill: fillOpt,
+    fillStyle: 'solid',
+  })
+
+  if (cornerRadius > 0) {
+    const r = Math.min(cornerRadius, width / 2, height / 2)
+    const path = `M ${x + r} ${y} L ${x + width - r} ${y} Q ${x + width} ${y} ${x + width} ${y + r} L ${x + width} ${y + height - r} Q ${x + width} ${y + height} ${x + width - r} ${y + height} L ${x + r} ${y + height} Q ${x} ${y + height} ${x} ${y + height - r} L ${x} ${y + r} Q ${x} ${y} ${x + r} ${y} Z`
+    rc.path(path, roughOpts)
+  } else {
+    rc.rectangle(x, y, width, height, roughOpts)
   }
-
-  rc.rectangle(
-    x, y, width, height,
-    buildRoughOptions(seed, roughness, {
-      stroke,
-      strokeWidth,
-      fill: fill && fill !== 'transparent' ? fill : undefined,
-      fillStyle: 'solid',
-    }),
-  )
 
   if (isSelected) drawSelection(x, y, width, height)
   ctx.restore()
@@ -95,11 +118,7 @@ export function drawEllipse(
   const cx = x + width / 2
   const cy = y + height / 2
 
-  if (rotation !== 0) {
-    ctx.translate(cx, cy)
-    ctx.rotate(rotation)
-    ctx.translate(-cx, -cy)
-  }
+  applyRotation(ctx, rotation, x, y, width, height)
 
   rc.ellipse(
     cx, cy, width, height,
@@ -121,7 +140,7 @@ export function drawPath(
   isSelected: boolean,
   drawSelection: DrawSelectionOutlineFn,
 ): void {
-  const { x, y, opacity, props } = shape
+  const { x, y, width, height, rotation, opacity, props } = shape
   const { stroke, strokeWidth, points } = props
 
   if (points.length < 2) return
@@ -136,16 +155,24 @@ export function drawPath(
     (p) => p.pressure !== undefined && p.pressure !== 0.5,
   )
 
-  const outlinePoints = getStroke(absolutePoints, {
-    ...FREEHAND_OPTIONS,
-    size: strokeWidth * 3,
-    simulatePressure: !hasRealPressure,
-  })
+  // Use cache for completed paths to avoid recomputing getStroke every frame
+  let outlinePoints = strokeCache.get(shape)
+  if (!outlinePoints) {
+    outlinePoints = getStroke(absolutePoints, {
+      ...FREEHAND_OPTIONS,
+      size: strokeWidth * 3,
+      simulatePressure: !hasRealPressure,
+    })
+    if (props.isComplete) {
+      strokeCache.set(shape, outlinePoints)
+    }
+  }
 
   if (outlinePoints.length < 2) return
 
   ctx.save()
   ctx.globalAlpha = opacity
+  applyRotation(ctx, rotation, x, y, width, height)
   ctx.fillStyle = stroke
 
   const first = outlinePoints[0]!
@@ -161,7 +188,6 @@ export function drawPath(
   ctx.fill()
 
   if (isSelected) {
-    const { width, height } = shape
     drawSelection(x, y, width, height)
   }
 
@@ -175,7 +201,7 @@ export function drawLine(
   isSelected: boolean,
   drawSelection: DrawSelectionOutlineFn,
 ): void {
-  const { x, y, opacity, props, seed, roughness } = shape
+  const { x, y, width, height, rotation, opacity, props, seed, roughness } = shape
   const { stroke, strokeWidth, points } = props
 
   const startPoint = points[0]
@@ -184,6 +210,7 @@ export function drawLine(
 
   ctx.save()
   ctx.globalAlpha = opacity
+  applyRotation(ctx, rotation, x, y, width, height)
 
   rc.line(
     x + startPoint.x, y + startPoint.y,
@@ -191,7 +218,7 @@ export function drawLine(
     buildRoughOptions(seed, roughness, { stroke, strokeWidth }),
   )
 
-  if (isSelected) drawSelection(x, y, shape.width, shape.height)
+  if (isSelected) drawSelection(x, y, width, height)
   ctx.restore()
 }
 
@@ -226,11 +253,12 @@ export function drawArrow(
   isSelected: boolean,
   drawSelection: DrawSelectionOutlineFn,
 ): void {
-  const { x, y, opacity, props, seed, roughness } = shape
-  const { stroke, strokeWidth, start, end, endArrowhead } = props
+  const { x, y, width, height, rotation, opacity, props, seed, roughness } = shape
+  const { stroke, strokeWidth, start, end, startArrowhead, endArrowhead } = props
 
   ctx.save()
   ctx.globalAlpha = opacity
+  applyRotation(ctx, rotation, x, y, width, height)
 
   const startX = x + start.x
   const startY = y + start.y
@@ -246,7 +274,11 @@ export function drawArrow(
     drawArrowhead(ctx, startX, startY, endX, endY, strokeWidth * 4, stroke)
   }
 
-  if (isSelected) drawSelection(x, y, shape.width, shape.height)
+  if (startArrowhead === 'arrow' || startArrowhead === 'triangle') {
+    drawArrowhead(ctx, endX, endY, startX, startY, strokeWidth * 4, stroke)
+  }
+
+  if (isSelected) drawSelection(x, y, width, height)
   ctx.restore()
 }
 
@@ -256,11 +288,12 @@ export function drawText(
   isSelected: boolean,
   drawSelection: DrawSelectionOutlineFn,
 ): void {
-  const { x, y, width, height, opacity, props } = shape
+  const { x, y, width, height, rotation, opacity, props } = shape
   const { text, fontSize, color, backgroundColor, align, lineHeight } = props
 
   ctx.save()
   ctx.globalAlpha = opacity
+  applyRotation(ctx, rotation, x, y, width, height)
 
   // Background fill
   if (backgroundColor && backgroundColor !== 'transparent') {

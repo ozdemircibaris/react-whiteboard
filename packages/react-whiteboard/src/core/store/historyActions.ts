@@ -1,16 +1,6 @@
-import { nanoid } from 'nanoid'
-import type { Shape, HistoryAction, HistoryEntry } from '../../types'
+import type { Shape } from '../../types'
 import type { StoreApi } from './types'
-
-const MAX_HISTORY = 100
-
-function createHistoryEntry(action: HistoryAction): HistoryEntry {
-  return {
-    id: nanoid(),
-    timestamp: Date.now(),
-    action,
-  }
-}
+import { createHistoryEntry, pushHistory } from './historyHelpers'
 
 export function createHistoryActions(set: StoreApi['set'], get: StoreApi['get']) {
   return {
@@ -65,6 +55,11 @@ export function createHistoryActions(set: StoreApi['set'], get: StoreApi['get'])
             historyIndex: s.historyIndex - 1,
           }
         })
+      } else if (action.type === 'reorder') {
+        set((s) => ({
+          shapeIds: action.previousShapeIds,
+          historyIndex: s.historyIndex - 1,
+        }))
       }
     },
 
@@ -119,6 +114,11 @@ export function createHistoryActions(set: StoreApi['set'], get: StoreApi['get'])
             historyIndex: s.historyIndex + 1,
           }
         })
+      } else if (action.type === 'reorder') {
+        set((s) => ({
+          shapeIds: action.newShapeIds,
+          historyIndex: s.historyIndex + 1,
+        }))
       }
     },
 
@@ -130,15 +130,7 @@ export function createHistoryActions(set: StoreApi['set'], get: StoreApi['get'])
 
       set((state) => {
         const entry = createHistoryEntry({ type: 'update', before, after })
-        const newHistory = state.history.slice(0, state.historyIndex + 1)
-        newHistory.push(entry)
-        if (newHistory.length > MAX_HISTORY) {
-          newHistory.shift()
-        }
-        return {
-          history: newHistory,
-          historyIndex: newHistory.length - 1,
-        }
+        return pushHistory(state.history, state.historyIndex, entry)
       })
     },
   }

@@ -1,6 +1,4 @@
-'use client'
-
-import { Canvas, useWhiteboardStore } from '@ozdemircibaris/react-whiteboard'
+import { Canvas, useWhiteboardStore, MIN_ZOOM, MAX_ZOOM } from '@ozdemircibaris/react-whiteboard'
 import type { ToolType } from '@ozdemircibaris/react-whiteboard'
 import { TextPropertiesPanel } from './TextPropertiesPanel'
 
@@ -38,8 +36,8 @@ function Toolbar() {
   const animateZoom = useWhiteboardStore((s) => s.animateZoom)
   const undo = useWhiteboardStore((s) => s.undo)
   const redo = useWhiteboardStore((s) => s.redo)
-  const canUndo = useWhiteboardStore((s) => s.canUndo)
-  const canRedo = useWhiteboardStore((s) => s.canRedo)
+  const canUndo = useWhiteboardStore((s) => s.historyIndex >= 0)
+  const canRedo = useWhiteboardStore((s) => s.historyIndex < s.history.length - 1)
   const currentTool = useWhiteboardStore((s) => s.currentTool)
   const setTool = useWhiteboardStore((s) => s.setTool)
 
@@ -75,14 +73,14 @@ function Toolbar() {
       <div className="flex items-center gap-2">
         <button
           onClick={() => undo()}
-          disabled={!canUndo()}
+          disabled={!canUndo}
           className="rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Undo
         </button>
         <button
           onClick={() => redo()}
-          disabled={!canRedo()}
+          disabled={!canRedo}
           className="rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Redo
@@ -99,7 +97,7 @@ function Toolbar() {
       <div className="flex items-center gap-2">
         <button
           onClick={() => animateZoom(viewport.zoom - 0.25)}
-          disabled={viewport.zoom <= 0.1}
+          disabled={viewport.zoom <= MIN_ZOOM}
           className="rounded-md bg-gray-200 px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           -
@@ -109,7 +107,7 @@ function Toolbar() {
         </span>
         <button
           onClick={() => animateZoom(viewport.zoom + 0.25)}
-          disabled={viewport.zoom >= 10}
+          disabled={viewport.zoom >= MAX_ZOOM}
           className="rounded-md bg-gray-200 px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           +

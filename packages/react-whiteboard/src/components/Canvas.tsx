@@ -67,6 +67,7 @@ export function Canvas({
   const clearSelection = useWhiteboardStore((s) => s.clearSelection)
   const selectMultiple = useWhiteboardStore((s) => s.selectMultiple)
   const updateShape = useWhiteboardStore((s) => s.updateShape)
+  const recordBatchUpdate = useWhiteboardStore((s) => s.recordBatchUpdate)
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
   useKeyboardShortcuts({
@@ -79,6 +80,7 @@ export function Canvas({
     clearSelection,
     selectMultiple,
     updateShape,
+    recordBatchUpdate,
   })
 
   // ── Tool system (pointer events, overlay, cursor) ─────────────────

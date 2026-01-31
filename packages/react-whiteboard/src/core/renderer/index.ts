@@ -28,10 +28,12 @@ import {
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D
   private roughCanvas: RoughCanvas
+  private selectionFn: (x: number, y: number, w: number, h: number) => void
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx
     this.roughCanvas = rough.canvas(ctx.canvas)
+    this.selectionFn = this.drawSelectionOutline.bind(this)
   }
 
   private get dpr(): number {
@@ -95,29 +97,29 @@ export class CanvasRenderer {
    * Draw a shape — dispatches to type-specific renderer
    */
   drawShape(shape: Shape, isSelected: boolean = false): void {
-    const selectionFn = this.drawSelectionOutline.bind(this)
+    const fn = this.selectionFn
 
     switch (shape.type) {
       case 'rectangle':
-        drawRectangle(this.ctx, this.roughCanvas, shape as RectangleShape, isSelected, selectionFn)
+        drawRectangle(this.ctx, this.roughCanvas, shape as RectangleShape, isSelected, fn)
         break
       case 'ellipse':
-        drawEllipse(this.ctx, this.roughCanvas, shape as EllipseShape, isSelected, selectionFn)
+        drawEllipse(this.ctx, this.roughCanvas, shape as EllipseShape, isSelected, fn)
         break
       case 'path':
-        drawPath(this.ctx, shape as PathShape, isSelected, selectionFn)
+        drawPath(this.ctx, shape as PathShape, isSelected, fn)
         break
       case 'line':
-        drawLine(this.ctx, this.roughCanvas, shape as LineShape, isSelected, selectionFn)
+        drawLine(this.ctx, this.roughCanvas, shape as LineShape, isSelected, fn)
         break
       case 'arrow':
-        drawArrow(this.ctx, this.roughCanvas, shape as ArrowShape, isSelected, selectionFn)
+        drawArrow(this.ctx, this.roughCanvas, shape as ArrowShape, isSelected, fn)
         break
       case 'text':
-        drawText(this.ctx, shape as TextShape, isSelected, selectionFn)
+        drawText(this.ctx, shape as TextShape, isSelected, fn)
         break
       default:
-        drawBoundingBox(this.ctx, shape, isSelected, selectionFn)
+        drawBoundingBox(this.ctx, shape, isSelected, fn)
     }
   }
 

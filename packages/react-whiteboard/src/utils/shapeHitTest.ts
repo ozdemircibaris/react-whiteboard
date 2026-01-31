@@ -77,17 +77,26 @@ function getArrowheadTriangle(
 }
 
 /**
- * Hit test for rectangle shape
+ * Un-rotate a test point for hit testing rotated shapes.
+ * Returns the original point if rotation is 0.
  */
-export function hitTestRectangle(point: Point, shape: Shape, tolerance: number = 0): boolean {
+function unrotateTestPoint(point: Point, shape: Shape): Point {
+  if (shape.rotation === 0) return point
   const center: Point = {
     x: shape.x + shape.width / 2,
     y: shape.y + shape.height / 2,
   }
+  return rotatePoint(point, center, -shape.rotation)
+}
 
-  let testPoint = point
-  if (shape.rotation !== 0) {
-    testPoint = rotatePoint(point, center, -shape.rotation)
+/**
+ * Hit test for rectangle shape
+ */
+export function hitTestRectangle(point: Point, shape: Shape, tolerance: number = 0): boolean {
+  const testPoint = unrotateTestPoint(point, shape)
+  const center: Point = {
+    x: shape.x + shape.width / 2,
+    y: shape.y + shape.height / 2,
   }
 
   const halfWidth = shape.width / 2 + tolerance
@@ -103,14 +112,10 @@ export function hitTestRectangle(point: Point, shape: Shape, tolerance: number =
  * Hit test for ellipse shape
  */
 export function hitTestEllipse(point: Point, shape: Shape, tolerance: number = 0): boolean {
+  const testPoint = unrotateTestPoint(point, shape)
   const center: Point = {
     x: shape.x + shape.width / 2,
     y: shape.y + shape.height / 2,
-  }
-
-  let testPoint = point
-  if (shape.rotation !== 0) {
-    testPoint = rotatePoint(point, center, -shape.rotation)
   }
 
   const rx = shape.width / 2 + tolerance
@@ -124,19 +129,22 @@ export function hitTestEllipse(point: Point, shape: Shape, tolerance: number = 0
 }
 
 /**
- * Hit test for path (freehand drawing)
+ * Hit test for path (freehand drawing) — offsets points by shape position
  */
 export function hitTestPath(point: Point, shape: PathShape, tolerance: number = 5): boolean {
-  const { points } = shape.props
+  const { x, y } = shape
+  const { points, strokeWidth } = shape.props
 
   if (points.length === 0) return false
+
+  const testPoint = unrotateTestPoint(point, shape)
 
   const firstPoint = points[0]
   if (!firstPoint) return false
 
   if (points.length === 1) {
-    const dx = point.x - firstPoint.x
-    const dy = point.y - firstPoint.y
+    const dx = testPoint.x - (x + firstPoint.x)
+    const dy = testPoint.y - (y + firstPoint.y)
     return Math.sqrt(dx * dx + dy * dy) <= tolerance
   }
 
@@ -145,8 +153,10 @@ export function hitTestPath(point: Point, shape: PathShape, tolerance: number = 
     const next = points[i + 1]
     if (!current || !next) continue
 
-    const dist = distanceToLineSegment(point, current, next)
-    if (dist <= tolerance + shape.props.strokeWidth / 2) {
+    const absCurrent = { x: x + current.x, y: y + current.y }
+    const absNext = { x: x + next.x, y: y + next.y }
+    const dist = distanceToLineSegment(testPoint, absCurrent, absNext)
+    if (dist <= tolerance + strokeWidth / 2) {
       return true
     }
   }
@@ -155,7 +165,7 @@ export function hitTestPath(point: Point, shape: PathShape, tolerance: number = 
 }
 
 /**
- * Hit test for line shape
+ * Hit test for line shape — accounts for rotation
  */
 export function hitTestLine(point: Point, shape: LineShape, tolerance: number = 5): boolean {
   const { x, y, props } = shape
@@ -165,38 +175,42 @@ export function hitTestLine(point: Point, shape: LineShape, tolerance: number = 
   const endPoint = points[1]
   if (!startPoint || !endPoint) return false
 
+  const testPoint = unrotateTestPoint(point, shape)
+
   const start = { x: x + startPoint.x, y: y + startPoint.y }
   const end = { x: x + endPoint.x, y: y + endPoint.y }
 
-  const dist = distanceToLineSegment(point, start, end)
+  const dist = distanceToLineSegment(testPoint, start, end)
   return dist <= tolerance + strokeWidth / 2
 }
 
 /**
- * Hit test for arrow shape (line + arrowheads)
+ * Hit test for arrow shape (line + arrowheads) — accounts for rotation
  */
 export function hitTestArrow(point: Point, shape: ArrowShape, tolerance: number = 5): boolean {
   const { x, y, props } = shape
   const { start, end, strokeWidth, startArrowhead, endArrowhead } = props
 
+  const testPoint = unrotateTestPoint(point, shape)
+
   const startPoint = { x: x + start.x, y: y + start.y }
   const endPoint = { x: x + end.x, y: y + end.y }
 
-  const dist = distanceToLineSegment(point, startPoint, endPoint)
+  const dist = distanceToLineSegment(testPoint, startPoint, endPoint)
   if (dist <= tolerance + strokeWidth / 2) return true
 
   const arrowSize = strokeWidth * 4
 
   if (endArrowhead === 'arrow' || endArrowhead === 'triangle') {
     const endTriangle = getArrowheadTriangle(endPoint, startPoint, arrowSize)
-    if (pointInTriangle(point, endTriangle.p1, endTriangle.p2, endTriangle.p3)) {
+    if (pointInTriangle(testPoint, endTriangle.p1, endTriangle.p2, endTriangle.p3)) {
       return true
     }
   }
 
   if (startArrowhead === 'arrow' || startArrowhead === 'triangle') {
     const startTriangle = getArrowheadTriangle(startPoint, endPoint, arrowSize)
-    if (pointInTriangle(point, startTriangle.p1, startTriangle.p2, startTriangle.p3)) {
+    if (pointInTriangle(testPoint, startTriangle.p1, startTriangle.p2, startTriangle.p3)) {
       return true
     }
   }
