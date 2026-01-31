@@ -126,17 +126,17 @@ Bring the rendering closer to Excalidraw's level of polish.
 ### Phase 10: Editing Polish
 Production-level editing UX.
 
-- [ ] Copy/Paste (Cmd+C, Cmd+V, Cmd+D, Cmd+X)
-- [ ] Paste offset (so duplicates don't overlap)
+- [x] Copy/Paste (Cmd+C, Cmd+V, Cmd+D, Cmd+X) with paste offset
+- [x] Marquee/lasso selection (drag to select multiple)
+- [x] Z-order controls (bring forward, send backward, front, back) with Cmd+]/[ shortcuts
+- [ ] Bound text: double-click rectangle/ellipse to add/edit text label inside shape (Excalidraw-style container text with parentId binding, auto-center, move/resize sync, delete cascade)
 - [ ] External paste (images from clipboard)
 - [ ] Snap to grid
 - [ ] Snap to shape edges/centers (smart guides)
 - [ ] Alignment tools (left, center, right, top, middle, bottom, distribute)
 - [ ] Rotation handle on selection + Shift for 15-degree increments
-- [ ] Marquee/lasso selection (drag to select multiple)
 - [ ] Group/ungroup shapes
 - [ ] Lock/unlock shapes
-- [ ] Z-order controls (bring forward, send backward, front, back)
 - [ ] Minimap
 
 ### Phase 11: Export & Import
