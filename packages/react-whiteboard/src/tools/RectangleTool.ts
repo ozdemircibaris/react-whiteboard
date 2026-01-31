@@ -3,10 +3,14 @@ import type { RectangleShape, Shape } from '../types'
 import { BaseShapeTool, type ShapeBounds } from './BaseShapeTool'
 import { buildRoughOptions } from '../core/renderer/shapeRenderers'
 
+import type { FillStyle, StrokeStyle } from '../types'
+
 const DEFAULT_RECTANGLE_PROPS = {
   fill: '#e0e0e0',
+  fillStyle: 'hachure' as FillStyle,
   stroke: '#333333',
   strokeWidth: 2,
+  strokeStyle: 'solid' as StrokeStyle,
   cornerRadius: 0,
 }
 
@@ -39,13 +43,13 @@ export class RectangleTool extends BaseShapeTool {
   protected renderPreview(_ctx: CanvasRenderingContext2D, rc: RoughCanvas, shape: Shape): void {
     const s = shape as RectangleShape
     const { x, y, width, height, props } = s
-    const { fill, stroke, strokeWidth } = props
+    const { fill, fillStyle, stroke, strokeWidth } = props
 
     rc.rectangle(x, y, width, height, buildRoughOptions(s.seed, s.roughness, {
       stroke,
       strokeWidth,
       fill: fill && fill !== 'transparent' ? fill : undefined,
-      fillStyle: 'solid',
+      fillStyle: fillStyle || 'solid',
     }))
   }
 }

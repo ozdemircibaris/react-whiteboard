@@ -35,6 +35,7 @@ export class ArrowTool extends BaseLineTool {
       props: {
         stroke: this.defaultStroke,
         strokeWidth: this.defaultStrokeWidth,
+        strokeStyle: 'solid' as const,
         start: bounds.normalizedStart,
         end: bounds.normalizedEnd,
         startArrowhead: this.startArrowhead,

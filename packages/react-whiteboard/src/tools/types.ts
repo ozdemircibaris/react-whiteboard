@@ -69,8 +69,12 @@ export interface ToolState {
   activeShapeId: string | null
   /** Resize handle being dragged */
   resizeHandle: ResizeHandle | null
+  /** Whether currently rotating */
+  isRotating: boolean
   /** Starting positions of selected shapes (for move/resize) */
   startPositions: Map<string, { x: number; y: number; width: number; height: number }>
+  /** Starting rotations of selected shapes (for rotation) */
+  startRotations: Map<string, number>
 }
 
 /**
@@ -175,7 +179,9 @@ export function createToolState(): ToolState {
     dragCurrent: null,
     activeShapeId: null,
     resizeHandle: null,
+    isRotating: false,
     startPositions: new Map(),
+    startRotations: new Map(),
   }
 }
 
@@ -189,6 +195,8 @@ export function resetToolState(_state: ToolState): ToolState {
     dragCurrent: null,
     activeShapeId: null,
     resizeHandle: null,
+    isRotating: false,
     startPositions: new Map(),
+    startRotations: new Map(),
   }
 }

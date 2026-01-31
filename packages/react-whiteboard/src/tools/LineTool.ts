@@ -32,6 +32,7 @@ export class LineTool extends BaseLineTool {
       props: {
         stroke: this.defaultStroke,
         strokeWidth: this.defaultStrokeWidth,
+        strokeStyle: 'solid' as const,
         points: [bounds.normalizedStart, bounds.normalizedEnd],
       },
     }

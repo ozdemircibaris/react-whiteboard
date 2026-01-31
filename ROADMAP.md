@@ -115,12 +115,12 @@ An open-source, high-quality whiteboard library for React that competes with Exc
 Bring the rendering closer to Excalidraw's level of polish.
 
 - [ ] Hand-drawn font (Virgil/Excalifont) for text shapes
-- [ ] Fill style options per shape: solid, hachure, cross-hatch, dots
-- [ ] Stroke style options: solid, dashed, dotted
-- [ ] Shape opacity control in UI
-- [ ] Color picker (stroke + fill) per shape
-- [ ] Stroke width control per shape
-- [ ] Corner radius control for rectangles
+- [x] Fill style options per shape: solid, hachure, cross-hatch, dots
+- [x] Stroke style options: solid, dashed, dotted
+- [x] Shape opacity control in UI (ShapePropertiesPanel)
+- [x] Color picker (stroke + fill) per shape (ShapePropertiesPanel)
+- [x] Stroke width control per shape (ShapePropertiesPanel)
+- [x] Corner radius control for rectangles (ShapePropertiesPanel)
 - [ ] Dual-canvas architecture: static canvas (shapes that haven't changed) + interactive canvas (active shape + selection). Eliminates full redraw on every frame
 
 ### Phase 10: Editing Polish
@@ -130,14 +130,14 @@ Production-level editing UX.
 - [x] Marquee/lasso selection (drag to select multiple)
 - [x] Z-order controls (bring forward, send backward, front, back) with Cmd+]/[ shortcuts
 - [ ] Bound text: double-click rectangle/ellipse to add/edit text label inside shape (Excalidraw-style container text with parentId binding, auto-center, move/resize sync, delete cascade)
-- [ ] External paste (images from clipboard)
-- [ ] Snap to grid
-- [ ] Snap to shape edges/centers (smart guides)
-- [ ] Alignment tools (left, center, right, top, middle, bottom, distribute)
-- [ ] Rotation handle on selection + Shift for 15-degree increments
-- [ ] Group/ungroup shapes
-- [ ] Lock/unlock shapes
-- [ ] Minimap
+- [x] External paste (images from clipboard)
+- [x] Snap to grid
+- [x] Snap to shape edges/centers (smart guides)
+- [x] Alignment tools (left, center, right, top, middle, bottom, distribute)
+- [x] Rotation handle on selection + Shift for 15-degree increments
+- [x] Group/ungroup shapes (Cmd+G / Cmd+Shift+G)
+- [x] Lock/unlock shapes (Cmd+L / Cmd+Shift+L)
+- [x] Minimap
 
 ### Phase 11: Export & Import
 Enable sharing and saving.
@@ -215,42 +215,54 @@ Go public.
 ```
 packages/react-whiteboard/src/
   components/
-    Canvas.tsx                      # Thin shell (203 lines), delegates to hooks
+    Canvas.tsx                      # Thin shell, delegates to hooks
+    Minimap.tsx                     # Overview minimap with viewport click-to-navigate
   core/
     store/
-      createStore.ts                # Zustand store: interface + wiring (120 lines)
-      shapeActions.ts               # Shape CRUD with history tracking (157 lines)
-      viewportActions.ts            # Pan, zoom, animateZoom (102 lines)
-      historyActions.ts             # Undo/redo logic (145 lines)
+      createStore.ts                # Zustand store: interface + wiring
+      shapeActions.ts               # Shape CRUD with history tracking
+      viewportActions.ts            # Pan, zoom, animateZoom
+      historyActions.ts             # Undo/redo logic
+      clipboardActions.ts           # Copy, cut, paste, duplicate
+      zOrderActions.ts              # Z-order: bring forward/to front, send backward/to back
+      shapeStyleActions.ts          # Shape style defaults (fill, stroke, opacity)
+      alignmentActions.ts           # Align left/right/top/bottom/center, distribute
+      groupActions.ts               # Group/ungroup shapes
+      imagePasteActions.ts          # Clipboard image paste handler
       types.ts                      # StoreApi type for action creators
       index.ts                      # Barrel exports
     renderer/
-      index.ts                      # CanvasRenderer class: grid, dispatch, selection (156 lines)
-      shapeRenderers.ts             # Shape draw functions: rect, ellipse, path, line, arrow, text (301 lines)
+      index.ts                      # CanvasRenderer class: grid, dispatch, selection, rotation handle
+      shapeRenderers.ts             # Shape draw functions: rect, ellipse, path, line, arrow, text
+      imageRenderer.ts              # Image shape rendering with caching
   hooks/
     useCanvasSetup.ts               # Canvas init, resize, DPI
-    useKeyboardShortcuts.ts         # Keyboard event handling
+    useKeyboardShortcuts.ts         # Keyboard event handling (all shortcuts)
     useTouchGestures.ts             # Pinch zoom, two-finger pan
     useTools.ts                     # Pointer events <-> ToolManager bridge
+    useShapeProperties.ts           # Headless hook for shape style control
   tools/
     ToolManager.ts                  # Singleton tool router
     types.ts                        # ITool interface, ToolEventContext, ToolState
-    SelectTool.ts                   # Click/drag select, move, resize
+    SelectTool.ts                   # Click/drag select, move, resize, rotate
+    SelectToolResize.ts             # Resize logic extracted from SelectTool
     RectangleTool.ts                # Drag-to-draw rectangles
     EllipseTool.ts                  # Drag-to-draw ellipses
     DrawTool.ts                     # Freehand with pressure capture
     LineTool.ts                     # Lines with angle snapping
     ArrowTool.ts                    # Arrows with arrowhead options
-    TextTool.ts                     # Multiline text with textarea overlay (252 lines)
+    TextTool.ts                     # Multiline text with textarea overlay
     BaseLineTool.ts                 # Shared Line/Arrow base class
-    TextInputManager.ts             # Textarea lifecycle, auto-resize, viewport sync (297 lines)
+    TextInputManager.ts             # Textarea lifecycle, auto-resize, viewport sync
   types/
-    index.ts                        # All type definitions
+    index.ts                        # All type definitions (incl. ImageShape, GroupShape, FillStyle, StrokeStyle)
   utils/
     canvas.ts                       # Coordinate math, easing, arrowheads
     hitTest.ts                      # Point-in-shape detection
     shapeHitTest.ts                 # Shape-specific hit test logic
     resizeHandles.ts                # Handle position calculations
+    rotationHandle.ts               # Rotation handle: position, hit test, drawing
+    snapping.ts                     # Snap to grid + snap to shape edges (smart guides)
 ```
 
 ---

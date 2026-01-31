@@ -1,14 +1,20 @@
 import type { WhiteboardStore } from '../core/store'
-import type { Shape, TextShape, LineShape, ArrowShape, PathShape, Viewport } from '../types'
+import type { Shape, TextShape, Viewport } from '../types'
 import {
   getShapeAtPoint,
   getShapesInBounds,
   hitTestSelectionResizeHandles,
   getSelectionBounds,
-  calculateResizedBounds,
   RESIZE_CURSORS,
   type ResizeHandle,
 } from '../utils/hitTest'
+import {
+  hitTestRotationHandle,
+  calculateRotation,
+  angleFromCenter,
+} from '../utils/rotationHandle'
+import { applyResize } from './SelectToolResize'
+import { snapToShapes, drawSnapLines, type SnapLine } from '../utils/snapping'
 import type {
   ITool,
   ToolEventContext,
@@ -18,10 +24,9 @@ import type {
   PointerUpResult,
 } from './types'
 import { textTool } from './TextTool'
-import { wrapTextLines } from '../utils/fonts'
 
 /**
- * Select tool - handles selection, moving, and resizing shapes
+ * Select tool — handles selection, moving, resizing, and rotating shapes
  */
 export class SelectTool implements ITool {
   readonly type = 'select' as const
@@ -31,8 +36,9 @@ export class SelectTool implements ITool {
   private moveBeforeStates: Shape[] = []
   private resizeStartFontSizes: Map<string, number> = new Map()
   private isMarquee = false
+  private rotationInitialAngle = 0
+  private activeSnapLines: SnapLine[] = []
 
-  /** Check if all given shapes are text — used to restrict handles to corners only */
   private allText(shapes: Shape[]): boolean {
     return shapes.length > 0 && shapes.every((s) => s.type === 'text')
   }
@@ -41,9 +47,7 @@ export class SelectTool implements ITool {
     return handle.includes('center')
   }
 
-  onActivate(_store: WhiteboardStore): void {
-    // Nothing to do
-  }
+  onActivate(_store: WhiteboardStore): void {}
 
   onDeactivate(store: WhiteboardStore): void {
     store.clearSelection()
@@ -52,46 +56,25 @@ export class SelectTool implements ITool {
   onPointerDown(
     ctx: ToolEventContext,
     store: WhiteboardStore,
-    state: ToolState
+    state: ToolState,
   ): PointerDownResult {
     const { canvasPoint, shiftKey } = ctx
     const { shapes, shapeIds, selectedIds } = store
 
-    // Check if clicking on a resize handle of current selection
     if (selectedIds.size > 0) {
-      const selectedShapes = Array.from(selectedIds)
-        .map((id) => shapes.get(id))
-        .filter((s): s is Shape => s !== undefined)
+      const selectedShapes = this.getSelectedShapes(store)
       const selectionBounds = getSelectionBounds(selectedShapes)
 
       if (selectionBounds) {
+        // Check rotation handle first
+        if (hitTestRotationHandle(canvasPoint, selectionBounds)) {
+          return this.startRotation(canvasPoint, selectedShapes, state)
+        }
+
+        // Check resize handles
         const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
         if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
-          // Start resize
-          state.isDragging = true
-          state.dragStart = canvasPoint
-          state.dragCurrent = canvasPoint
-          state.resizeHandle = handle
-
-          // Store starting bounds of all selected shapes
-          state.startPositions.clear()
-          this.resizeStartFontSizes.clear()
-          selectedShapes.forEach((shape) => {
-            state.startPositions.set(shape.id, {
-              x: shape.x,
-              y: shape.y,
-              width: shape.width,
-              height: shape.height,
-            })
-            if (shape.type === 'text') {
-              this.resizeStartFontSizes.set(shape.id, (shape as TextShape).props.fontSize)
-            }
-          })
-
-          // Deep clone before states to preserve nested props for history
-          this.moveBeforeStates = selectedShapes.map((s) => structuredClone(s) as Shape)
-
-          return { handled: true, capture: true, cursor: RESIZE_CURSORS[handle] }
+          return this.startResize(canvasPoint, handle, selectedShapes, state)
         }
       }
     }
@@ -101,51 +84,18 @@ export class SelectTool implements ITool {
 
     if (hitShape) {
       if (shiftKey) {
-        // Toggle selection with shift
         store.toggleSelection(hitShape.id)
-
-        // If shape was deselected, don't start a drag
-        const updatedSelectedIds = store.selectedIds
-        if (!updatedSelectedIds.has(hitShape.id)) {
+        if (!store.selectedIds.has(hitShape.id)) {
           return { handled: true, capture: false, cursor: 'default' }
         }
       } else if (!selectedIds.has(hitShape.id)) {
-        // Select the shape
         store.select(hitShape.id)
       }
-
-      // Start drag for moving — read fresh selectedIds from store
-      state.isDragging = true
-      state.dragStart = canvasPoint
-      state.dragCurrent = canvasPoint
-
-      const currentSelectedIds = store.selectedIds
-
-      state.startPositions.clear()
-      const selectedShapes: Shape[] = []
-      currentSelectedIds.forEach((id) => {
-        const shape = shapes.get(id)
-        if (shape) {
-          state.startPositions.set(id, {
-            x: shape.x,
-            y: shape.y,
-            width: shape.width,
-            height: shape.height,
-          })
-          selectedShapes.push(shape)
-        }
-      })
-
-      // Deep clone before states to preserve nested props for history
-      this.moveBeforeStates = selectedShapes.map((s) => structuredClone(s) as Shape)
-
-      return { handled: true, capture: true, cursor: 'move' }
+      return this.startMove(canvasPoint, store, state)
     }
 
-    // Clicked on empty space — start marquee selection
-    if (!shiftKey) {
-      store.clearSelection()
-    }
+    // Empty space — start marquee
+    if (!shiftKey) store.clearSelection()
     this.isMarquee = true
     state.isDragging = true
     state.dragStart = canvasPoint
@@ -156,54 +106,39 @@ export class SelectTool implements ITool {
   onPointerMove(
     ctx: ToolEventContext,
     store: WhiteboardStore,
-    state: ToolState
+    state: ToolState,
   ): PointerMoveResult {
     const { canvasPoint } = ctx
-    const { shapes, shapeIds, selectedIds } = store
 
-    // If dragging with resize handle
+    // Rotation drag
+    if (state.isDragging && state.isRotating && state.dragStart) {
+      state.dragCurrent = canvasPoint
+      this.handleRotation(store, state, ctx.shiftKey)
+      return { handled: true, cursor: 'grab' }
+    }
+
+    // Resize drag
     if (state.isDragging && state.resizeHandle && state.dragStart) {
       state.dragCurrent = canvasPoint
-      this.handleResize(store, state)
+      applyResize(store, state, this.moveBeforeStates, this.resizeStartFontSizes)
       return { handled: true, cursor: RESIZE_CURSORS[state.resizeHandle] }
     }
 
-    // Marquee selection drag
+    // Marquee drag
     if (state.isDragging && this.isMarquee && state.dragStart) {
       state.dragCurrent = canvasPoint
       return { handled: true, cursor: 'crosshair' }
     }
 
-    // If dragging shapes (move)
+    // Move drag
     if (state.isDragging && state.dragStart && !state.resizeHandle) {
       state.dragCurrent = canvasPoint
       this.handleMove(store, state)
       return { handled: true, cursor: 'move' }
     }
 
-    // Not dragging - check hover for cursor
-    // First check resize handles on selection
-    if (selectedIds.size > 0) {
-      const selectedShapes = Array.from(selectedIds)
-        .map((id) => shapes.get(id))
-        .filter((s): s is Shape => s !== undefined)
-      const selectionBounds = getSelectionBounds(selectedShapes)
-
-      if (selectionBounds) {
-        const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
-        if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
-          return { handled: true, cursor: RESIZE_CURSORS[handle] }
-        }
-      }
-    }
-
-    // Check if hovering over a shape
-    const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
-    if (hitShape) {
-      return { handled: true, cursor: 'move' }
-    }
-
-    return { handled: false, cursor: 'default' }
+    // Hover
+    return this.getHoverCursor(canvasPoint, store)
   }
 
   onDoubleClick(ctx: ToolEventContext, store: WhiteboardStore): void {
@@ -217,60 +152,197 @@ export class SelectTool implements ITool {
   onPointerUp(
     _ctx: ToolEventContext,
     store: WhiteboardStore,
-    state: ToolState
+    state: ToolState,
   ): PointerUpResult {
-    if (!state.isDragging) {
-      return { handled: false }
-    }
+    if (!state.isDragging) return { handled: false }
 
-    // Marquee selection — select shapes within bounds
+    // Marquee selection
     if (this.isMarquee && state.dragStart && state.dragCurrent) {
       const x = Math.min(state.dragStart.x, state.dragCurrent.x)
       const y = Math.min(state.dragStart.y, state.dragCurrent.y)
       const w = Math.abs(state.dragCurrent.x - state.dragStart.x)
       const h = Math.abs(state.dragCurrent.y - state.dragStart.y)
       if (w > 3 || h > 3) {
-        const found = getShapesInBounds({ x, y, width: w, height: h }, store.shapes, store.shapeIds)
+        const found = getShapesInBounds(
+          { x, y, width: w, height: h }, store.shapes, store.shapeIds,
+        )
         if (found.length > 0) store.selectMultiple(found.map((s) => s.id))
       }
     }
 
-    // Record history if shapes were moved/resized
+    // Record history
     if (state.dragStart && state.dragCurrent && this.moveBeforeStates.length > 0) {
       const hasMoved =
         state.dragStart.x !== state.dragCurrent.x ||
         state.dragStart.y !== state.dragCurrent.y
-
       if (hasMoved) {
-        // Get current state of shapes for history
         const afterShapes = this.moveBeforeStates
           .map((before) => store.shapes.get(before.id))
           .filter((s): s is Shape => s !== undefined)
           .map((s) => ({ ...s }))
-
-        // Record the update in history manually
-        // We need to use the store's internal history mechanism
-        // For now, we'll batch update with history
-        // The shapes are already updated, we just need to record
-        this.recordMoveHistory(store, this.moveBeforeStates, afterShapes)
+        store.recordBatchUpdate(this.moveBeforeStates, afterShapes)
       }
     }
 
-    // Reset state
-    state.isDragging = false
-    state.dragStart = null
-    state.dragCurrent = null
-    state.resizeHandle = null
-    state.startPositions.clear()
-    this.moveBeforeStates = []
-    this.resizeStartFontSizes.clear()
-    this.isMarquee = false
-
+    this.resetDragState(state)
     return { handled: true }
   }
 
   renderOverlay(ctx: CanvasRenderingContext2D, state: ToolState, _viewport: Viewport): void {
-    if (!this.isMarquee || !state.dragStart || !state.dragCurrent) return
+    if (this.isMarquee && state.dragStart && state.dragCurrent) {
+      this.drawMarquee(ctx, state)
+    }
+    if (this.activeSnapLines.length > 0 && state.isDragging) {
+      drawSnapLines(ctx, this.activeSnapLines)
+    }
+  }
+
+  // ────────────────────────────────────────────
+
+  private getSelectedShapes(store: WhiteboardStore): Shape[] {
+    return Array.from(store.selectedIds)
+      .map((id) => store.shapes.get(id))
+      .filter((s): s is Shape => s !== undefined)
+  }
+
+  private startRotation(
+    canvasPoint: { x: number; y: number },
+    selectedShapes: Shape[],
+    state: ToolState,
+  ): PointerDownResult {
+    const bounds = getSelectionBounds(selectedShapes)
+    const center = bounds
+      ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      : canvasPoint
+    this.rotationInitialAngle = angleFromCenter(center, canvasPoint)
+
+    state.isDragging = true
+    state.isRotating = true
+    state.dragStart = canvasPoint
+    state.dragCurrent = canvasPoint
+    state.startRotations.clear()
+    selectedShapes.forEach((s) => state.startRotations.set(s.id, s.rotation))
+    this.moveBeforeStates = selectedShapes.map((s) => structuredClone(s) as Shape)
+    return { handled: true, capture: true, cursor: 'grab' }
+  }
+
+  private startResize(
+    canvasPoint: { x: number; y: number },
+    handle: ResizeHandle,
+    selectedShapes: Shape[],
+    state: ToolState,
+  ): PointerDownResult {
+    state.isDragging = true
+    state.dragStart = canvasPoint
+    state.dragCurrent = canvasPoint
+    state.resizeHandle = handle
+    state.startPositions.clear()
+    this.resizeStartFontSizes.clear()
+    selectedShapes.forEach((shape) => {
+      state.startPositions.set(shape.id, {
+        x: shape.x, y: shape.y, width: shape.width, height: shape.height,
+      })
+      if (shape.type === 'text') {
+        this.resizeStartFontSizes.set(shape.id, (shape as TextShape).props.fontSize)
+      }
+    })
+    this.moveBeforeStates = selectedShapes.map((s) => structuredClone(s) as Shape)
+    return { handled: true, capture: true, cursor: RESIZE_CURSORS[handle] }
+  }
+
+  private startMove(
+    canvasPoint: { x: number; y: number },
+    store: WhiteboardStore,
+    state: ToolState,
+  ): PointerDownResult {
+    state.isDragging = true
+    state.dragStart = canvasPoint
+    state.dragCurrent = canvasPoint
+    state.startPositions.clear()
+    const selectedShapes: Shape[] = []
+    store.selectedIds.forEach((id) => {
+      const shape = store.shapes.get(id)
+      if (shape) {
+        state.startPositions.set(id, {
+          x: shape.x, y: shape.y, width: shape.width, height: shape.height,
+        })
+        selectedShapes.push(shape)
+      }
+    })
+    this.moveBeforeStates = selectedShapes.map((s) => structuredClone(s) as Shape)
+    return { handled: true, capture: true, cursor: 'move' }
+  }
+
+  private handleMove(store: WhiteboardStore, state: ToolState): void {
+    if (!state.dragStart || !state.dragCurrent) return
+    const dx = state.dragCurrent.x - state.dragStart.x
+    const dy = state.dragCurrent.y - state.dragStart.y
+
+    // Calculate combined bounds of selection for snapping
+    const entries = Array.from(state.startPositions.entries())
+    if (entries.length === 0) return
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const [, sp] of entries) {
+      minX = Math.min(minX, sp.x + dx)
+      minY = Math.min(minY, sp.y + dy)
+      maxX = Math.max(maxX, sp.x + dx + sp.width)
+      maxY = Math.max(maxY, sp.y + dy + sp.height)
+    }
+
+    const movingBounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+    const result = snapToShapes(movingBounds, store.shapes, store.shapeIds, store.selectedIds)
+    this.activeSnapLines = result.snapLines
+
+    const snapDx = result.x - minX
+    const snapDy = result.y - minY
+
+    state.startPositions.forEach((startPos, id) => {
+      store.updateShape(id, {
+        x: startPos.x + dx + snapDx,
+        y: startPos.y + dy + snapDy,
+      }, false)
+    })
+  }
+
+  private handleRotation(store: WhiteboardStore, state: ToolState, shiftKey: boolean): void {
+    if (!state.dragCurrent) return
+    const selectedShapes = this.getSelectedShapes(store)
+    const bounds = getSelectionBounds(selectedShapes)
+    if (!bounds) return
+
+    const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+    const delta = calculateRotation(center, state.dragCurrent, shiftKey, this.rotationInitialAngle)
+
+    state.startRotations.forEach((startRotation, id) => {
+      store.updateShape(id, { rotation: startRotation + delta }, false)
+    })
+  }
+
+  private getHoverCursor(
+    canvasPoint: { x: number; y: number },
+    store: WhiteboardStore,
+  ): PointerMoveResult {
+    if (store.selectedIds.size > 0) {
+      const selectedShapes = this.getSelectedShapes(store)
+      const selectionBounds = getSelectionBounds(selectedShapes)
+      if (selectionBounds) {
+        if (hitTestRotationHandle(canvasPoint, selectionBounds)) {
+          return { handled: true, cursor: 'grab' }
+        }
+        const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
+        if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
+          return { handled: true, cursor: RESIZE_CURSORS[handle] }
+        }
+      }
+    }
+    const hitShape = getShapeAtPoint(canvasPoint, store.shapes, store.shapeIds, 2)
+    if (hitShape) return { handled: true, cursor: 'move' }
+    return { handled: false, cursor: 'default' }
+  }
+
+  private drawMarquee(ctx: CanvasRenderingContext2D, state: ToolState): void {
+    if (!state.dragStart || !state.dragCurrent) return
     const x = Math.min(state.dragStart.x, state.dragCurrent.x)
     const y = Math.min(state.dragStart.y, state.dragCurrent.y)
     const w = Math.abs(state.dragCurrent.x - state.dragStart.x)
@@ -285,113 +357,19 @@ export class SelectTool implements ITool {
     ctx.restore()
   }
 
-  private handleMove(store: WhiteboardStore, state: ToolState): void {
-    if (!state.dragStart || !state.dragCurrent) return
-
-    const dx = state.dragCurrent.x - state.dragStart.x
-    const dy = state.dragCurrent.y - state.dragStart.y
-
-    state.startPositions.forEach((startPos, id) => {
-      store.updateShape(
-        id,
-        {
-          x: startPos.x + dx,
-          y: startPos.y + dy,
-        },
-        false // Don't record history on each move
-      )
-    })
-  }
-
-  private handleResize(store: WhiteboardStore, state: ToolState): void {
-    if (!state.dragStart || !state.dragCurrent || !state.resizeHandle) return
-
-    const dx = state.dragCurrent.x - state.dragStart.x
-    const dy = state.dragCurrent.y - state.dragStart.y
-    const isCornerHandle = !state.resizeHandle.includes('center')
-
-    state.startPositions.forEach((startBounds, id) => {
-      const newBounds = calculateResizedBounds(
-        startBounds,
-        state.resizeHandle!,
-        dx,
-        dy
-      )
-
-      const shape = store.shapes.get(id)
-      if (shape?.type === 'text') {
-        const textShape = shape as TextShape
-
-        if (isCornerHandle && startBounds.width > 0) {
-          // Corner resize: scale fontSize proportionally
-          const originalFontSize = this.resizeStartFontSizes.get(id) ?? textShape.props.fontSize
-          const scaleFactor = newBounds.width / startBounds.width
-          const newFontSize = Math.max(8, Math.round(originalFontSize * scaleFactor))
-          const newProps = { ...textShape.props, fontSize: newFontSize }
-          const { height } = wrapTextLines(textShape.props.text, newBounds.width, newProps)
-          newBounds.height = height
-          store.updateShape(id, { ...newBounds, props: newProps }, false)
-        } else {
-          // Side resize: rewrap text at new width, keep fontSize
-          const { height } = wrapTextLines(textShape.props.text, newBounds.width, textShape.props)
-          newBounds.height = height
-          store.updateShape(id, newBounds, false)
-        }
-      } else if (shape?.type === 'line') {
-        // Scale line endpoints proportionally
-        const original = this.moveBeforeStates.find((s) => s.id === id) as LineShape | undefined
-        if (original && startBounds.width > 0 && startBounds.height > 0) {
-          const scaleX = newBounds.width / startBounds.width
-          const scaleY = newBounds.height / startBounds.height
-          const newPoints = original.props.points.map((p) => ({
-            x: p.x * scaleX,
-            y: p.y * scaleY,
-          }))
-          store.updateShape(id, { ...newBounds, props: { ...(shape as LineShape).props, points: newPoints } }, false)
-        } else {
-          store.updateShape(id, newBounds, false)
-        }
-      } else if (shape?.type === 'arrow') {
-        // Scale arrow endpoints proportionally
-        const original = this.moveBeforeStates.find((s) => s.id === id) as ArrowShape | undefined
-        if (original && startBounds.width > 0 && startBounds.height > 0) {
-          const scaleX = newBounds.width / startBounds.width
-          const scaleY = newBounds.height / startBounds.height
-          const newStart = { x: original.props.start.x * scaleX, y: original.props.start.y * scaleY }
-          const newEnd = { x: original.props.end.x * scaleX, y: original.props.end.y * scaleY }
-          store.updateShape(id, { ...newBounds, props: { ...(shape as ArrowShape).props, start: newStart, end: newEnd } }, false)
-        } else {
-          store.updateShape(id, newBounds, false)
-        }
-      } else if (shape?.type === 'path') {
-        // Scale freehand path points proportionally
-        const original = this.moveBeforeStates.find((s) => s.id === id) as PathShape | undefined
-        if (original && startBounds.width > 0 && startBounds.height > 0) {
-          const scaleX = newBounds.width / startBounds.width
-          const scaleY = newBounds.height / startBounds.height
-          const newPoints = original.props.points.map((p) => ({
-            x: p.x * scaleX,
-            y: p.y * scaleY,
-            pressure: p.pressure,
-          }))
-          store.updateShape(id, { ...newBounds, props: { ...(shape as PathShape).props, points: newPoints } }, false)
-        } else {
-          store.updateShape(id, newBounds, false)
-        }
-      } else {
-        store.updateShape(id, newBounds, false)
-      }
-    })
-  }
-
-  private recordMoveHistory(
-    store: WhiteboardStore,
-    beforeShapes: Shape[],
-    afterShapes: Shape[]
-  ): void {
-    if (beforeShapes.length > 0 && afterShapes.length > 0) {
-      store.recordBatchUpdate(beforeShapes, afterShapes)
-    }
+  private resetDragState(state: ToolState): void {
+    state.isDragging = false
+    state.dragStart = null
+    state.dragCurrent = null
+    state.resizeHandle = null
+    state.isRotating = false
+    state.startPositions.clear()
+    state.startRotations.clear()
+    this.moveBeforeStates = []
+    this.resizeStartFontSizes.clear()
+    this.isMarquee = false
+    this.rotationInitialAngle = 0
+    this.activeSnapLines = []
   }
 }
 

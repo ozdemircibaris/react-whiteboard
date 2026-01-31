@@ -56,6 +56,16 @@ export interface ViewportBounds {
 // Shape Types
 // ============================================================================
 
+// ============================================================================
+// Style Types
+// ============================================================================
+
+/** Fill style — maps to RoughJS fillStyle option */
+export type FillStyle = 'solid' | 'hachure' | 'cross-hatch' | 'dots'
+
+/** Stroke style — solid, dashed, or dotted */
+export type StrokeStyle = 'solid' | 'dashed' | 'dotted'
+
 export type ShapeType =
   | 'rectangle'
   | 'ellipse'
@@ -63,6 +73,8 @@ export type ShapeType =
   | 'arrow'
   | 'text'
   | 'path'
+  | 'image'
+  | 'group'
   | 'react-component'
   | string // Allow custom shape types
 
@@ -88,9 +100,12 @@ export interface RectangleShape extends BaseShape {
   type: 'rectangle'
   props: {
     fill: string
+    fillStyle: FillStyle
     stroke: string
     strokeWidth: number
+    strokeStyle: StrokeStyle
     cornerRadius: number
+    boundTextId?: string | null
   }
 }
 
@@ -98,8 +113,11 @@ export interface EllipseShape extends BaseShape {
   type: 'ellipse'
   props: {
     fill: string
+    fillStyle: FillStyle
     stroke: string
     strokeWidth: number
+    strokeStyle: StrokeStyle
+    boundTextId?: string | null
   }
 }
 
@@ -108,6 +126,7 @@ export interface LineShape extends BaseShape {
   props: {
     stroke: string
     strokeWidth: number
+    strokeStyle: StrokeStyle
     points: Point[]
   }
 }
@@ -117,6 +136,7 @@ export interface ArrowShape extends BaseShape {
   props: {
     stroke: string
     strokeWidth: number
+    strokeStyle: StrokeStyle
     start: Point
     end: Point
     startArrowhead: 'none' | 'arrow' | 'triangle'
@@ -155,8 +175,25 @@ export interface PathShape extends BaseShape {
   props: {
     stroke: string
     strokeWidth: number
+    strokeStyle: StrokeStyle
     points: PathPoint[]
     isComplete: boolean
+  }
+}
+
+export interface ImageShape extends BaseShape {
+  type: 'image'
+  props: {
+    src: string
+    naturalWidth: number
+    naturalHeight: number
+  }
+}
+
+export interface GroupShape extends BaseShape {
+  type: 'group'
+  props: {
+    childIds: string[]
   }
 }
 
@@ -175,6 +212,8 @@ export type Shape =
   | ArrowShape
   | TextShape
   | PathShape
+  | ImageShape
+  | GroupShape
   | ReactComponentShape
 
 // ============================================================================
@@ -293,4 +332,10 @@ export interface WhiteboardConfig {
 
   /** Enable keyboard shortcuts */
   enableKeyboardShortcuts?: boolean
+
+  /** Snap shapes to grid when moving/creating */
+  snapToGrid?: boolean
+
+  /** Snap shapes to other shape edges/centers (smart guides) */
+  snapToShapes?: boolean
 }

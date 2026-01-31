@@ -9,8 +9,10 @@ import type {
   LineShape,
   ArrowShape,
   TextShape,
+  ImageShape,
 } from '../../types'
 import { getDevicePixelRatio } from '../../utils/canvas'
+import { drawRotationHandle } from '../../utils/rotationHandle'
 import {
   drawRectangle,
   drawEllipse,
@@ -20,6 +22,7 @@ import {
   drawText,
   drawBoundingBox,
 } from './shapeRenderers'
+import { drawImage } from './imageRenderer'
 
 /**
  * Canvas renderer with RoughJS for hand-drawn aesthetic.
@@ -120,6 +123,9 @@ export class CanvasRenderer {
       case 'text':
         drawText(this.ctx, shape as TextShape, isSelected, this.cornerOnlySelectionFn)
         break
+      case 'image':
+        drawImage(this.ctx, shape as ImageShape, isSelected, fn)
+        break
       default:
         drawBoundingBox(this.ctx, shape, isSelected, fn)
     }
@@ -167,5 +173,8 @@ export class CanvasRenderer {
       this.ctx.fillRect(handle.x, handle.y, handleSize, handleSize)
       this.ctx.strokeRect(handle.x, handle.y, handleSize, handleSize)
     }
+
+    // Draw rotation handle above top-center
+    drawRotationHandle(this.ctx, { x, y, width, height })
   }
 }

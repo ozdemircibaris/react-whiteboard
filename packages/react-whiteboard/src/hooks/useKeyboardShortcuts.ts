@@ -20,6 +20,10 @@ interface KeyboardShortcutsOptions {
   sendToBack: () => void
   bringForward: () => void
   sendBackward: () => void
+  lockSelectedShapes: () => void
+  unlockSelectedShapes: () => void
+  groupSelectedShapes: () => void
+  ungroupSelectedShapes: () => void
 }
 
 /**
@@ -45,6 +49,10 @@ export function useKeyboardShortcuts({
   sendToBack,
   bringForward,
   sendBackward,
+  lockSelectedShapes,
+  unlockSelectedShapes,
+  groupSelectedShapes,
+  ungroupSelectedShapes,
 }: KeyboardShortcutsOptions) {
   const isShiftPressedRef = useRef(false)
 
@@ -136,6 +144,34 @@ export function useKeyboardShortcuts({
         return
       }
 
+      // Lock: Cmd/Ctrl+L
+      if (isMod && e.key.toLowerCase() === 'l' && !e.shiftKey) {
+        e.preventDefault()
+        lockSelectedShapes()
+        return
+      }
+
+      // Unlock: Cmd/Ctrl+Shift+L
+      if (isMod && e.key.toLowerCase() === 'l' && e.shiftKey) {
+        e.preventDefault()
+        unlockSelectedShapes()
+        return
+      }
+
+      // Group: Cmd/Ctrl+G
+      if (isMod && e.key.toLowerCase() === 'g' && !e.shiftKey) {
+        e.preventDefault()
+        groupSelectedShapes()
+        return
+      }
+
+      // Ungroup: Cmd/Ctrl+Shift+G
+      if (isMod && e.key.toLowerCase() === 'g' && e.shiftKey) {
+        e.preventDefault()
+        ungroupSelectedShapes()
+        return
+      }
+
       // Select All: Cmd/Ctrl+A
       if (isMod && e.key === 'a') {
         e.preventDefault()
@@ -204,7 +240,8 @@ export function useKeyboardShortcuts({
     undo, redo, selectedIds, shapeIds, shapes, deleteShapes, clearSelection,
     selectMultiple, updateShape, recordBatchUpdate, copySelectedShapes,
     cutSelectedShapes, pasteShapes, duplicateSelectedShapes, bringToFront,
-    sendToBack, bringForward, sendBackward,
+    sendToBack, bringForward, sendBackward, lockSelectedShapes,
+    unlockSelectedShapes, groupSelectedShapes, ungroupSelectedShapes,
   ])
 
   return isShiftPressedRef
