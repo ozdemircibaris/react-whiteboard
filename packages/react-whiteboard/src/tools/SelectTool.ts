@@ -1,5 +1,5 @@
 import type { WhiteboardStore } from '../core/store'
-import type { Shape, TextShape, Viewport } from '../types'
+import type { Shape, TextShape, RectangleShape, EllipseShape, Viewport } from '../types'
 import {
   getShapeAtPoint,
   getShapesInBounds,
@@ -21,6 +21,7 @@ import type {
   PointerUpResult,
 } from './types'
 import { textTool } from './TextTool'
+import { canContainBoundText, getBoundTextShape } from '../utils/boundText'
 
 /**
  * Select tool — handles selection, moving, resizing, and rotating shapes
@@ -143,9 +144,28 @@ export class SelectTool implements ITool {
 
   onDoubleClick(ctx: ToolEventContext, store: WhiteboardStore): void {
     const hitShape = getShapeAtPoint(ctx.canvasPoint, store.shapes, store.shapeIds, 2)
-    if (hitShape && hitShape.type === 'text') {
+    if (!hitShape) return
+
+    if (hitShape.type === 'text') {
       store.setTool('text')
       textTool.editText(hitShape as TextShape, ctx.viewport, store)
+      return
+    }
+
+    if (canContainBoundText(hitShape.type)) {
+      const container = hitShape as RectangleShape | EllipseShape
+      const existingText = getBoundTextShape(container, store.shapes)
+
+      if (existingText) {
+        store.setTool('text')
+        textTool.editBoundText(existingText, container, ctx.viewport, store)
+      } else {
+        const newText = store.createBoundText(hitShape.id)
+        if (newText) {
+          store.setTool('text')
+          textTool.editBoundText(newText, container, ctx.viewport, store)
+        }
+      }
     }
   }
 
@@ -281,6 +301,8 @@ export class SelectTool implements ITool {
         x: startPos.x + dx + snapDx,
         y: startPos.y + dy + snapDy,
       }, false)
+      // Sync bound text position when container moves
+      store.syncBoundTextToParent(id)
     })
   }
 

@@ -1,6 +1,7 @@
 import type { Shape } from '../../types'
 import type { StoreApi } from './types'
 import { createHistoryEntry, pushHistory } from './historyHelpers'
+import { getBoundTextIdFromShape } from '../../utils/boundText'
 
 export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
   return {
@@ -58,11 +59,23 @@ export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
         const newSelectedIds = new Set(state.selectedIds)
         newSelectedIds.delete(id)
 
+        const deletedShapes: Shape[] = [shape]
+
+        // Cascade-delete bound text child
+        const boundTextId = getBoundTextIdFromShape(shape)
+        if (boundTextId) {
+          const boundText = state.shapes.get(boundTextId)
+          if (boundText) {
+            deletedShapes.push(boundText)
+            newShapes.delete(boundTextId)
+          }
+        }
+
         const historyUpdate = recordHistory
           ? pushHistory(
               state.history,
               state.historyIndex,
-              createHistoryEntry({ type: 'delete', shapes: [shape] })
+              createHistoryEntry({ type: 'delete', shapes: deletedShapes })
             )
           : {}
 
@@ -84,12 +97,26 @@ export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
 
         if (shapesToDelete.length === 0) return {}
 
+        // Collect bound text children for cascade deletion
+        const boundTextIds: string[] = []
+        for (const shape of shapesToDelete) {
+          const btId = getBoundTextIdFromShape(shape)
+          if (btId && !idsSet.has(btId)) {
+            const bt = state.shapes.get(btId)
+            if (bt) {
+              boundTextIds.push(btId)
+              shapesToDelete.push(bt)
+              idsSet.add(btId)
+            }
+          }
+        }
+
         const newShapes = new Map(state.shapes)
         const newSelectedIds = new Set(state.selectedIds)
-        ids.forEach((id) => {
+        for (const id of idsSet) {
           newShapes.delete(id)
           newSelectedIds.delete(id)
-        })
+        }
 
         const historyUpdate = recordHistory
           ? pushHistory(

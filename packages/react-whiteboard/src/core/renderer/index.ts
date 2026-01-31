@@ -99,17 +99,18 @@ export class CanvasRenderer {
   }
 
   /**
-   * Draw a shape — dispatches to type-specific renderer
+   * Draw a shape — dispatches to type-specific renderer.
+   * Pass allShapes to enable bound text rendering inside container shapes.
    */
-  drawShape(shape: Shape, isSelected: boolean = false): void {
+  drawShape(shape: Shape, isSelected: boolean = false, allShapes?: Map<string, Shape>): void {
     const fn = this.selectionFn
 
     switch (shape.type) {
       case 'rectangle':
-        drawRectangle(this.ctx, this.roughCanvas, shape as RectangleShape, isSelected, fn)
+        drawRectangle(this.ctx, this.roughCanvas, shape as RectangleShape, isSelected, fn, allShapes)
         break
       case 'ellipse':
-        drawEllipse(this.ctx, this.roughCanvas, shape as EllipseShape, isSelected, fn)
+        drawEllipse(this.ctx, this.roughCanvas, shape as EllipseShape, isSelected, fn, allShapes)
         break
       case 'path':
         drawPath(this.ctx, shape as PathShape, isSelected, fn)
