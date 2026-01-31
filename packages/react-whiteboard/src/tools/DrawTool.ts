@@ -120,6 +120,10 @@ export class DrawTool implements ITool {
     this.currentShapeId = null
     store.setIsDrawing(false)
 
+    // Switch to select tool with the new shape selected
+    store.setTool('select')
+    store.select(shape.id)
+
     return {
       handled: true,
       createdShapes: [shape],

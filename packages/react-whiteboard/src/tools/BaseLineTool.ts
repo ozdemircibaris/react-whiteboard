@@ -110,10 +110,15 @@ export abstract class BaseLineTool implements ITool {
     if (length >= MIN_LENGTH) {
       createdShape = this.createShape(state.dragStart, endPoint)
       store.addShape(createdShape, true)
-      store.select(createdShape.id)
     }
 
     this.resetState(state)
+
+    // Switch to select tool with the new shape selected
+    if (createdShape) {
+      store.setTool('select')
+      store.select(createdShape.id)
+    }
 
     return {
       handled: true,

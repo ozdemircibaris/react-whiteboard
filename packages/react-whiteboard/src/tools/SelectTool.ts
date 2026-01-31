@@ -1,5 +1,5 @@
 import type { WhiteboardStore } from '../core/store'
-import type { Shape, TextShape } from '../types'
+import type { Shape, TextShape, LineShape, ArrowShape } from '../types'
 import {
   getShapeAtPoint,
   hitTestSelectionResizeHandles,
@@ -27,6 +27,16 @@ export class SelectTool implements ITool {
   readonly name = 'Select'
 
   private moveBeforeStates: Shape[] = []
+  private resizeStartFontSizes: Map<string, number> = new Map()
+
+  /** Check if all given shapes are text — used to restrict handles to corners only */
+  private allText(shapes: Shape[]): boolean {
+    return shapes.length > 0 && shapes.every((s) => s.type === 'text')
+  }
+
+  private isEdgeHandle(handle: ResizeHandle): boolean {
+    return handle.includes('center')
+  }
 
   onActivate(_store: WhiteboardStore): void {
     // Nothing to do
@@ -53,7 +63,7 @@ export class SelectTool implements ITool {
 
       if (selectionBounds) {
         const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
-        if (handle) {
+        if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
           // Start resize
           state.isDragging = true
           state.dragStart = canvasPoint
@@ -62,6 +72,7 @@ export class SelectTool implements ITool {
 
           // Store starting bounds of all selected shapes
           state.startPositions.clear()
+          this.resizeStartFontSizes.clear()
           selectedShapes.forEach((shape) => {
             state.startPositions.set(shape.id, {
               x: shape.x,
@@ -69,6 +80,9 @@ export class SelectTool implements ITool {
               width: shape.width,
               height: shape.height,
             })
+            if (shape.type === 'text') {
+              this.resizeStartFontSizes.set(shape.id, (shape as TextShape).props.fontSize)
+            }
           })
 
           // Deep clone before states to preserve nested props for history
@@ -165,7 +179,7 @@ export class SelectTool implements ITool {
 
       if (selectionBounds) {
         const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
-        if (handle) {
+        if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
           return { handled: true, cursor: RESIZE_CURSORS[handle] }
         }
       }
@@ -225,6 +239,7 @@ export class SelectTool implements ITool {
     state.resizeHandle = null
     state.startPositions.clear()
     this.moveBeforeStates = []
+    this.resizeStartFontSizes.clear()
 
     return { handled: true }
   }
@@ -252,6 +267,7 @@ export class SelectTool implements ITool {
 
     const dx = state.dragCurrent.x - state.dragStart.x
     const dy = state.dragCurrent.y - state.dragStart.y
+    const isCornerHandle = !state.resizeHandle.includes('center')
 
     state.startPositions.forEach((startBounds, id) => {
       const newBounds = this.calculateResizedBounds(
@@ -261,15 +277,54 @@ export class SelectTool implements ITool {
         dy
       )
 
-      // Text shapes: height is determined by word-wrap, not manual drag
       const shape = store.shapes.get(id)
       if (shape?.type === 'text') {
         const textShape = shape as TextShape
-        const { height } = wrapTextLines(textShape.props.text, newBounds.width, textShape.props)
-        newBounds.height = height
-      }
 
-      store.updateShape(id, newBounds, false)
+        if (isCornerHandle && startBounds.width > 0) {
+          // Corner resize: scale fontSize proportionally
+          const originalFontSize = this.resizeStartFontSizes.get(id) ?? textShape.props.fontSize
+          const scaleFactor = newBounds.width / startBounds.width
+          const newFontSize = Math.max(8, Math.round(originalFontSize * scaleFactor))
+          const newProps = { ...textShape.props, fontSize: newFontSize }
+          const { height } = wrapTextLines(textShape.props.text, newBounds.width, newProps)
+          newBounds.height = height
+          store.updateShape(id, { ...newBounds, props: newProps }, false)
+        } else {
+          // Side resize: rewrap text at new width, keep fontSize
+          const { height } = wrapTextLines(textShape.props.text, newBounds.width, textShape.props)
+          newBounds.height = height
+          store.updateShape(id, newBounds, false)
+        }
+      } else if (shape?.type === 'line') {
+        // Scale line endpoints proportionally
+        const original = this.moveBeforeStates.find((s) => s.id === id) as LineShape | undefined
+        if (original && startBounds.width > 0 && startBounds.height > 0) {
+          const scaleX = newBounds.width / startBounds.width
+          const scaleY = newBounds.height / startBounds.height
+          const newPoints = original.props.points.map((p) => ({
+            x: p.x * scaleX,
+            y: p.y * scaleY,
+          }))
+          store.updateShape(id, { ...newBounds, props: { ...(shape as LineShape).props, points: newPoints } }, false)
+        } else {
+          store.updateShape(id, newBounds, false)
+        }
+      } else if (shape?.type === 'arrow') {
+        // Scale arrow endpoints proportionally
+        const original = this.moveBeforeStates.find((s) => s.id === id) as ArrowShape | undefined
+        if (original && startBounds.width > 0 && startBounds.height > 0) {
+          const scaleX = newBounds.width / startBounds.width
+          const scaleY = newBounds.height / startBounds.height
+          const newStart = { x: original.props.start.x * scaleX, y: original.props.start.y * scaleY }
+          const newEnd = { x: original.props.end.x * scaleX, y: original.props.end.y * scaleY }
+          store.updateShape(id, { ...newBounds, props: { ...(shape as ArrowShape).props, start: newStart, end: newEnd } }, false)
+        } else {
+          store.updateShape(id, newBounds, false)
+        }
+      } else {
+        store.updateShape(id, newBounds, false)
+      }
     })
   }
 

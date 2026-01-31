@@ -177,6 +177,8 @@ export class TextTool implements ITool {
       return
     }
 
+    let confirmedId: string | null = null
+
     if (text) {
       if (this.editingShapeId) {
         // Editing existing shape — wrap at existing width, update height
@@ -188,19 +190,25 @@ export class TextTool implements ITool {
             { opacity: 1, height, props: { ...existing.props, text } },
             true,
           )
-          store.select(this.editingShapeId)
+          confirmedId = this.editingShapeId
         }
       } else {
         // New shape — shrink width to fit for short text
         const shape = this.createShape(position, text, store.currentTextProps, maxWidth)
         store.addShape(shape, true)
-        store.select(shape.id)
+        confirmedId = shape.id
       }
     } else if (this.editingShapeId) {
       store.deleteShape(this.editingShapeId, true)
     }
 
     this.cleanup()
+
+    // Switch to select tool with the confirmed shape selected
+    if (confirmedId) {
+      store.setTool('select')
+      store.select(confirmedId)
+    }
   }
 
   private cancelEdit(): void {
