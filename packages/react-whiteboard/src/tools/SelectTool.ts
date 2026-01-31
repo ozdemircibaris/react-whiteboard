@@ -8,12 +8,9 @@ import {
   RESIZE_CURSORS,
   type ResizeHandle,
 } from '../utils/hitTest'
-import {
-  hitTestRotationHandle,
-  calculateRotation,
-  angleFromCenter,
-} from '../utils/rotationHandle'
+import { hitTestRotationHandle } from '../utils/rotationHandle'
 import { applyResize } from './SelectToolResize'
+import { initRotation, applyRotationDrag } from './SelectToolRotate'
 import { snapToShapes, drawSnapLines, type SnapLine } from '../utils/snapping'
 import type {
   ITool,
@@ -68,7 +65,10 @@ export class SelectTool implements ITool {
       if (selectionBounds) {
         // Check rotation handle first
         if (hitTestRotationHandle(canvasPoint, selectionBounds)) {
-          return this.startRotation(canvasPoint, selectedShapes, state)
+          const rot = initRotation(canvasPoint, selectedShapes, state)
+          this.rotationInitialAngle = rot.initialAngle
+          this.moveBeforeStates = rot.beforeStates
+          return rot.result
         }
 
         // Check resize handles
@@ -113,7 +113,7 @@ export class SelectTool implements ITool {
     // Rotation drag
     if (state.isDragging && state.isRotating && state.dragStart) {
       state.dragCurrent = canvasPoint
-      this.handleRotation(store, state, ctx.shiftKey)
+      applyRotationDrag(store, state, ctx.shiftKey, this.rotationInitialAngle)
       return { handled: true, cursor: 'grab' }
     }
 
@@ -205,27 +205,6 @@ export class SelectTool implements ITool {
       .filter((s): s is Shape => s !== undefined)
   }
 
-  private startRotation(
-    canvasPoint: { x: number; y: number },
-    selectedShapes: Shape[],
-    state: ToolState,
-  ): PointerDownResult {
-    const bounds = getSelectionBounds(selectedShapes)
-    const center = bounds
-      ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
-      : canvasPoint
-    this.rotationInitialAngle = angleFromCenter(center, canvasPoint)
-
-    state.isDragging = true
-    state.isRotating = true
-    state.dragStart = canvasPoint
-    state.dragCurrent = canvasPoint
-    state.startRotations.clear()
-    selectedShapes.forEach((s) => state.startRotations.set(s.id, s.rotation))
-    this.moveBeforeStates = selectedShapes.map((s) => structuredClone(s) as Shape)
-    return { handled: true, capture: true, cursor: 'grab' }
-  }
-
   private startResize(
     canvasPoint: { x: number; y: number },
     handle: ResizeHandle,
@@ -302,20 +281,6 @@ export class SelectTool implements ITool {
         x: startPos.x + dx + snapDx,
         y: startPos.y + dy + snapDy,
       }, false)
-    })
-  }
-
-  private handleRotation(store: WhiteboardStore, state: ToolState, shiftKey: boolean): void {
-    if (!state.dragCurrent) return
-    const selectedShapes = this.getSelectedShapes(store)
-    const bounds = getSelectionBounds(selectedShapes)
-    if (!bounds) return
-
-    const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
-    const delta = calculateRotation(center, state.dragCurrent, shiftKey, this.rotationInitialAngle)
-
-    state.startRotations.forEach((startRotation, id) => {
-      store.updateShape(id, { rotation: startRotation + delta }, false)
     })
   }
 
