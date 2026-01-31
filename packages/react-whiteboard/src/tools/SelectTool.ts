@@ -1,9 +1,11 @@
 import type { WhiteboardStore } from '../core/store'
-import type { Shape, TextShape } from '../types'
+import type { Shape, TextShape, LineShape, ArrowShape, PathShape, Viewport } from '../types'
 import {
   getShapeAtPoint,
+  getShapesInBounds,
   hitTestSelectionResizeHandles,
   getSelectionBounds,
+  calculateResizedBounds,
   RESIZE_CURSORS,
   type ResizeHandle,
 } from '../utils/hitTest'
@@ -27,6 +29,17 @@ export class SelectTool implements ITool {
   readonly name = 'Select'
 
   private moveBeforeStates: Shape[] = []
+  private resizeStartFontSizes: Map<string, number> = new Map()
+  private isMarquee = false
+
+  /** Check if all given shapes are text — used to restrict handles to corners only */
+  private allText(shapes: Shape[]): boolean {
+    return shapes.length > 0 && shapes.every((s) => s.type === 'text')
+  }
+
+  private isEdgeHandle(handle: ResizeHandle): boolean {
+    return handle.includes('center')
+  }
 
   onActivate(_store: WhiteboardStore): void {
     // Nothing to do
@@ -53,7 +66,7 @@ export class SelectTool implements ITool {
 
       if (selectionBounds) {
         const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
-        if (handle) {
+        if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
           // Start resize
           state.isDragging = true
           state.dragStart = canvasPoint
@@ -62,6 +75,7 @@ export class SelectTool implements ITool {
 
           // Store starting bounds of all selected shapes
           state.startPositions.clear()
+          this.resizeStartFontSizes.clear()
           selectedShapes.forEach((shape) => {
             state.startPositions.set(shape.id, {
               x: shape.x,
@@ -69,6 +83,9 @@ export class SelectTool implements ITool {
               width: shape.width,
               height: shape.height,
             })
+            if (shape.type === 'text') {
+              this.resizeStartFontSizes.set(shape.id, (shape as TextShape).props.fontSize)
+            }
           })
 
           // Deep clone before states to preserve nested props for history
@@ -125,12 +142,15 @@ export class SelectTool implements ITool {
       return { handled: true, capture: true, cursor: 'move' }
     }
 
-    // Clicked on empty space - clear selection
+    // Clicked on empty space — start marquee selection
     if (!shiftKey) {
       store.clearSelection()
     }
-
-    return { handled: false }
+    this.isMarquee = true
+    state.isDragging = true
+    state.dragStart = canvasPoint
+    state.dragCurrent = canvasPoint
+    return { handled: true, capture: true, cursor: 'crosshair' }
   }
 
   onPointerMove(
@@ -146,6 +166,12 @@ export class SelectTool implements ITool {
       state.dragCurrent = canvasPoint
       this.handleResize(store, state)
       return { handled: true, cursor: RESIZE_CURSORS[state.resizeHandle] }
+    }
+
+    // Marquee selection drag
+    if (state.isDragging && this.isMarquee && state.dragStart) {
+      state.dragCurrent = canvasPoint
+      return { handled: true, cursor: 'crosshair' }
     }
 
     // If dragging shapes (move)
@@ -165,7 +191,7 @@ export class SelectTool implements ITool {
 
       if (selectionBounds) {
         const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
-        if (handle) {
+        if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
           return { handled: true, cursor: RESIZE_CURSORS[handle] }
         }
       }
@@ -197,6 +223,18 @@ export class SelectTool implements ITool {
       return { handled: false }
     }
 
+    // Marquee selection — select shapes within bounds
+    if (this.isMarquee && state.dragStart && state.dragCurrent) {
+      const x = Math.min(state.dragStart.x, state.dragCurrent.x)
+      const y = Math.min(state.dragStart.y, state.dragCurrent.y)
+      const w = Math.abs(state.dragCurrent.x - state.dragStart.x)
+      const h = Math.abs(state.dragCurrent.y - state.dragStart.y)
+      if (w > 3 || h > 3) {
+        const found = getShapesInBounds({ x, y, width: w, height: h }, store.shapes, store.shapeIds)
+        if (found.length > 0) store.selectMultiple(found.map((s) => s.id))
+      }
+    }
+
     // Record history if shapes were moved/resized
     if (state.dragStart && state.dragCurrent && this.moveBeforeStates.length > 0) {
       const hasMoved =
@@ -225,8 +263,26 @@ export class SelectTool implements ITool {
     state.resizeHandle = null
     state.startPositions.clear()
     this.moveBeforeStates = []
+    this.resizeStartFontSizes.clear()
+    this.isMarquee = false
 
     return { handled: true }
+  }
+
+  renderOverlay(ctx: CanvasRenderingContext2D, state: ToolState, _viewport: Viewport): void {
+    if (!this.isMarquee || !state.dragStart || !state.dragCurrent) return
+    const x = Math.min(state.dragStart.x, state.dragCurrent.x)
+    const y = Math.min(state.dragStart.y, state.dragCurrent.y)
+    const w = Math.abs(state.dragCurrent.x - state.dragStart.x)
+    const h = Math.abs(state.dragCurrent.y - state.dragStart.y)
+    ctx.save()
+    ctx.fillStyle = 'rgba(0, 102, 255, 0.08)'
+    ctx.strokeStyle = 'rgba(0, 102, 255, 0.4)'
+    ctx.lineWidth = 1
+    ctx.setLineDash([4, 4])
+    ctx.fillRect(x, y, w, h)
+    ctx.strokeRect(x, y, w, h)
+    ctx.restore()
   }
 
   private handleMove(store: WhiteboardStore, state: ToolState): void {
@@ -252,88 +308,80 @@ export class SelectTool implements ITool {
 
     const dx = state.dragCurrent.x - state.dragStart.x
     const dy = state.dragCurrent.y - state.dragStart.y
+    const isCornerHandle = !state.resizeHandle.includes('center')
 
     state.startPositions.forEach((startBounds, id) => {
-      const newBounds = this.calculateResizedBounds(
+      const newBounds = calculateResizedBounds(
         startBounds,
         state.resizeHandle!,
         dx,
         dy
       )
 
-      // Text shapes: height is determined by word-wrap, not manual drag
       const shape = store.shapes.get(id)
       if (shape?.type === 'text') {
         const textShape = shape as TextShape
-        const { height } = wrapTextLines(textShape.props.text, newBounds.width, textShape.props)
-        newBounds.height = height
-      }
 
-      store.updateShape(id, newBounds, false)
+        if (isCornerHandle && startBounds.width > 0) {
+          // Corner resize: scale fontSize proportionally
+          const originalFontSize = this.resizeStartFontSizes.get(id) ?? textShape.props.fontSize
+          const scaleFactor = newBounds.width / startBounds.width
+          const newFontSize = Math.max(8, Math.round(originalFontSize * scaleFactor))
+          const newProps = { ...textShape.props, fontSize: newFontSize }
+          const { height } = wrapTextLines(textShape.props.text, newBounds.width, newProps)
+          newBounds.height = height
+          store.updateShape(id, { ...newBounds, props: newProps }, false)
+        } else {
+          // Side resize: rewrap text at new width, keep fontSize
+          const { height } = wrapTextLines(textShape.props.text, newBounds.width, textShape.props)
+          newBounds.height = height
+          store.updateShape(id, newBounds, false)
+        }
+      } else if (shape?.type === 'line') {
+        // Scale line endpoints proportionally
+        const original = this.moveBeforeStates.find((s) => s.id === id) as LineShape | undefined
+        if (original && startBounds.width > 0 && startBounds.height > 0) {
+          const scaleX = newBounds.width / startBounds.width
+          const scaleY = newBounds.height / startBounds.height
+          const newPoints = original.props.points.map((p) => ({
+            x: p.x * scaleX,
+            y: p.y * scaleY,
+          }))
+          store.updateShape(id, { ...newBounds, props: { ...(shape as LineShape).props, points: newPoints } }, false)
+        } else {
+          store.updateShape(id, newBounds, false)
+        }
+      } else if (shape?.type === 'arrow') {
+        // Scale arrow endpoints proportionally
+        const original = this.moveBeforeStates.find((s) => s.id === id) as ArrowShape | undefined
+        if (original && startBounds.width > 0 && startBounds.height > 0) {
+          const scaleX = newBounds.width / startBounds.width
+          const scaleY = newBounds.height / startBounds.height
+          const newStart = { x: original.props.start.x * scaleX, y: original.props.start.y * scaleY }
+          const newEnd = { x: original.props.end.x * scaleX, y: original.props.end.y * scaleY }
+          store.updateShape(id, { ...newBounds, props: { ...(shape as ArrowShape).props, start: newStart, end: newEnd } }, false)
+        } else {
+          store.updateShape(id, newBounds, false)
+        }
+      } else if (shape?.type === 'path') {
+        // Scale freehand path points proportionally
+        const original = this.moveBeforeStates.find((s) => s.id === id) as PathShape | undefined
+        if (original && startBounds.width > 0 && startBounds.height > 0) {
+          const scaleX = newBounds.width / startBounds.width
+          const scaleY = newBounds.height / startBounds.height
+          const newPoints = original.props.points.map((p) => ({
+            x: p.x * scaleX,
+            y: p.y * scaleY,
+            pressure: p.pressure,
+          }))
+          store.updateShape(id, { ...newBounds, props: { ...(shape as PathShape).props, points: newPoints } }, false)
+        } else {
+          store.updateShape(id, newBounds, false)
+        }
+      } else {
+        store.updateShape(id, newBounds, false)
+      }
     })
-  }
-
-  private calculateResizedBounds(
-    startBounds: { x: number; y: number; width: number; height: number },
-    handle: ResizeHandle,
-    dx: number,
-    dy: number
-  ): { x: number; y: number; width: number; height: number } {
-    let { x, y, width, height } = startBounds
-    const minSize = 10
-
-    switch (handle) {
-      case 'top-left':
-        x += dx
-        y += dy
-        width -= dx
-        height -= dy
-        break
-      case 'top-center':
-        y += dy
-        height -= dy
-        break
-      case 'top-right':
-        y += dy
-        width += dx
-        height -= dy
-        break
-      case 'right-center':
-        width += dx
-        break
-      case 'bottom-right':
-        width += dx
-        height += dy
-        break
-      case 'bottom-center':
-        height += dy
-        break
-      case 'bottom-left':
-        x += dx
-        width -= dx
-        height += dy
-        break
-      case 'left-center':
-        x += dx
-        width -= dx
-        break
-    }
-
-    // Enforce minimum size and handle negative dimensions
-    if (width < minSize) {
-      if (handle.includes('left')) {
-        x = startBounds.x + startBounds.width - minSize
-      }
-      width = minSize
-    }
-    if (height < minSize) {
-      if (handle.includes('top')) {
-        y = startBounds.y + startBounds.height - minSize
-      }
-      height = minSize
-    }
-
-    return { x, y, width, height }
   }
 
   private recordMoveHistory(

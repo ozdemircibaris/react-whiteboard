@@ -104,7 +104,6 @@ export abstract class BaseShapeTool implements ITool {
       // Use the same seed as preview so the shape doesn't visually jump
       createdShape = this.createShapeInstance(bounds, this.previewSeed)
       store.addShape(createdShape, true)
-      store.select(createdShape.id)
       // Generate new seed for next shape
       this.previewSeed = Math.floor(Math.random() * 2147483647)
     }
@@ -114,6 +113,12 @@ export abstract class BaseShapeTool implements ITool {
     state.dragCurrent = null
     state.activeShapeId = null
     this.previewShape = null
+
+    // Switch to select tool with the new shape selected
+    if (createdShape) {
+      store.setTool('select')
+      store.select(createdShape.id)
+    }
 
     return {
       handled: true,

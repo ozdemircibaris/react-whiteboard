@@ -106,3 +106,47 @@ export function hitTestSelectionResizeHandles(
 ): ResizeHandle | null {
   return hitTestHandlesAtBounds(point, bounds, handleSize)
 }
+
+/**
+ * Calculate new bounds after a resize handle drag.
+ * Enforces a minimum size and corrects position for left/top handle drags.
+ */
+export function calculateResizedBounds(
+  startBounds: Bounds,
+  handle: ResizeHandle,
+  dx: number,
+  dy: number,
+  minSize: number = 10,
+): Bounds {
+  let { x, y, width, height } = startBounds
+
+  switch (handle) {
+    case 'top-left':
+      x += dx; y += dy; width -= dx; height -= dy; break
+    case 'top-center':
+      y += dy; height -= dy; break
+    case 'top-right':
+      y += dy; width += dx; height -= dy; break
+    case 'right-center':
+      width += dx; break
+    case 'bottom-right':
+      width += dx; height += dy; break
+    case 'bottom-center':
+      height += dy; break
+    case 'bottom-left':
+      x += dx; width -= dx; height += dy; break
+    case 'left-center':
+      x += dx; width -= dx; break
+  }
+
+  if (width < minSize) {
+    if (handle.includes('left')) x = startBounds.x + startBounds.width - minSize
+    width = minSize
+  }
+  if (height < minSize) {
+    if (handle.includes('top')) y = startBounds.y + startBounds.height - minSize
+    height = minSize
+  }
+
+  return { x, y, width, height }
+}

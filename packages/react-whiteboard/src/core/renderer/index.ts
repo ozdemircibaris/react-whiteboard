@@ -29,11 +29,13 @@ export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D
   private roughCanvas: RoughCanvas
   private selectionFn: (x: number, y: number, w: number, h: number) => void
+  private cornerOnlySelectionFn: (x: number, y: number, w: number, h: number) => void
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx
     this.roughCanvas = rough.canvas(ctx.canvas)
-    this.selectionFn = this.drawSelectionOutline.bind(this)
+    this.selectionFn = this.drawSelectionOutline.bind(this, false)
+    this.cornerOnlySelectionFn = this.drawSelectionOutline.bind(this, true)
   }
 
   private get dpr(): number {
@@ -116,7 +118,7 @@ export class CanvasRenderer {
         drawArrow(this.ctx, this.roughCanvas, shape as ArrowShape, isSelected, fn)
         break
       case 'text':
-        drawText(this.ctx, shape as TextShape, isSelected, fn)
+        drawText(this.ctx, shape as TextShape, isSelected, this.cornerOnlySelectionFn)
         break
       default:
         drawBoundingBox(this.ctx, shape, isSelected, fn)
@@ -126,7 +128,13 @@ export class CanvasRenderer {
   /**
    * Draw selection outline with resize handles
    */
-  private drawSelectionOutline(x: number, y: number, width: number, height: number): void {
+  private drawSelectionOutline(
+    cornersOnly: boolean,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): void {
     const handleSize = 8
     const halfHandle = handleSize / 2
 
@@ -139,16 +147,21 @@ export class CanvasRenderer {
     this.ctx.strokeStyle = '#0066ff'
     this.ctx.lineWidth = 1
 
-    const handles = [
+    const corners = [
       { x: x - halfHandle, y: y - halfHandle },
-      { x: x + width / 2 - halfHandle, y: y - halfHandle },
       { x: x + width - halfHandle, y: y - halfHandle },
-      { x: x + width - halfHandle, y: y + height / 2 - halfHandle },
       { x: x + width - halfHandle, y: y + height - halfHandle },
-      { x: x + width / 2 - halfHandle, y: y + height - halfHandle },
       { x: x - halfHandle, y: y + height - halfHandle },
+    ]
+
+    const edges = [
+      { x: x + width / 2 - halfHandle, y: y - halfHandle },
+      { x: x + width - halfHandle, y: y + height / 2 - halfHandle },
+      { x: x + width / 2 - halfHandle, y: y + height - halfHandle },
       { x: x - halfHandle, y: y + height / 2 - halfHandle },
     ]
+
+    const handles = cornersOnly ? corners : [...corners, ...edges]
 
     for (const handle of handles) {
       this.ctx.fillRect(handle.x, handle.y, handleSize, handleSize)

@@ -68,6 +68,14 @@ export function Canvas({
   const selectMultiple = useWhiteboardStore((s) => s.selectMultiple)
   const updateShape = useWhiteboardStore((s) => s.updateShape)
   const recordBatchUpdate = useWhiteboardStore((s) => s.recordBatchUpdate)
+  const copySelectedShapes = useWhiteboardStore((s) => s.copySelectedShapes)
+  const cutSelectedShapes = useWhiteboardStore((s) => s.cutSelectedShapes)
+  const pasteShapes = useWhiteboardStore((s) => s.pasteShapes)
+  const duplicateSelectedShapes = useWhiteboardStore((s) => s.duplicateSelectedShapes)
+  const bringToFront = useWhiteboardStore((s) => s.bringToFront)
+  const sendToBack = useWhiteboardStore((s) => s.sendToBack)
+  const bringForward = useWhiteboardStore((s) => s.bringForward)
+  const sendBackward = useWhiteboardStore((s) => s.sendBackward)
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
   useKeyboardShortcuts({
@@ -81,6 +89,14 @@ export function Canvas({
     selectMultiple,
     updateShape,
     recordBatchUpdate,
+    copySelectedShapes,
+    cutSelectedShapes,
+    pasteShapes,
+    duplicateSelectedShapes,
+    bringToFront,
+    sendToBack,
+    bringForward,
+    sendBackward,
   })
 
   // ── Tool system (pointer events, overlay, cursor) ─────────────────

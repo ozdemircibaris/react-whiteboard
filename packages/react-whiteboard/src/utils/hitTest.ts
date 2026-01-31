@@ -7,6 +7,7 @@ export {
   getResizeHandlePositions,
   hitTestResizeHandles,
   hitTestSelectionResizeHandles,
+  calculateResizedBounds,
 } from './resizeHandles'
 
 export {

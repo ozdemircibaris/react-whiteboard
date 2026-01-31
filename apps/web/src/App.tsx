@@ -40,6 +40,11 @@ function Toolbar() {
   const canRedo = useWhiteboardStore((s) => s.historyIndex < s.history.length - 1)
   const currentTool = useWhiteboardStore((s) => s.currentTool)
   const setTool = useWhiteboardStore((s) => s.setTool)
+  const hasSelection = useWhiteboardStore((s) => s.selectedIds.size > 0)
+  const bringToFront = useWhiteboardStore((s) => s.bringToFront)
+  const sendToBack = useWhiteboardStore((s) => s.sendToBack)
+  const bringForward = useWhiteboardStore((s) => s.bringForward)
+  const sendBackward = useWhiteboardStore((s) => s.sendBackward)
 
   const tools: { type: ToolType; label: string }[] = [
     { type: 'select', label: 'Select' },
@@ -84,6 +89,39 @@ function Toolbar() {
           className="rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Redo
+        </button>
+        <div className="w-px h-6 bg-gray-300" />
+        <button
+          onClick={sendToBack}
+          disabled={!hasSelection}
+          title="Send to Back (Cmd+Shift+[)"
+          className="rounded-md bg-gray-200 px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          ⇤
+        </button>
+        <button
+          onClick={sendBackward}
+          disabled={!hasSelection}
+          title="Send Backward (Cmd+[)"
+          className="rounded-md bg-gray-200 px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          ←
+        </button>
+        <button
+          onClick={bringForward}
+          disabled={!hasSelection}
+          title="Bring Forward (Cmd+])"
+          className="rounded-md bg-gray-200 px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          →
+        </button>
+        <button
+          onClick={bringToFront}
+          disabled={!hasSelection}
+          title="Bring to Front (Cmd+Shift+])"
+          className="rounded-md bg-gray-200 px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          ⇥
         </button>
         <div className="w-px h-6 bg-gray-300" />
         <button
@@ -143,12 +181,14 @@ function Instructions() {
       </ul>
       <p className="font-medium text-gray-800 mt-2">Shortcuts:</p>
       <ul className="mt-1 space-y-0.5">
-        <li>• Cmd/Ctrl + Z to undo</li>
-        <li>• Cmd/Ctrl + Shift + Z to redo</li>
+        <li>• Cmd/Ctrl + Z/Y to undo/redo</li>
+        <li>• Cmd/Ctrl + C/X/V to copy/cut/paste</li>
+        <li>• Cmd/Ctrl + D to duplicate</li>
         <li>• Cmd/Ctrl + A to select all</li>
+        <li>• Cmd/Ctrl + ]/[ to reorder layers</li>
         <li>• Delete/Backspace to delete</li>
-        <li>• Escape to deselect</li>
         <li>• Arrow keys to move (Shift for 10px)</li>
+        <li>• Drag empty space for marquee select</li>
       </ul>
     </div>
   )

@@ -4,6 +4,8 @@ import type { Shape, ToolType, Viewport, Point, HistoryEntry, TextShapeProps } f
 import { createShapeActions } from './shapeActions'
 import { createViewportActions } from './viewportActions'
 import { createHistoryActions } from './historyActions'
+import { createClipboardActions } from './clipboardActions'
+import { createZOrderActions } from './zOrderActions'
 import { DEFAULT_TEXT_PROPS } from '../../utils/fonts'
 
 // ============================================================================
@@ -59,6 +61,20 @@ export interface WhiteboardStore {
   canRedo: () => boolean
   recordBatchUpdate: (before: Shape[], after: Shape[]) => void
 
+  // Clipboard state & actions
+  clipboard: Shape[]
+  clipboardPasteCount: number
+  copySelectedShapes: () => void
+  cutSelectedShapes: () => void
+  pasteShapes: () => void
+  duplicateSelectedShapes: () => void
+
+  // Z-order actions
+  bringToFront: () => void
+  sendToBack: () => void
+  bringForward: () => void
+  sendBackward: () => void
+
   // Text styling defaults (applied to new text shapes)
   currentTextProps: Omit<TextShapeProps, 'text'>
   setCurrentTextProps: (props: Partial<Omit<TextShapeProps, 'text'>>) => void
@@ -81,11 +97,15 @@ export const createWhiteboardStore = () =>
       isPanning: false,
       history: [],
       historyIndex: -1,
+      clipboard: [],
+      clipboardPasteCount: 0,
 
       // Delegated actions
       ...createShapeActions(set, get),
       ...createViewportActions(set, get),
       ...createHistoryActions(set, get),
+      ...createClipboardActions(set, get),
+      ...createZOrderActions(set, get),
 
       // Selection actions (inline — small)
       select: (id) => set({ selectedIds: new Set([id]) }),
