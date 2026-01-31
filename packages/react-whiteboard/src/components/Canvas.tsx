@@ -176,7 +176,7 @@ export function Canvas({
     for (const id of shapeIds) {
       const shape = shapes.get(id)
       if (shape && boundsIntersect(shape, cullingBounds)) {
-        renderer.drawShape(shape, selectedIds.has(id))
+        renderer.drawShape(shape, selectedIds.has(id), shapes)
       }
     }
 

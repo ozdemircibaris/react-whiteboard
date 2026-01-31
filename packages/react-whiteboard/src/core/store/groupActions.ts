@@ -83,7 +83,7 @@ export function createGroupActions(
       if (groupIds.length === 0) return
 
       const newShapes = new Map(state.shapes)
-      let newShapeIds = [...state.shapeIds]
+      const newShapeIds = [...state.shapeIds]
       const restoredChildIds: string[] = []
 
       for (const groupId of groupIds) {

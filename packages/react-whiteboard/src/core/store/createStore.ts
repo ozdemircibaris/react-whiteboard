@@ -10,7 +10,9 @@ import { createShapeStyleActions, type ShapeStyleDefaults } from './shapeStyleAc
 import { createAlignmentActions } from './alignmentActions'
 import { createGroupActions } from './groupActions'
 import { createExportImportActions } from './exportImportActions'
+import { createBoundTextActions } from './boundTextActions'
 import { DEFAULT_TEXT_PROPS } from '../../utils/fonts'
+import type { TextShape } from '../../types'
 
 // ============================================================================
 // Store State Interface
@@ -107,6 +109,11 @@ export interface WhiteboardStore {
 
   // Export/import actions
   loadDocument: (shapes: Map<string, Shape>, shapeIds: string[], viewport: Viewport) => void
+
+  // Bound text actions
+  createBoundText: (parentId: string) => TextShape | null
+  syncBoundTextToParent: (parentId: string) => void
+  removeBoundText: (parentId: string, recordHistory?: boolean) => void
 }
 
 // ============================================================================
@@ -139,6 +146,7 @@ export const createWhiteboardStore = () =>
       ...createAlignmentActions(set, get),
       ...createGroupActions(set, get),
       ...createExportImportActions(set, get),
+      ...createBoundTextActions(set, get),
 
       // Selection actions (inline — small)
       select: (id) => set({ selectedIds: new Set([id]) }),

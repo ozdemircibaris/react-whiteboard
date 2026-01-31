@@ -1,7 +1,8 @@
 import type { RoughCanvas } from 'roughjs/bin/canvas'
-import type { RectangleShape } from '../../../types'
+import type { RectangleShape, Shape } from '../../../types'
 import type { DrawSelectionOutlineFn } from './shared'
 import { buildRoughOptions, applyRotation, getStrokeLineDash, mapFillStyle } from './shared'
+import { drawBoundText } from './drawBoundText'
 
 export function drawRectangle(
   ctx: CanvasRenderingContext2D,
@@ -9,6 +10,7 @@ export function drawRectangle(
   shape: RectangleShape,
   isSelected: boolean,
   drawSelection: DrawSelectionOutlineFn,
+  allShapes?: Map<string, Shape>,
 ): void {
   const { x, y, width, height, rotation, opacity, props, seed, roughness } = shape
   const { fill, fillStyle, stroke, strokeWidth, strokeStyle, cornerRadius } = props
@@ -37,4 +39,9 @@ export function drawRectangle(
 
   if (isSelected) drawSelection(x, y, width, height)
   ctx.restore()
+
+  // Draw bound text after shape restore (gets its own save/restore internally)
+  if (allShapes && props.boundTextId) {
+    drawBoundText(ctx, shape, allShapes)
+  }
 }

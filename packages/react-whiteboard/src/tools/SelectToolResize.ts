@@ -3,6 +3,7 @@ import type { Shape, TextShape, LineShape, ArrowShape, PathShape } from '../type
 import { calculateResizedBounds } from '../utils/hitTest'
 import type { ToolState } from './types'
 import { wrapTextLines } from '../utils/fonts'
+import { getBoundTextIdFromShape } from '../utils/boundText'
 
 /**
  * Handle resize operations for selected shapes.
@@ -40,6 +41,11 @@ export function applyResize(
         break
       default:
         store.updateShape(id, newBounds, false)
+    }
+
+    // Sync bound text when container shape is resized
+    if (getBoundTextIdFromShape(shape)) {
+      store.syncBoundTextToParent(id)
     }
   })
 }

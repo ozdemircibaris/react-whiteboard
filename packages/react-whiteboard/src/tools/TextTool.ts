@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import type { WhiteboardStore } from '../core/store'
-import type { TextShape, TextShapeProps, Point, Viewport } from '../types'
+import type { TextShape, TextShapeProps, RectangleShape, EllipseShape, Point, Viewport } from '../types'
 import type {
   ITool,
   ToolEventContext,
@@ -11,6 +11,7 @@ import type {
 } from './types'
 import { getShapeAtPoint } from '../utils/hitTest'
 import { wrapTextLines, measureTextLines, DEFAULT_TEXT_MAX_WIDTH } from '../utils/fonts'
+import { BOUND_TEXT_PADDING } from '../utils/boundText'
 import { TextInputManager } from './TextInputManager'
 import { useWhiteboardStore } from '../core/store'
 
@@ -31,6 +32,7 @@ export class TextTool implements ITool {
 
   private inputManager = new TextInputManager()
   private editingShapeId: string | null = null
+  private boundParentId: string | null = null
   private currentStore: WhiteboardStore | null = null
 
   setOverlayContainer(container: HTMLElement | null): void {
@@ -67,6 +69,19 @@ export class TextTool implements ITool {
       this.handleConfirm(this.inputManager.getValue())
     }
     this.startEditing(shape, viewport, store)
+  }
+
+  editBoundText(
+    textShape: TextShape,
+    parent: RectangleShape | EllipseShape,
+    viewport: Viewport,
+    store: WhiteboardStore,
+  ): void {
+    if (this.inputManager.isActive()) {
+      this.handleConfirm(this.inputManager.getValue())
+    }
+    this.boundParentId = parent.id
+    this.startBoundEditing(textShape, parent, viewport, store)
   }
 
   onPointerDown(
@@ -145,6 +160,40 @@ export class TextTool implements ITool {
     )
   }
 
+  private startBoundEditing(
+    textShape: TextShape,
+    parent: RectangleShape | EllipseShape,
+    viewport: Viewport,
+    store: WhiteboardStore,
+  ): void {
+    this.editingShapeId = textShape.id
+    this.currentStore = store
+
+    // Hide the bound text during editing (rendered by parent shape)
+    store.updateShape(textShape.id, { opacity: 0 }, false)
+
+    const pad = BOUND_TEXT_PADDING
+    const maxWidth = Math.max(parent.width - pad * 2, 20)
+    const position = { x: parent.x + pad, y: parent.y + pad }
+
+    const { text, ...styleProps } = textShape.props
+    this.inputManager.create(
+      position,
+      text,
+      styleProps,
+      viewport,
+      {
+        onConfirm: (t) => this.handleConfirm(t),
+        onCancel: () => this.cancelEdit(),
+      },
+      maxWidth,
+    )
+
+    this.inputManager.subscribeToViewport((listener) =>
+      useWhiteboardStore.subscribe((s) => s.viewport, listener),
+    )
+  }
+
   private startNewText(position: Point, viewport: Viewport, store: WhiteboardStore): void {
     this.editingShapeId = null
     this.currentStore = store
@@ -178,33 +227,38 @@ export class TextTool implements ITool {
     }
 
     let confirmedId: string | null = null
+    const isBound = this.boundParentId !== null
 
     if (text) {
       if (this.editingShapeId) {
-        // Editing existing shape — wrap at existing width, update height
         const existing = store.shapes.get(this.editingShapeId) as TextShape | undefined
         if (existing) {
-          const { height } = wrapTextLines(text, existing.width, existing.props)
+          const wrapWidth = isBound ? maxWidth : existing.width
+          const { height } = wrapTextLines(text, wrapWidth, existing.props)
           store.updateShape(
             this.editingShapeId,
-            { opacity: 1, height, props: { ...existing.props, text } },
+            { opacity: 1, width: wrapWidth, height, props: { ...existing.props, text } },
             true,
           )
-          confirmedId = this.editingShapeId
+          confirmedId = isBound ? this.boundParentId : this.editingShapeId
         }
       } else {
-        // New shape — shrink width to fit for short text
         const shape = this.createShape(position, text, store.currentTextProps, maxWidth)
         store.addShape(shape, true)
         confirmedId = shape.id
       }
     } else if (this.editingShapeId) {
-      store.deleteShape(this.editingShapeId, true)
+      if (isBound) {
+        // Empty bound text — remove it and clear parent's boundTextId
+        store.removeBoundText(this.boundParentId!, false)
+        confirmedId = this.boundParentId
+      } else {
+        store.deleteShape(this.editingShapeId, true)
+      }
     }
 
     this.cleanup()
 
-    // Switch to select tool with the confirmed shape selected
     if (confirmedId) {
       store.setTool('select')
       store.select(confirmedId)
@@ -221,6 +275,7 @@ export class TextTool implements ITool {
   private cleanup(): void {
     this.inputManager.destroy()
     this.editingShapeId = null
+    this.boundParentId = null
   }
 
   private createShape(
