@@ -16,6 +16,7 @@ import type {
   PointerUpResult,
 } from './types'
 import { textTool } from './TextTool'
+import { wrapTextLines } from '../utils/fonts'
 
 /**
  * Select tool - handles selection, moving, and resizing shapes
@@ -259,6 +260,15 @@ export class SelectTool implements ITool {
         dx,
         dy
       )
+
+      // Text shapes: height is determined by word-wrap, not manual drag
+      const shape = store.shapes.get(id)
+      if (shape?.type === 'text') {
+        const textShape = shape as TextShape
+        const { height } = wrapTextLines(textShape.props.text, newBounds.width, textShape.props)
+        newBounds.height = height
+      }
+
       store.updateShape(id, newBounds, false)
     })
   }

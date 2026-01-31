@@ -11,7 +11,7 @@ import type {
   Shape,
 } from '../../types'
 import { calculateArrowhead } from '../../utils/canvas'
-import { resolveFont } from '../../utils/fonts'
+import { resolveFont, wrapTextLines } from '../../utils/fonts'
 
 /**
  * Shared stroke options for perfect-freehand rendering
@@ -304,7 +304,7 @@ export function drawText(
     ctx.fill()
   }
 
-  // Text rendering
+  // Text rendering with word-wrap
   ctx.font = resolveFont(props)
   ctx.fillStyle = color
   ctx.textAlign = align as CanvasTextAlign
@@ -315,7 +315,7 @@ export function drawText(
   else if (align === 'right') textX = x + width
 
   const lineSpacing = fontSize * (lineHeight ?? 1.25)
-  const lines = text.split('\n')
+  const { lines } = wrapTextLines(text, width, props)
 
   lines.forEach((line, index) => {
     ctx.fillText(line, textX, y + index * lineSpacing)

@@ -102,13 +102,18 @@ function getMeasureContext(): CanvasRenderingContext2D | null {
   return _measureCtx
 }
 
+/** Default max width for new text shapes (in canvas units) */
+export const DEFAULT_TEXT_MAX_WIDTH = 300
+
+type FontMeasureProps = Pick<TextShapeProps, 'fontSize' | 'fontFamily' | 'fontWeight' | 'fontStyle' | 'lineHeight'>
+
 /**
- * Measure text dimensions for multiline text.
+ * Measure text dimensions for multiline text (no word-wrap).
  * Returns width (max line width) and height (total line heights).
  */
 export function measureTextLines(
   text: string,
-  props: Pick<TextShapeProps, 'fontSize' | 'fontFamily' | 'fontWeight' | 'fontStyle' | 'lineHeight'>,
+  props: FontMeasureProps,
 ): { width: number; height: number; lines: string[] } {
   const lines = text.split('\n')
   const lineSpacing = props.fontSize * props.lineHeight
@@ -134,5 +139,70 @@ export function measureTextLines(
     width: Math.max(maxWidth + 8, 50),
     height: Math.max(lines.length, 1) * lineSpacing,
     lines,
+  }
+}
+
+/**
+ * Word-wrap text within a given maxWidth and measure the result.
+ * Preserves explicit newlines, then wraps each paragraph by word boundaries.
+ * Returns actual rendered width (may be less than maxWidth for short text).
+ */
+export function wrapTextLines(
+  text: string,
+  maxWidth: number,
+  props: FontMeasureProps,
+): { width: number; height: number; lines: string[] } {
+  const paragraphs = text.split('\n')
+  const lineSpacing = props.fontSize * props.lineHeight
+
+  const ctx = getMeasureContext()
+  if (!ctx) {
+    return {
+      width: Math.min(maxWidth, 50),
+      height: Math.max(paragraphs.length, 1) * lineSpacing,
+      lines: paragraphs,
+    }
+  }
+
+  ctx.font = resolveFont(props)
+  const wrappedLines: string[] = []
+  let actualMaxWidth = 0
+
+  for (const paragraph of paragraphs) {
+    if (!paragraph) {
+      wrappedLines.push('')
+      continue
+    }
+
+    const words = paragraph.split(' ')
+    let currentLine = ''
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word
+      const testWidth = ctx.measureText(testLine).width
+
+      if (testWidth <= maxWidth || !currentLine) {
+        currentLine = testLine
+      } else {
+        actualMaxWidth = Math.max(actualMaxWidth, ctx.measureText(currentLine).width)
+        wrappedLines.push(currentLine)
+        currentLine = word
+      }
+    }
+
+    if (currentLine) {
+      actualMaxWidth = Math.max(actualMaxWidth, ctx.measureText(currentLine).width)
+      wrappedLines.push(currentLine)
+    }
+  }
+
+  if (wrappedLines.length === 0) {
+    wrappedLines.push('')
+  }
+
+  return {
+    width: Math.max(actualMaxWidth + 8, 50),
+    height: Math.max(wrappedLines.length, 1) * lineSpacing,
+    lines: wrappedLines,
   }
 }

@@ -1,5 +1,5 @@
 import type { Point, Viewport, TextShapeProps } from '../types'
-import { resolveFont, measureTextLines, DEFAULT_TEXT_PROPS } from '../utils/fonts'
+import { resolveFont, wrapTextLines, DEFAULT_TEXT_PROPS } from '../utils/fonts'
 
 export { DEFAULT_TEXT_PROPS }
 
@@ -16,6 +16,7 @@ const MIN_WIDTH = 20
  *
  * The textarea visually matches the final rendered shape:
  * same font, color, background, alignment, and line height.
+ * Text wraps at the given maxWidth, only height auto-grows.
  */
 export class TextInputManager {
   private textareaElement: HTMLTextAreaElement | null = null
@@ -26,6 +27,7 @@ export class TextInputManager {
   private callbacks: TextInputCallbacks | null = null
   private textProps: Omit<TextShapeProps, 'text'> = DEFAULT_TEXT_PROPS
   private isConfirming = false
+  private maxWidth = 300
 
   setOverlayContainer(container: HTMLElement | null): void {
     this.overlayContainer = container
@@ -39,13 +41,17 @@ export class TextInputManager {
     return this.editingPosition
   }
 
+  getMaxWidth(): number {
+    return this.maxWidth
+  }
+
   getValue(): string {
     return this.textareaElement?.value.trim() ?? ''
   }
 
   /**
    * Create and show the textarea element for editing.
-   * Accepts full text props for WYSIWYG styling.
+   * @param maxWidth - Fixed width for word-wrapping (in canvas units).
    */
   create(
     position: Point,
@@ -53,6 +59,7 @@ export class TextInputManager {
     textProps: Omit<TextShapeProps, 'text'>,
     viewport: Viewport,
     callbacks: TextInputCallbacks,
+    maxWidth: number,
   ): void {
     if (this.isActive()) {
       this.destroy()
@@ -62,6 +69,7 @@ export class TextInputManager {
     this.callbacks = callbacks
     this.textProps = textProps
     this.isConfirming = false
+    this.maxWidth = maxWidth
 
     const textarea = document.createElement('textarea')
     textarea.value = initialText
@@ -143,8 +151,7 @@ export class TextInputManager {
 
   /**
    * Apply WYSIWYG styles — textarea is invisible except for text and cursor.
-   * No border, no shadow, no background (unless shape has one).
-   * Padding=0 so text position matches canvas rendering exactly.
+   * Fixed width with word-wrap; only height auto-grows.
    */
   private applyStyles(props: Omit<TextShapeProps, 'text'>, zoom: number): void {
     if (!this.textareaElement) return
@@ -165,27 +172,30 @@ export class TextInputManager {
       lineHeight: String(props.lineHeight),
       padding: '0',
       margin: '0',
+      width: `${this.maxWidth}px`,
       minWidth: `${MIN_WIDTH}px`,
       minHeight: `${Math.ceil(props.fontSize * props.lineHeight)}px`,
       zIndex: '10000',
       resize: 'none',
       overflow: 'hidden',
-      whiteSpace: 'pre',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
       boxSizing: 'border-box',
       caretColor: props.color || '#1e1e1e',
       pointerEvents: 'auto',
     })
   }
 
+  /** Only adjust height — width is fixed at maxWidth for word-wrapping. */
   private autoResize(): void {
     if (!this.textareaElement) return
 
-    const { width, height } = measureTextLines(
+    const { height } = wrapTextLines(
       this.textareaElement.value || ' ',
+      this.maxWidth,
       this.textProps,
     )
 
-    this.textareaElement.style.width = `${Math.ceil(width)}px`
     this.textareaElement.style.height = `${Math.ceil(height)}px`
   }
 
