@@ -5,7 +5,7 @@ import type { StoreApi } from './types'
  * Alignment & distribution actions for selected shapes.
  */
 export function createAlignmentActions(
-  set: StoreApi['set'],
+  _set: StoreApi['set'],
   get: StoreApi['get'],
 ) {
   function getSelectedShapes(): Shape[] {

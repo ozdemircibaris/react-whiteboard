@@ -1,4 +1,16 @@
-import { Canvas, Minimap, useWhiteboardStore, MIN_ZOOM, MAX_ZOOM } from '@ozdemircibaris/react-whiteboard'
+import {
+  Canvas,
+  Minimap,
+  useWhiteboardStore,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  exportToJSON,
+  parseDocument,
+  documentToStoreData,
+  downloadFile,
+  pickAndReadFile,
+  downloadPng,
+} from '@ozdemircibaris/react-whiteboard'
 import type { ToolType } from '@ozdemircibaris/react-whiteboard'
 import { TextPropertiesPanel } from './TextPropertiesPanel'
 import { ShapePropertiesPanel } from './ShapePropertiesPanel'
@@ -31,6 +43,10 @@ function ToolButton({
 }
 
 function Toolbar() {
+  const shapes = useWhiteboardStore((s) => s.shapes)
+  const shapeIds = useWhiteboardStore((s) => s.shapeIds)
+  const selectedIds = useWhiteboardStore((s) => s.selectedIds)
+  const loadDocument = useWhiteboardStore((s) => s.loadDocument)
   const clearShapes = useWhiteboardStore((s) => s.clearShapes)
   const viewport = useWhiteboardStore((s) => s.viewport)
   const resetViewport = useWhiteboardStore((s) => s.resetViewport)
@@ -130,6 +146,43 @@ function Toolbar() {
           className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
         >
           Clear
+        </button>
+        <div className="w-px h-6 bg-gray-300" />
+        <button
+          onClick={() => {
+            const json = exportToJSON(shapes, shapeIds, viewport)
+            downloadFile(json, 'whiteboard.json', 'application/json')
+          }}
+          disabled={shapeIds.length === 0}
+          title="Export as JSON"
+          className="rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Save
+        </button>
+        <button
+          onClick={async () => {
+            const text = await pickAndReadFile('.json')
+            if (!text) return
+            try {
+              const doc = parseDocument(text)
+              const data = documentToStoreData(doc)
+              loadDocument(data.shapes, data.shapeIds, data.viewport)
+            } catch {
+              alert('Invalid whiteboard file')
+            }
+          }}
+          title="Import from JSON"
+          className="rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300"
+        >
+          Load
+        </button>
+        <button
+          onClick={() => downloadPng(shapes, shapeIds, selectedIds)}
+          disabled={shapeIds.length === 0}
+          title="Export as PNG"
+          className="rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          PNG
         </button>
       </div>
 

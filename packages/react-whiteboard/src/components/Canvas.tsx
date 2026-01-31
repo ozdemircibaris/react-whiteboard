@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { useWhiteboardStore } from '../core/store'
-import { screenToCanvas } from '../utils/canvas'
+import { screenToCanvas, getVisibleBounds, expandBounds, boundsIntersect } from '../utils/canvas'
 import { handleImagePaste } from '../core/store/imagePasteActions'
 import { useCanvasSetup } from '../hooks/useCanvasSetup'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
@@ -169,11 +169,13 @@ export function Canvas({
       renderer.drawGrid(viewport, rect.width, rect.height, gridSize)
     }
 
-    // Draw shapes in z-order
+    // Draw shapes in z-order (with viewport culling)
     renderer.applyViewport(viewport)
+    const visibleBounds = getVisibleBounds(viewport, rect.width, rect.height)
+    const cullingBounds = expandBounds(visibleBounds, 100 / viewport.zoom)
     for (const id of shapeIds) {
       const shape = shapes.get(id)
-      if (shape) {
+      if (shape && boundsIntersect(shape, cullingBounds)) {
         renderer.drawShape(shape, selectedIds.has(id))
       }
     }
