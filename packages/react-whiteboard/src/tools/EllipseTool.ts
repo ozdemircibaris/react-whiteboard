@@ -1,12 +1,14 @@
 import type { RoughCanvas } from 'roughjs/bin/canvas'
-import type { EllipseShape, Shape } from '../types'
+import type { EllipseShape, Shape, FillStyle, StrokeStyle } from '../types'
 import { BaseShapeTool, type ShapeBounds } from './BaseShapeTool'
 import { buildRoughOptions } from '../core/renderer/shapeRenderers'
 
 const DEFAULT_ELLIPSE_PROPS = {
   fill: '#e0e0e0',
+  fillStyle: 'hachure' as FillStyle,
   stroke: '#333333',
   strokeWidth: 2,
+  strokeStyle: 'solid' as StrokeStyle,
 }
 
 /**
@@ -38,7 +40,7 @@ export class EllipseTool extends BaseShapeTool {
   protected renderPreview(_ctx: CanvasRenderingContext2D, rc: RoughCanvas, shape: Shape): void {
     const s = shape as EllipseShape
     const { x, y, width, height, props } = s
-    const { fill, stroke, strokeWidth } = props
+    const { fill, fillStyle, stroke, strokeWidth } = props
 
     const cx = x + width / 2
     const cy = y + height / 2
@@ -47,7 +49,7 @@ export class EllipseTool extends BaseShapeTool {
       stroke,
       strokeWidth,
       fill: fill && fill !== 'transparent' ? fill : undefined,
-      fillStyle: 'solid',
+      fillStyle: fillStyle || 'solid',
     }))
   }
 }

@@ -236,6 +236,8 @@ export function hitTestShape(point: Point, shape: Shape, tolerance: number = 0):
     case 'arrow':
       return hitTestArrow(point, shape as ArrowShape, tolerance)
     case 'text':
+    case 'image':
+    case 'group':
       return hitTestRectangle(point, shape, tolerance)
     default:
       return hitTestRectangle(point, shape, tolerance)

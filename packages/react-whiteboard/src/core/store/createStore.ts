@@ -6,6 +6,9 @@ import { createViewportActions } from './viewportActions'
 import { createHistoryActions } from './historyActions'
 import { createClipboardActions } from './clipboardActions'
 import { createZOrderActions } from './zOrderActions'
+import { createShapeStyleActions, type ShapeStyleDefaults } from './shapeStyleActions'
+import { createAlignmentActions } from './alignmentActions'
+import { createGroupActions } from './groupActions'
 import { DEFAULT_TEXT_PROPS } from '../../utils/fonts'
 
 // ============================================================================
@@ -78,6 +81,28 @@ export interface WhiteboardStore {
   // Text styling defaults (applied to new text shapes)
   currentTextProps: Omit<TextShapeProps, 'text'>
   setCurrentTextProps: (props: Partial<Omit<TextShapeProps, 'text'>>) => void
+
+  // Shape styling defaults (applied to new shapes)
+  currentShapeStyle: ShapeStyleDefaults
+  setCurrentShapeStyle: (props: Partial<ShapeStyleDefaults>) => void
+
+  // Lock actions
+  lockSelectedShapes: () => void
+  unlockSelectedShapes: () => void
+
+  // Alignment actions
+  alignLeft: () => void
+  alignRight: () => void
+  alignTop: () => void
+  alignBottom: () => void
+  alignCenterH: () => void
+  alignCenterV: () => void
+  distributeHorizontally: () => void
+  distributeVertically: () => void
+
+  // Group actions
+  groupSelectedShapes: () => void
+  ungroupSelectedShapes: () => void
 }
 
 // ============================================================================
@@ -106,6 +131,9 @@ export const createWhiteboardStore = () =>
       ...createHistoryActions(set, get),
       ...createClipboardActions(set, get),
       ...createZOrderActions(set, get),
+      ...createShapeStyleActions(set, get),
+      ...createAlignmentActions(set, get),
+      ...createGroupActions(set, get),
 
       // Selection actions (inline — small)
       select: (id) => set({ selectedIds: new Set([id]) }),
@@ -145,6 +173,38 @@ export const createWhiteboardStore = () =>
         set((state) => ({
           currentTextProps: { ...state.currentTextProps, ...props },
         })),
+
+      // Lock/unlock actions (batch update for single undo step)
+      lockSelectedShapes: () => {
+        const state = get()
+        const before: Shape[] = []
+        for (const id of state.selectedIds) {
+          const shape = state.shapes.get(id)
+          if (shape && !shape.isLocked) {
+            before.push(structuredClone(shape) as Shape)
+            state.updateShape(id, { isLocked: true } as Partial<Shape>, false)
+          }
+        }
+        if (before.length > 0) {
+          const after = before.map((s) => ({ ...s, isLocked: true }) as Shape)
+          state.recordBatchUpdate(before, after)
+        }
+      },
+      unlockSelectedShapes: () => {
+        const state = get()
+        const before: Shape[] = []
+        for (const id of state.selectedIds) {
+          const shape = state.shapes.get(id)
+          if (shape && shape.isLocked) {
+            before.push(structuredClone(shape) as Shape)
+            state.updateShape(id, { isLocked: false } as Partial<Shape>, false)
+          }
+        }
+        if (before.length > 0) {
+          const after = before.map((s) => ({ ...s, isLocked: false }) as Shape)
+          state.recordBatchUpdate(before, after)
+        }
+      },
     }))
   )
 

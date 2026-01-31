@@ -221,6 +221,7 @@ export class DrawTool implements ITool {
       props: {
         stroke: DEFAULT_PATH_PROPS.stroke,
         strokeWidth: DEFAULT_PATH_PROPS.strokeWidth,
+        strokeStyle: 'solid' as const,
         points: normalizedPoints,
         isComplete: true,
       },

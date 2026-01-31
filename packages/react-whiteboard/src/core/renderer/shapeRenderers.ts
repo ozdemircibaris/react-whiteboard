@@ -9,6 +9,8 @@ import type {
   ArrowShape,
   TextShape,
   Shape,
+  StrokeStyle,
+  FillStyle,
 } from '../../types'
 import { calculateArrowhead } from '../../utils/canvas'
 import { resolveFont, wrapTextLines } from '../../utils/fonts'
@@ -68,6 +70,29 @@ function applyRotation(
   }
 }
 
+/**
+ * Convert StrokeStyle to canvas lineDash array
+ */
+function getStrokeLineDash(style: StrokeStyle | undefined, strokeWidth: number): number[] {
+  switch (style) {
+    case 'dashed': return [strokeWidth * 4, strokeWidth * 2]
+    case 'dotted': return [strokeWidth, strokeWidth * 2]
+    default: return []
+  }
+}
+
+/**
+ * Map FillStyle to RoughJS fillStyle string
+ */
+function mapFillStyle(style: FillStyle | undefined): string {
+  switch (style) {
+    case 'hachure': return 'hachure'
+    case 'cross-hatch': return 'cross-hatch'
+    case 'dots': return 'dots'
+    default: return 'solid'
+  }
+}
+
 export function drawRectangle(
   ctx: CanvasRenderingContext2D,
   rc: RoughCanvas,
@@ -76,18 +101,20 @@ export function drawRectangle(
   drawSelection: DrawSelectionOutlineFn,
 ): void {
   const { x, y, width, height, rotation, opacity, props, seed, roughness } = shape
-  const { fill, stroke, strokeWidth, cornerRadius } = props
+  const { fill, fillStyle, stroke, strokeWidth, strokeStyle, cornerRadius } = props
 
   ctx.save()
   ctx.globalAlpha = opacity
   applyRotation(ctx, rotation, x, y, width, height)
 
   const fillOpt = fill && fill !== 'transparent' ? fill : undefined
+  const lineDash = getStrokeLineDash(strokeStyle, strokeWidth)
   const roughOpts = buildRoughOptions(seed, roughness, {
     stroke,
     strokeWidth,
     fill: fillOpt,
-    fillStyle: 'solid',
+    fillStyle: mapFillStyle(fillStyle),
+    strokeLineDash: lineDash.length ? lineDash : undefined,
   })
 
   if (cornerRadius > 0) {
@@ -110,7 +137,7 @@ export function drawEllipse(
   drawSelection: DrawSelectionOutlineFn,
 ): void {
   const { x, y, width, height, rotation, opacity, props, seed, roughness } = shape
-  const { fill, stroke, strokeWidth } = props
+  const { fill, fillStyle, stroke, strokeWidth, strokeStyle } = props
 
   ctx.save()
   ctx.globalAlpha = opacity
@@ -120,13 +147,15 @@ export function drawEllipse(
 
   applyRotation(ctx, rotation, x, y, width, height)
 
+  const lineDash = getStrokeLineDash(strokeStyle, strokeWidth)
   rc.ellipse(
     cx, cy, width, height,
     buildRoughOptions(seed, roughness, {
       stroke,
       strokeWidth,
       fill: fill && fill !== 'transparent' ? fill : undefined,
-      fillStyle: 'solid',
+      fillStyle: mapFillStyle(fillStyle),
+      strokeLineDash: lineDash.length ? lineDash : undefined,
     }),
   )
 
@@ -202,7 +231,7 @@ export function drawLine(
   drawSelection: DrawSelectionOutlineFn,
 ): void {
   const { x, y, width, height, rotation, opacity, props, seed, roughness } = shape
-  const { stroke, strokeWidth, points } = props
+  const { stroke, strokeWidth, strokeStyle, points } = props
 
   const startPoint = points[0]
   const endPoint = points[1]
@@ -212,10 +241,15 @@ export function drawLine(
   ctx.globalAlpha = opacity
   applyRotation(ctx, rotation, x, y, width, height)
 
+  const lineDash = getStrokeLineDash(strokeStyle, strokeWidth)
   rc.line(
     x + startPoint.x, y + startPoint.y,
     x + endPoint.x, y + endPoint.y,
-    buildRoughOptions(seed, roughness, { stroke, strokeWidth }),
+    buildRoughOptions(seed, roughness, {
+      stroke,
+      strokeWidth,
+      strokeLineDash: lineDash.length ? lineDash : undefined,
+    }),
   )
 
   if (isSelected) drawSelection(x, y, width, height)
@@ -254,7 +288,7 @@ export function drawArrow(
   drawSelection: DrawSelectionOutlineFn,
 ): void {
   const { x, y, width, height, rotation, opacity, props, seed, roughness } = shape
-  const { stroke, strokeWidth, start, end, startArrowhead, endArrowhead } = props
+  const { stroke, strokeWidth, strokeStyle, start, end, startArrowhead, endArrowhead } = props
 
   ctx.save()
   ctx.globalAlpha = opacity
@@ -265,9 +299,14 @@ export function drawArrow(
   const endX = x + end.x
   const endY = y + end.y
 
+  const lineDash = getStrokeLineDash(strokeStyle, strokeWidth)
   rc.line(
     startX, startY, endX, endY,
-    buildRoughOptions(seed, roughness, { stroke, strokeWidth }),
+    buildRoughOptions(seed, roughness, {
+      stroke,
+      strokeWidth,
+      strokeLineDash: lineDash.length ? lineDash : undefined,
+    }),
   )
 
   if (endArrowhead === 'arrow' || endArrowhead === 'triangle') {
@@ -325,15 +364,7 @@ export function drawText(
   ctx.restore()
 }
 
-/** Draw a rounded rectangle path (no stroke/fill — caller does that) */
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-): void {
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   ctx.moveTo(x + r, y)
   ctx.lineTo(x + w - r, y)
   ctx.quadraticCurveTo(x + w, y, x + w, y + r)

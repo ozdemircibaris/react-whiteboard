@@ -1,6 +1,7 @@
-import { Canvas, useWhiteboardStore, MIN_ZOOM, MAX_ZOOM } from '@ozdemircibaris/react-whiteboard'
+import { Canvas, Minimap, useWhiteboardStore, MIN_ZOOM, MAX_ZOOM } from '@ozdemircibaris/react-whiteboard'
 import type { ToolType } from '@ozdemircibaris/react-whiteboard'
 import { TextPropertiesPanel } from './TextPropertiesPanel'
+import { ShapePropertiesPanel } from './ShapePropertiesPanel'
 
 // Tool button component
 function ToolButton({
@@ -202,6 +203,10 @@ export default function App() {
       <main className="relative flex-1 w-full min-h-0 overflow-hidden">
         <Canvas showGrid={true} gridSize={20} backgroundColor="#fafafa" />
         <TextPropertiesPanel />
+        <ShapePropertiesPanel />
+        <div className="absolute bottom-4 right-4 z-10">
+          <Minimap width={200} height={150} />
+        </div>
         <Instructions />
       </main>
     </div>

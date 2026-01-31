@@ -1,3 +1,5 @@
 export * from './canvas'
 export * from './hitTest'
 export * from './fonts'
+export * from './snapping'
+export * from './rotationHandle'

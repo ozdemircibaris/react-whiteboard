@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { useWhiteboardStore } from '../core/store'
 import { screenToCanvas } from '../utils/canvas'
+import { handleImagePaste } from '../core/store/imagePasteActions'
 import { useCanvasSetup } from '../hooks/useCanvasSetup'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { useTouchGestures } from '../hooks/useTouchGestures'
@@ -76,6 +77,10 @@ export function Canvas({
   const sendToBack = useWhiteboardStore((s) => s.sendToBack)
   const bringForward = useWhiteboardStore((s) => s.bringForward)
   const sendBackward = useWhiteboardStore((s) => s.sendBackward)
+  const lockSelectedShapes = useWhiteboardStore((s) => s.lockSelectedShapes)
+  const unlockSelectedShapes = useWhiteboardStore((s) => s.unlockSelectedShapes)
+  const groupSelectedShapes = useWhiteboardStore((s) => s.groupSelectedShapes)
+  const ungroupSelectedShapes = useWhiteboardStore((s) => s.ungroupSelectedShapes)
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
   useKeyboardShortcuts({
@@ -97,7 +102,23 @@ export function Canvas({
     sendToBack,
     bringForward,
     sendBackward,
+    lockSelectedShapes,
+    unlockSelectedShapes,
+    groupSelectedShapes,
+    ungroupSelectedShapes,
   })
+
+  // ── Image paste handler (clipboard event) ───────────────────────
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const container = containerRef.current
+      if (!container) return
+      const rect = container.getBoundingClientRect()
+      handleImagePaste(e, useWhiteboardStore.getState(), viewport, rect.width, rect.height)
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [viewport, containerRef])
 
   // ── Tool system (pointer events, overlay, cursor) ─────────────────
   const {
