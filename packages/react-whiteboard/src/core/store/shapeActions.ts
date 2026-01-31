@@ -1,29 +1,6 @@
-import { nanoid } from 'nanoid'
-import type { Shape, HistoryAction, HistoryEntry } from '../../types'
+import type { Shape } from '../../types'
 import type { StoreApi } from './types'
-
-const MAX_HISTORY = 100
-
-function createHistoryEntry(action: HistoryAction): HistoryEntry {
-  return {
-    id: nanoid(),
-    timestamp: Date.now(),
-    action,
-  }
-}
-
-function pushHistory(
-  history: HistoryEntry[],
-  historyIndex: number,
-  entry: HistoryEntry
-): { history: HistoryEntry[]; historyIndex: number } {
-  const newHistory = history.slice(0, historyIndex + 1)
-  newHistory.push(entry)
-  if (newHistory.length > MAX_HISTORY) {
-    newHistory.shift()
-  }
-  return { history: newHistory, historyIndex: newHistory.length - 1 }
-}
+import { createHistoryEntry, pushHistory } from './historyHelpers'
 
 export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
   return {
@@ -42,19 +19,20 @@ export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
 
         return {
           shapes: newShapes,
-          shapeIds: [...state.shapeIds, shape.id],
+          shapeIds: state.shapeIds.includes(shape.id)
+            ? state.shapeIds
+            : [...state.shapeIds, shape.id],
           ...historyUpdate,
         }
       })
     },
 
     updateShape: (id: string, updates: Partial<Shape>, recordHistory = true) => {
-      const shape = get().shapes.get(id)
-      if (!shape) return
-
-      const updatedShape = { ...shape, ...updates } as Shape
-
       set((state) => {
+        const shape = state.shapes.get(id)
+        if (!shape) return {}
+
+        const updatedShape = { ...shape, ...updates } as Shape
         const newShapes = new Map(state.shapes)
         newShapes.set(id, updatedShape)
 
@@ -71,10 +49,10 @@ export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
     },
 
     deleteShape: (id: string, recordHistory = true) => {
-      const shape = get().shapes.get(id)
-      if (!shape) return
-
       set((state) => {
+        const shape = state.shapes.get(id)
+        if (!shape) return {}
+
         const newShapes = new Map(state.shapes)
         newShapes.delete(id)
         const newSelectedIds = new Set(state.selectedIds)
@@ -98,14 +76,14 @@ export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
     },
 
     deleteShapes: (ids: string[], recordHistory = true) => {
-      const shapesToDelete = ids
-        .map((id) => get().shapes.get(id))
-        .filter((shape): shape is Shape => shape !== undefined)
-
-      if (shapesToDelete.length === 0) return
-
       set((state) => {
         const idsSet = new Set(ids)
+        const shapesToDelete = ids
+          .map((id) => state.shapes.get(id))
+          .filter((shape): shape is Shape => shape !== undefined)
+
+        if (shapesToDelete.length === 0) return {}
+
         const newShapes = new Map(state.shapes)
         const newSelectedIds = new Set(state.selectedIds)
         ids.forEach((id) => {
@@ -133,9 +111,9 @@ export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
     getShape: (id: string) => get().shapes.get(id),
 
     clearShapes: (recordHistory = true) => {
-      const allShapes = Array.from(get().shapes.values())
-
       set((state) => {
+        const allShapes = Array.from(state.shapes.values())
+
         const historyUpdate =
           recordHistory && allShapes.length > 0
             ? pushHistory(

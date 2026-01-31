@@ -1,4 +1,5 @@
 import type { Point, Shape, Bounds } from '../types'
+import { rotatePoint } from './shapeHitTest'
 
 /**
  * Resize handle positions
@@ -49,16 +50,14 @@ export function getResizeHandlePositions(bounds: Bounds): Record<ResizeHandle, P
 }
 
 /**
- * Hit test resize handles for a shape
- * Returns the handle being hit or null
+ * Core handle hit test logic — shared by shape and selection handle hit tests
  */
-export function hitTestResizeHandles(
+function hitTestHandlesAtBounds(
   point: Point,
-  shape: Shape,
-  handleSize: number = HANDLE_SIZE
+  bounds: Bounds,
+  handleSize: number,
 ): ResizeHandle | null {
   const halfHandle = handleSize / 2
-  const bounds: Bounds = { x: shape.x, y: shape.y, width: shape.width, height: shape.height }
   const handles = getResizeHandlePositions(bounds)
 
   for (const [handle, pos] of Object.entries(handles) as [ResizeHandle, Point][]) {
@@ -76,6 +75,28 @@ export function hitTestResizeHandles(
 }
 
 /**
+ * Hit test resize handles for a single shape.
+ * Accounts for shape rotation by un-rotating the test point.
+ */
+export function hitTestResizeHandles(
+  point: Point,
+  shape: Shape,
+  handleSize: number = HANDLE_SIZE
+): ResizeHandle | null {
+  let testPoint = point
+  if (shape.rotation !== 0) {
+    const center: Point = {
+      x: shape.x + shape.width / 2,
+      y: shape.y + shape.height / 2,
+    }
+    testPoint = rotatePoint(point, center, -shape.rotation)
+  }
+
+  const bounds: Bounds = { x: shape.x, y: shape.y, width: shape.width, height: shape.height }
+  return hitTestHandlesAtBounds(testPoint, bounds, handleSize)
+}
+
+/**
  * Hit test resize handles for selection bounds (multiple shapes)
  */
 export function hitTestSelectionResizeHandles(
@@ -83,19 +104,5 @@ export function hitTestSelectionResizeHandles(
   bounds: Bounds,
   handleSize: number = HANDLE_SIZE
 ): ResizeHandle | null {
-  const halfHandle = handleSize / 2
-  const handles = getResizeHandlePositions(bounds)
-
-  for (const [handle, pos] of Object.entries(handles) as [ResizeHandle, Point][]) {
-    if (
-      point.x >= pos.x - halfHandle &&
-      point.x <= pos.x + halfHandle &&
-      point.y >= pos.y - halfHandle &&
-      point.y <= pos.y + halfHandle
-    ) {
-      return handle
-    }
-  }
-
-  return null
+  return hitTestHandlesAtBounds(point, bounds, handleSize)
 }

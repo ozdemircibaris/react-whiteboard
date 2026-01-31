@@ -11,6 +11,7 @@ interface KeyboardShortcutsOptions {
   clearSelection: () => void
   selectMultiple: (ids: string[]) => void
   updateShape: (id: string, updates: Partial<Shape>, recordHistory?: boolean) => void
+  recordBatchUpdate: (before: Shape[], after: Shape[]) => void
 }
 
 /**
@@ -27,6 +28,7 @@ export function useKeyboardShortcuts({
   clearSelection,
   selectMultiple,
   updateShape,
+  recordBatchUpdate,
 }: KeyboardShortcutsOptions) {
   const isShiftPressedRef = useRef(false)
 
@@ -53,18 +55,22 @@ export function useKeyboardShortcuts({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept when typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
       const isMod = e.metaKey || e.ctrlKey
       const moveAmount = e.shiftKey ? 10 : 1
 
       // Undo: Cmd/Ctrl+Z
-      if (isMod && e.key === 'z' && !e.shiftKey) {
+      if (isMod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault()
         undo()
         return
       }
 
       // Redo: Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y
-      if ((isMod && e.key === 'z' && e.shiftKey) || (isMod && e.key === 'y')) {
+      if ((isMod && e.key.toLowerCase() === 'z' && e.shiftKey) || (isMod && e.key === 'y')) {
         e.preventDefault()
         redo()
         return
@@ -111,18 +117,30 @@ export function useKeyboardShortcuts({
             break
         }
 
+        // Collect before states, update without history, then record batch
+        const beforeShapes: Shape[] = []
         selectedIds.forEach((id) => {
           const shape = shapes.get(id)
           if (shape) {
-            updateShape(id, { x: shape.x + delta.x, y: shape.y + delta.y })
+            beforeShapes.push(structuredClone(shape) as Shape)
+            updateShape(id, { x: shape.x + delta.x, y: shape.y + delta.y }, false)
           }
         })
+
+        if (beforeShapes.length > 0) {
+          const afterShapes: Shape[] = beforeShapes.map((before) => ({
+            ...before,
+            x: before.x + delta.x,
+            y: before.y + delta.y,
+          } as Shape))
+          recordBatchUpdate(beforeShapes, afterShapes)
+        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, selectedIds, shapeIds, shapes, deleteShapes, clearSelection, selectMultiple, updateShape])
+  }, [undo, redo, selectedIds, shapeIds, shapes, deleteShapes, clearSelection, selectMultiple, updateShape, recordBatchUpdate])
 
   return isShiftPressedRef
 }

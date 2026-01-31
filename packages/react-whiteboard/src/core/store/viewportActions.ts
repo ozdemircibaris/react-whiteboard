@@ -2,8 +2,8 @@ import type { Point, Viewport } from '../../types'
 import type { StoreApi } from './types'
 import { easeOutCubic } from '../../utils/canvas'
 
-const MIN_ZOOM = 0.1
-const MAX_ZOOM = 10
+export const MIN_ZOOM = 0.1
+export const MAX_ZOOM = 10
 const DEFAULT_ZOOM_DURATION = 200
 
 const DEFAULT_VIEWPORT: Viewport = {
@@ -22,18 +22,29 @@ function clampZoom(zoom: number): number {
 export function createViewportActions(set: StoreApi['set'], get: StoreApi['get']) {
   return {
     setViewport: (viewport: Partial<Viewport>) =>
-      set((state) => ({
-        viewport: { ...state.viewport, ...viewport },
-      })),
+      set((state) => {
+        const merged = { ...state.viewport, ...viewport }
+        if (viewport.zoom !== undefined) {
+          merged.zoom = clampZoom(viewport.zoom)
+        }
+        return { viewport: merged }
+      }),
 
-    pan: (deltaX: number, deltaY: number) =>
+    pan: (deltaX: number, deltaY: number) => {
+      // Cancel any active zoom animation when panning
+      if (activeZoomAnimation !== null) {
+        cancelAnimationFrame(activeZoomAnimation)
+        activeZoomAnimation = null
+      }
+
       set((state) => ({
         viewport: {
           ...state.viewport,
           x: state.viewport.x + deltaX,
           y: state.viewport.y + deltaY,
         },
-      })),
+      }))
+    },
 
     zoom: (delta: number, center?: Point) => {
       const state = get()

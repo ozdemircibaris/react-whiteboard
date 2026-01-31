@@ -69,8 +69,8 @@ export class SelectTool implements ITool {
             })
           })
 
-          // Store before states for history
-          this.moveBeforeStates = selectedShapes.map((s) => ({ ...s }))
+          // Deep clone before states to preserve nested props for history
+          this.moveBeforeStates = selectedShapes.map((s) => structuredClone(s) as Shape)
 
           return { handled: true, capture: true, cursor: RESIZE_CURSORS[handle] }
         }
@@ -84,22 +84,23 @@ export class SelectTool implements ITool {
       if (shiftKey) {
         // Toggle selection with shift
         store.toggleSelection(hitShape.id)
+
+        // If shape was deselected, don't start a drag
+        const updatedSelectedIds = store.selectedIds
+        if (!updatedSelectedIds.has(hitShape.id)) {
+          return { handled: true, capture: false, cursor: 'default' }
+        }
       } else if (!selectedIds.has(hitShape.id)) {
         // Select the shape
         store.select(hitShape.id)
       }
 
-      // Start drag for moving
+      // Start drag for moving — read fresh selectedIds from store
       state.isDragging = true
       state.dragStart = canvasPoint
       state.dragCurrent = canvasPoint
 
-      // Store starting positions of all selected shapes
-      const currentSelectedIds = shiftKey
-        ? new Set([...selectedIds, hitShape.id])
-        : selectedIds.has(hitShape.id)
-          ? selectedIds
-          : new Set([hitShape.id])
+      const currentSelectedIds = store.selectedIds
 
       state.startPositions.clear()
       const selectedShapes: Shape[] = []
@@ -116,8 +117,8 @@ export class SelectTool implements ITool {
         }
       })
 
-      // Store before states for history
-      this.moveBeforeStates = selectedShapes.map((s) => ({ ...s }))
+      // Deep clone before states to preserve nested props for history
+      this.moveBeforeStates = selectedShapes.map((s) => structuredClone(s) as Shape)
 
       return { handled: true, capture: true, cursor: 'move' }
     }

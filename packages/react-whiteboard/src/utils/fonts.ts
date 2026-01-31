@@ -47,6 +47,18 @@ export function resolveFont(props: Pick<TextShapeProps, 'fontStyle' | 'fontWeigh
   return `${style}${props.fontWeight} ${props.fontSize}px ${family}`
 }
 
+/** Module-level cached canvas/context for text measurement (avoids DOM allocation per call) */
+let _measureCanvas: HTMLCanvasElement | null = null
+let _measureCtx: CanvasRenderingContext2D | null = null
+
+function getMeasureContext(): CanvasRenderingContext2D | null {
+  if (!_measureCtx) {
+    _measureCanvas = document.createElement('canvas')
+    _measureCtx = _measureCanvas.getContext('2d')
+  }
+  return _measureCtx
+}
+
 /**
  * Measure text dimensions for multiline text.
  * Returns width (max line width) and height (total line heights).
@@ -58,8 +70,7 @@ export function measureTextLines(
   const lines = text.split('\n')
   const lineSpacing = props.fontSize * props.lineHeight
 
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
+  const ctx = getMeasureContext()
   if (!ctx) {
     return {
       width: 50,

@@ -10,6 +10,7 @@ export * from './types'
 
 // Core
 export * from './core'
+export { MIN_ZOOM, MAX_ZOOM } from './core/store/viewportActions'
 
 // Components
 export * from './components'

@@ -215,7 +215,7 @@ export type HistoryAction =
   | { type: 'create'; shapes: Shape[] }
   | { type: 'update'; before: Shape[]; after: Shape[] }
   | { type: 'delete'; shapes: Shape[] }
-  | { type: 'reorder'; shapeIds: string[]; direction: 'forward' | 'backward' | 'front' | 'back' }
+  | { type: 'reorder'; previousShapeIds: string[]; newShapeIds: string[] }
 
 export interface HistoryEntry {
   id: string
