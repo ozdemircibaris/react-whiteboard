@@ -1,3 +1,3 @@
-export { createWhiteboardStore, useWhiteboardStore } from './store'
+export { createWhiteboardStore } from './store'
 export type { WhiteboardStore } from './store'
 export { CanvasRenderer } from './renderer'

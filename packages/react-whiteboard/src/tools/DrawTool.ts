@@ -228,5 +228,3 @@ export class DrawTool implements ITool {
     }
   }
 }
-
-export const drawTool = new DrawTool()

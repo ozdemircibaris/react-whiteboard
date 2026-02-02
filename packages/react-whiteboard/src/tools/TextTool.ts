@@ -13,7 +13,6 @@ import { getShapeAtPoint } from '../utils/hitTest'
 import { wrapTextLines, measureTextLines, DEFAULT_TEXT_MAX_WIDTH } from '../utils/fonts'
 import { BOUND_TEXT_PADDING } from '../utils/boundText'
 import { TextInputManager } from './TextInputManager'
-import { useWhiteboardStore } from '../core/store'
 
 /**
  * Text tool — click to place text with inline multiline WYSIWYG editing.
@@ -34,9 +33,18 @@ export class TextTool implements ITool {
   private editingShapeId: string | null = null
   private boundParentId: string | null = null
   private currentStore: WhiteboardStore | null = null
+  private viewportSubscriber: ((listener: (v: Viewport) => void) => () => void) | null = null
 
   setOverlayContainer(container: HTMLElement | null): void {
     this.inputManager.setOverlayContainer(container)
+  }
+
+  /**
+   * Set the subscriber function for viewport changes.
+   * Called by the provider/hook layer to inject store subscription.
+   */
+  setStoreSubscriber(fn: (listener: (v: Viewport) => void) => () => void): void {
+    this.viewportSubscriber = fn
   }
 
   onActivate(store: WhiteboardStore): void {
@@ -155,9 +163,9 @@ export class TextTool implements ITool {
       shape.width,
     )
 
-    this.inputManager.subscribeToViewport((listener) =>
-      useWhiteboardStore.subscribe((s) => s.viewport, listener),
-    )
+    if (this.viewportSubscriber) {
+      this.inputManager.subscribeToViewport(this.viewportSubscriber)
+    }
   }
 
   private startBoundEditing(
@@ -189,9 +197,9 @@ export class TextTool implements ITool {
       maxWidth,
     )
 
-    this.inputManager.subscribeToViewport((listener) =>
-      useWhiteboardStore.subscribe((s) => s.viewport, listener),
-    )
+    if (this.viewportSubscriber) {
+      this.inputManager.subscribeToViewport(this.viewportSubscriber)
+    }
   }
 
   private startNewText(position: Point, viewport: Viewport, store: WhiteboardStore): void {
@@ -211,9 +219,9 @@ export class TextTool implements ITool {
       DEFAULT_TEXT_MAX_WIDTH,
     )
 
-    this.inputManager.subscribeToViewport((listener) =>
-      useWhiteboardStore.subscribe((s) => s.viewport, listener),
-    )
+    if (this.viewportSubscriber) {
+      this.inputManager.subscribeToViewport(this.viewportSubscriber)
+    }
   }
 
   private handleConfirm(text: string): void {
@@ -310,5 +318,3 @@ export class TextTool implements ITool {
     }
   }
 }
-
-export const textTool = new TextTool()

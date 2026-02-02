@@ -24,6 +24,7 @@ interface KeyboardShortcutsOptions {
   unlockSelectedShapes: () => void
   groupSelectedShapes: () => void
   ungroupSelectedShapes: () => void
+  readOnly?: boolean
 }
 
 /**
@@ -53,6 +54,7 @@ export function useKeyboardShortcuts({
   unlockSelectedShapes,
   groupSelectedShapes,
   ungroupSelectedShapes,
+  readOnly = false,
 }: KeyboardShortcutsOptions) {
   const isShiftPressedRef = useRef(false)
 
@@ -76,8 +78,10 @@ export function useKeyboardShortcuts({
     }
   }, [])
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (disabled in readOnly mode)
   useEffect(() => {
+    if (readOnly) return
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept when typing in an input/textarea
       const tag = (e.target as HTMLElement)?.tagName
@@ -237,7 +241,7 @@ export function useKeyboardShortcuts({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
-    undo, redo, selectedIds, shapeIds, shapes, deleteShapes, clearSelection,
+    readOnly, undo, redo, selectedIds, shapeIds, shapes, deleteShapes, clearSelection,
     selectMultiple, updateShape, recordBatchUpdate, copySelectedShapes,
     cutSelectedShapes, pasteShapes, duplicateSelectedShapes, bringToFront,
     sendToBack, bringForward, sendBackward, lockSelectedShapes,

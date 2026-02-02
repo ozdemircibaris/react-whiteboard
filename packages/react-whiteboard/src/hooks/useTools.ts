@@ -1,7 +1,5 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
-import { useWhiteboardStore } from '../core/store'
-import { toolManager } from '../tools/ToolManager'
-import { textTool } from '../tools/TextTool'
+import { useWhiteboardStore, useToolManager } from '../context'
 import { screenToCanvas } from '../utils/canvas'
 import { TOOL_CURSORS } from '../tools/types'
 import type { ToolEventContext } from '../tools/types'
@@ -11,17 +9,23 @@ interface UseToolsOptions {
   containerRef: React.RefObject<HTMLDivElement | null>
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   renderFnRef: React.RefObject<(() => void) | null>
+  readOnly?: boolean
 }
 
 /**
  * Hook that bridges React pointer events to the ToolManager system.
  * Handles pointer capture, panning, coordinate conversion, cursor updates,
  * tool overlay rendering, and text overlay setup.
+ *
+ * When `readOnly` is true, only pan gestures are processed — all tool
+ * interactions are disabled.
  */
-export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptions) {
+export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = false }: UseToolsOptions) {
   const lastPointerRef = useRef<Point | null>(null)
   const isPanningRef = useRef(false)
   const [cursorStyle, setCursorStyle] = useState('default')
+
+  const toolManager = useToolManager()
 
   // Store selectors
   const currentTool = useWhiteboardStore((s) => s.currentTool)
@@ -31,17 +35,12 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
   const pan = useWhiteboardStore((s) => s.pan)
   const setIsPanning = useWhiteboardStore((s) => s.setIsPanning)
 
-  // Initialize ToolManager with store getter on mount
+  // Sync active tool when currentTool changes (skip in readOnly)
   useEffect(() => {
-    toolManager.setStoreGetter(() => useWhiteboardStore.getState())
-    toolManager.setActiveTool(currentTool)
-  }, [])
-
-  // Sync active tool when currentTool changes
-  useEffect(() => {
+    if (readOnly) return
     toolManager.setActiveTool(currentTool)
     setCursorStyle(TOOL_CURSORS[currentTool] || 'default')
-  }, [currentTool])
+  }, [currentTool, toolManager, readOnly])
 
   // Build ToolEventContext from a React pointer event
   const createEventContext = useCallback(
@@ -94,6 +93,9 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
         return
       }
 
+      // In readOnly mode, skip tool delegation
+      if (readOnly) return
+
       // Left click → delegate to active tool
       if (e.button === 0) {
         const ctx = createEventContext(e)
@@ -106,7 +108,7 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
         requestRender()
       }
     },
-    [canvasRef, createEventContext, setIsPanning, requestRender],
+    [canvasRef, createEventContext, setIsPanning, requestRender, readOnly],
   )
 
   /**
@@ -125,6 +127,12 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
         return
       }
 
+      // In readOnly mode, skip tool delegation
+      if (readOnly) {
+        lastPointerRef.current = currentPoint
+        return
+      }
+
       // Delegate to tool
       const ctx = createEventContext(e)
       if (!ctx) return
@@ -137,7 +145,7 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
       lastPointerRef.current = currentPoint
       requestRender()
     },
-    [pan, createEventContext, requestRender],
+    [pan, createEventContext, requestRender, readOnly],
   )
 
   /**
@@ -161,6 +169,12 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
         return
       }
 
+      // In readOnly mode, skip tool delegation
+      if (readOnly) {
+        lastPointerRef.current = null
+        return
+      }
+
       const ctx = createEventContext(e)
       if (ctx) {
         toolManager.handlePointerUp(ctx)
@@ -169,7 +183,7 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
       lastPointerRef.current = null
       requestRender()
     },
-    [canvasRef, createEventContext, setIsPanning, requestRender],
+    [canvasRef, createEventContext, setIsPanning, requestRender, readOnly],
   )
 
   /**
@@ -177,6 +191,8 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
    */
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
+      if (readOnly) return
+
       const container = containerRef.current
       if (!container) return
 
@@ -199,7 +215,7 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
       toolManager.handleDoubleClick(ctx)
       requestRender()
     },
-    [containerRef, viewport, requestRender],
+    [containerRef, viewport, requestRender, readOnly],
   )
 
   /**
@@ -207,17 +223,18 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
    */
   const renderOverlay = useCallback(
     (ctx: CanvasRenderingContext2D) => {
+      if (readOnly) return
       toolManager.renderOverlay(ctx, viewport)
     },
-    [viewport],
+    [viewport, readOnly],
   )
 
   /**
    * Set text overlay container for TextTool inline editing
    */
   const setTextOverlayContainer = useCallback((el: HTMLDivElement | null) => {
-    textTool.setOverlayContainer(el)
-  }, [])
+    toolManager.setOverlayContainer(el)
+  }, [toolManager])
 
   return {
     handlePointerDown,
@@ -225,7 +242,7 @@ export function useTools({ containerRef, canvasRef, renderFnRef }: UseToolsOptio
     handlePointerUp,
     handleDoubleClick,
     renderOverlay,
-    cursorStyle,
+    cursorStyle: readOnly ? 'default' : cursorStyle,
     setTextOverlayContainer,
     isPanningRef,
   }

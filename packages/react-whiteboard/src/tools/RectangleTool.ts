@@ -53,5 +53,3 @@ export class RectangleTool extends BaseShapeTool {
     }))
   }
 }
-
-export const rectangleTool = new RectangleTool()

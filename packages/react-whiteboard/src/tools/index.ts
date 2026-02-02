@@ -5,13 +5,13 @@ export * from './types'
 export { BaseLineTool } from './BaseLineTool'
 
 // Tool implementations
-export { SelectTool, selectTool } from './SelectTool'
-export { RectangleTool, rectangleTool } from './RectangleTool'
-export { EllipseTool, ellipseTool } from './EllipseTool'
-export { DrawTool, drawTool } from './DrawTool'
-export { LineTool, lineTool } from './LineTool'
-export { ArrowTool, arrowTool } from './ArrowTool'
-export { TextTool, textTool } from './TextTool'
+export { SelectTool } from './SelectTool'
+export { RectangleTool } from './RectangleTool'
+export { EllipseTool } from './EllipseTool'
+export { DrawTool } from './DrawTool'
+export { LineTool } from './LineTool'
+export { ArrowTool } from './ArrowTool'
+export { TextTool } from './TextTool'
 
 // Tool manager
-export { ToolManager, toolManager } from './ToolManager'
+export { ToolManager } from './ToolManager'
