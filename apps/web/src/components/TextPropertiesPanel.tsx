@@ -8,14 +8,24 @@ import { PanelSection } from './PanelSection'
 import { OptionButton } from './OptionButton'
 import { ColorSwatch } from './ColorSwatch'
 
-const TEXT_COLORS = [
+const TEXT_COLORS_LIGHT = [
   '#1e1e1e', '#6b7280', '#dc2626', '#2563eb',
   '#16a34a', '#ea580c', '#9333ea', '#ec4899',
 ]
 
-const BG_COLORS = [
+const TEXT_COLORS_DARK = [
+  '#e0e0e0', '#9ca3af', '#f87171', '#60a5fa',
+  '#4ade80', '#fb923c', '#c084fc', '#f472b6',
+]
+
+const BG_COLORS_LIGHT = [
   'transparent', '#fef3c7', '#dbeafe', '#dcfce7',
   '#fce7f3', '#f3e8ff', '#e0f2fe',
+]
+
+const BG_COLORS_DARK = [
+  'transparent', '#422006', '#172554', '#052e16',
+  '#500724', '#3b0764', '#082f49',
 ]
 
 const FONT_FAMILY_LABELS: Record<TextFontFamily, string> = {
@@ -27,8 +37,10 @@ const FONT_FAMILY_LABELS: Record<TextFontFamily, string> = {
 
 const SIZE_LABELS = ['S', 'M', 'L', 'XL'] as const
 
-export function TextPropertiesPanel() {
+export function TextPropertiesPanel({ isDark = false }: { isDark?: boolean }) {
   const currentTool = useWhiteboardStore((s) => s.currentTool)
+  const textColors = isDark ? TEXT_COLORS_DARK : TEXT_COLORS_LIGHT
+  const bgColors = isDark ? BG_COLORS_DARK : BG_COLORS_LIGHT
   const {
     currentProps,
     selectedCount,
@@ -74,7 +86,7 @@ export function TextPropertiesPanel() {
         </PanelSection>
 
         <PanelSection label="Color">
-          {TEXT_COLORS.map((c) => (
+          {textColors.map((c) => (
             <ColorSwatch
               key={c}
               color={c}
@@ -85,7 +97,7 @@ export function TextPropertiesPanel() {
         </PanelSection>
 
         <PanelSection label="Fill">
-          {BG_COLORS.map((c) => (
+          {bgColors.map((c) => (
             <ColorSwatch
               key={c}
               color={c}

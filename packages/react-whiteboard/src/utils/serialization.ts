@@ -1,4 +1,5 @@
 import type { Shape, Viewport } from '../types'
+import { collectBoundTextIds } from './boundText'
 
 /** Current file format version */
 const FORMAT_VERSION = 1
@@ -23,9 +24,21 @@ export function serializeDocument(
   viewport: Viewport,
 ): WhiteboardDocument {
   const shapeArray: Shape[] = []
+  const addedIds = new Set<string>()
   for (const id of shapeIds) {
     const shape = shapes.get(id)
-    if (shape) shapeArray.push(shape)
+    if (shape) {
+      shapeArray.push(shape)
+      addedIds.add(id)
+    }
+  }
+
+  // Include bound text shapes (they live in shapes Map but not in shapeIds)
+  for (const btId of collectBoundTextIds(shapeIds, shapes)) {
+    if (!addedIds.has(btId)) {
+      const btShape = shapes.get(btId)
+      if (btShape) shapeArray.push(btShape)
+    }
   }
 
   return {

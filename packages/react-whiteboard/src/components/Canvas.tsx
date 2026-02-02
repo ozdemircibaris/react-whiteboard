@@ -91,6 +91,7 @@ export function Canvas({
   const unlockSelectedShapes = useWhiteboardStore((s) => s.unlockSelectedShapes)
   const groupSelectedShapes = useWhiteboardStore((s) => s.groupSelectedShapes)
   const ungroupSelectedShapes = useWhiteboardStore((s) => s.ungroupSelectedShapes)
+  const setTool = useWhiteboardStore((s) => s.setTool)
 
   // ── Sync theme to renderer + tool manager ────────────────────────
   useEffect(() => {
@@ -125,6 +126,7 @@ export function Canvas({
     unlockSelectedShapes,
     groupSelectedShapes,
     ungroupSelectedShapes,
+    setTool,
     readOnly,
   })
 

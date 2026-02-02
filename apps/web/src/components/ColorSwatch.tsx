@@ -1,4 +1,5 @@
 const COLOR_NAMES: Record<string, string> = {
+  // Light mode text colors
   '#1e1e1e': 'Black',
   '#6b7280': 'Gray',
   '#dc2626': 'Red',
@@ -7,13 +8,29 @@ const COLOR_NAMES: Record<string, string> = {
   '#ea580c': 'Orange',
   '#9333ea': 'Purple',
   '#ec4899': 'Pink',
+  // Dark mode text colors
+  '#e0e0e0': 'White',
+  '#9ca3af': 'Gray',
+  '#f87171': 'Red',
+  '#60a5fa': 'Blue',
+  '#4ade80': 'Green',
+  '#fb923c': 'Orange',
+  '#c084fc': 'Purple',
+  '#f472b6': 'Pink',
+  // Light mode backgrounds
   '#fef3c7': 'Light Yellow',
   '#dbeafe': 'Light Blue',
   '#dcfce7': 'Light Green',
   '#fce7f3': 'Light Pink',
   '#f3e8ff': 'Light Purple',
   '#e0f2fe': 'Light Cyan',
-  '#e0e0e0': 'Light Gray',
+  // Dark mode backgrounds
+  '#422006': 'Dark Yellow',
+  '#172554': 'Dark Blue',
+  '#052e16': 'Dark Green',
+  '#500724': 'Dark Pink',
+  '#3b0764': 'Dark Purple',
+  '#082f49': 'Dark Cyan',
 }
 
 interface ColorSwatchProps {

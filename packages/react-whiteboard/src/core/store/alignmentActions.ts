@@ -1,5 +1,6 @@
 import type { Shape } from '../../types'
 import type { StoreApi } from './types'
+import { getBoundTextIdFromShape } from '../../utils/boundText'
 
 /**
  * Alignment & distribution actions for selected shapes.
@@ -27,6 +28,11 @@ export function createAlignmentActions(
       if (x !== undefined) partial.x = x
       if (y !== undefined) partial.y = y
       state.updateShape(id, partial, false)
+      // Sync bound text position when container moves
+      const shape = state.shapes.get(id)
+      if (shape && getBoundTextIdFromShape(shape)) {
+        state.syncBoundTextToParent(id)
+      }
     }
 
     const after = updates

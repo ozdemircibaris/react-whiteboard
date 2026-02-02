@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { Shape } from '../types'
+import type { Shape, ToolType } from '../types'
 
 interface KeyboardShortcutsOptions {
   shapes: Map<string, Shape>
@@ -24,7 +24,18 @@ interface KeyboardShortcutsOptions {
   unlockSelectedShapes: () => void
   groupSelectedShapes: () => void
   ungroupSelectedShapes: () => void
+  setTool: (tool: ToolType) => void
   readOnly?: boolean
+}
+
+const TOOL_SHORTCUTS: Record<string, ToolType> = {
+  v: 'select',
+  r: 'rectangle',
+  o: 'ellipse',
+  l: 'line',
+  a: 'arrow',
+  d: 'draw',
+  t: 'text',
 }
 
 /**
@@ -54,6 +65,7 @@ export function useKeyboardShortcuts({
   unlockSelectedShapes,
   groupSelectedShapes,
   ungroupSelectedShapes,
+  setTool,
   readOnly = false,
 }: KeyboardShortcutsOptions) {
   const isShiftPressedRef = useRef(false)
@@ -98,7 +110,7 @@ export function useKeyboardShortcuts({
       }
 
       // Redo: Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y
-      if ((isMod && e.key.toLowerCase() === 'z' && e.shiftKey) || (isMod && e.key === 'y')) {
+      if ((isMod && e.key.toLowerCase() === 'z' && e.shiftKey) || (isMod && e.key.toLowerCase() === 'y')) {
         e.preventDefault()
         redo()
         return
@@ -177,7 +189,7 @@ export function useKeyboardShortcuts({
       }
 
       // Select All: Cmd/Ctrl+A
-      if (isMod && e.key === 'a') {
+      if (isMod && e.key.toLowerCase() === 'a') {
         e.preventDefault()
         selectMultiple(shapeIds)
         return
@@ -235,6 +247,16 @@ export function useKeyboardShortcuts({
           } as Shape))
           recordBatchUpdate(beforeShapes, afterShapes)
         }
+        return
+      }
+
+      // Tool switching: single letter keys (V, R, O, L, A, D, T)
+      if (!isMod) {
+        const tool = TOOL_SHORTCUTS[e.key.toLowerCase()]
+        if (tool) {
+          e.preventDefault()
+          setTool(tool)
+        }
       }
     }
 
@@ -245,7 +267,7 @@ export function useKeyboardShortcuts({
     selectMultiple, updateShape, recordBatchUpdate, copySelectedShapes,
     cutSelectedShapes, pasteShapes, duplicateSelectedShapes, bringToFront,
     sendToBack, bringForward, sendBackward, lockSelectedShapes,
-    unlockSelectedShapes, groupSelectedShapes, ungroupSelectedShapes,
+    unlockSelectedShapes, groupSelectedShapes, ungroupSelectedShapes, setTool,
   ])
 
   return isShiftPressedRef
