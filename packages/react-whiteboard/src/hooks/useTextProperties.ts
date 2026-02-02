@@ -1,9 +1,10 @@
 import { useMemo, useCallback } from 'react'
 import { useWhiteboardStore } from '../context'
-import type { TextFontFamily, TextShapeProps, TextShape } from '../types'
+import type { TextFontFamily, TextShapeProps, TextShape, RectangleShape, EllipseShape } from '../types'
 import { FONT_FAMILIES, FONT_SIZE_PRESETS } from '../utils/fonts'
 import type { FontSizePreset } from '../utils/fonts'
 import { measureTextLines } from '../utils/fonts'
+import { getBoundTextShape, canContainBoundText } from '../utils/boundText'
 
 /**
  * Headless hook for controlling text properties.
@@ -11,6 +12,8 @@ import { measureTextLines } from '../utils/fonts'
  * When text shapes are selected: changes apply to selected shapes AND update
  * the store's default props for future shapes.
  * When nothing is selected: changes only update defaults.
+ *
+ * Also resolves bound text from selected container shapes (rectangle/ellipse).
  */
 export function useTextProperties() {
   const currentTextProps = useWhiteboardStore((s) => s.currentTextProps)
@@ -18,14 +21,28 @@ export function useTextProperties() {
   const selectedIds = useWhiteboardStore((s) => s.selectedIds)
   const shapes = useWhiteboardStore((s) => s.shapes)
   const updateShape = useWhiteboardStore((s) => s.updateShape)
+  const syncBoundTextToParent = useWhiteboardStore((s) => s.syncBoundTextToParent)
 
-  // Gather selected text shapes
+  // Gather selected text shapes (including bound text from containers)
   const selectedTextShapes = useMemo(() => {
     const result: TextShape[] = []
+    const seen = new Set<string>()
     for (const id of selectedIds) {
       const shape = shapes.get(id)
-      if (shape && shape.type === 'text') {
+      if (!shape) continue
+
+      if (shape.type === 'text' && !seen.has(shape.id)) {
+        seen.add(shape.id)
         result.push(shape as TextShape)
+      } else if (canContainBoundText(shape.type)) {
+        const boundText = getBoundTextShape(
+          shape as RectangleShape | EllipseShape,
+          shapes,
+        )
+        if (boundText && !seen.has(boundText.id)) {
+          seen.add(boundText.id)
+          result.push(boundText)
+        }
       }
     }
     return result
@@ -50,9 +67,14 @@ export function useTextProperties() {
         const newProps = { ...shape.props, ...partial }
         const { width, height } = measureTextLines(shape.props.text, newProps)
         updateShape(shape.id, { width, height, props: newProps }, true)
+
+        // If this is bound text, sync its position/wrapping within the parent
+        if (shape.parentId) {
+          syncBoundTextToParent(shape.parentId)
+        }
       }
     },
-    [setCurrentTextProps, selectedTextShapes, updateShape],
+    [setCurrentTextProps, selectedTextShapes, updateShape, syncBoundTextToParent],
   )
 
   const setFontFamily = useCallback(
