@@ -219,7 +219,7 @@ export class SelectTool implements ITool {
       this.drawMarquee(ctx, state)
     }
     if (this.activeSnapLines.length > 0 && state.isDragging) {
-      drawSnapLines(ctx, this.activeSnapLines)
+      drawSnapLines(ctx, this.activeSnapLines, this.manager.getTheme().snapLine)
     }
   }
 
@@ -336,13 +336,14 @@ export class SelectTool implements ITool {
 
   private drawMarquee(ctx: CanvasRenderingContext2D, state: ToolState): void {
     if (!state.dragStart || !state.dragCurrent) return
+    const theme = this.manager.getTheme()
     const x = Math.min(state.dragStart.x, state.dragCurrent.x)
     const y = Math.min(state.dragStart.y, state.dragCurrent.y)
     const w = Math.abs(state.dragCurrent.x - state.dragStart.x)
     const h = Math.abs(state.dragCurrent.y - state.dragStart.y)
     ctx.save()
-    ctx.fillStyle = 'rgba(0, 102, 255, 0.08)'
-    ctx.strokeStyle = 'rgba(0, 102, 255, 0.4)'
+    ctx.fillStyle = theme.marqueeFill
+    ctx.strokeStyle = theme.marqueeStroke
     ctx.lineWidth = 1
     ctx.setLineDash([4, 4])
     ctx.fillRect(x, y, w, h)

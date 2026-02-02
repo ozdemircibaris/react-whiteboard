@@ -2,6 +2,9 @@
  * Core types for the whiteboard library
  */
 
+export type { ThemeColors } from './theme'
+export { LIGHT_THEME, DARK_THEME, resolveTheme } from './theme'
+
 // ============================================================================
 // Geometry Types
 // ============================================================================

@@ -11,6 +11,8 @@ import type {
   TextShape,
   ImageShape,
 } from '../../types'
+import type { ThemeColors } from '../../types/theme'
+import { resolveTheme } from '../../types/theme'
 import { getDevicePixelRatio } from '../../utils/canvas'
 import { drawRotationHandle } from '../../utils/rotationHandle'
 import {
@@ -33,12 +35,24 @@ export class CanvasRenderer {
   private roughCanvas: RoughCanvas
   private selectionFn: (x: number, y: number, w: number, h: number) => void
   private cornerOnlySelectionFn: (x: number, y: number, w: number, h: number) => void
+  private theme: ThemeColors
 
-  constructor(ctx: CanvasRenderingContext2D) {
+  constructor(ctx: CanvasRenderingContext2D, theme?: Partial<ThemeColors>) {
     this.ctx = ctx
     this.roughCanvas = rough.canvas(ctx.canvas)
+    this.theme = resolveTheme(theme)
     this.selectionFn = this.drawSelectionOutline.bind(this, false)
     this.cornerOnlySelectionFn = this.drawSelectionOutline.bind(this, true)
+  }
+
+  /** Update the theme colors (e.g. when switching dark/light mode) */
+  setTheme(theme: Partial<ThemeColors>): void {
+    this.theme = resolveTheme(theme)
+  }
+
+  /** Get the current resolved theme */
+  getTheme(): ThemeColors {
+    return this.theme
   }
 
   private get dpr(): number {
@@ -81,7 +95,7 @@ export class CanvasRenderer {
     const offsetY = y % scaledGridSize
 
     this.ctx.beginPath()
-    this.ctx.strokeStyle = '#e5e5e5'
+    this.ctx.strokeStyle = this.theme.grid
     this.ctx.lineWidth = 1
 
     for (let gx = offsetX; gx < width; gx += scaledGridSize) {
@@ -145,13 +159,13 @@ export class CanvasRenderer {
     const handleSize = 8
     const halfHandle = handleSize / 2
 
-    this.ctx.strokeStyle = '#0066ff'
+    this.ctx.strokeStyle = this.theme.selectionStroke
     this.ctx.lineWidth = 2
     this.ctx.setLineDash([])
     this.ctx.strokeRect(x, y, width, height)
 
-    this.ctx.fillStyle = '#ffffff'
-    this.ctx.strokeStyle = '#0066ff'
+    this.ctx.fillStyle = this.theme.selectionHandleFill
+    this.ctx.strokeStyle = this.theme.selectionStroke
     this.ctx.lineWidth = 1
 
     const corners = [
@@ -176,6 +190,9 @@ export class CanvasRenderer {
     }
 
     // Draw rotation handle above top-center
-    drawRotationHandle(this.ctx, { x, y, width, height })
+    drawRotationHandle(this.ctx, { x, y, width, height }, {
+      stroke: this.theme.rotationStroke,
+      fill: this.theme.rotationHandleFill,
+    })
   }
 }

@@ -59,7 +59,12 @@ export type {
 
   // Config
   WhiteboardConfig,
+
+  // Theme
+  ThemeColors,
 } from './types'
+
+export { LIGHT_THEME, DARK_THEME, resolveTheme } from './types'
 
 // ============================================================================
 // Context (provider + hooks)
