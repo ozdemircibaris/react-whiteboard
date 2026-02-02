@@ -38,5 +38,3 @@ export class LineTool extends BaseLineTool {
     }
   }
 }
-
-export const lineTool = new LineTool()

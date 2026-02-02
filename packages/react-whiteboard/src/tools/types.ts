@@ -155,6 +155,15 @@ export interface ToolConfig {
 }
 
 /**
+ * Minimal interface for accessing tools by type.
+ * Used by tools that need to reference other tools (e.g., SelectTool -> TextTool)
+ * without importing ToolManager directly (avoids circular dependencies).
+ */
+export interface ToolProvider {
+  getTool(type: ToolType): ITool | undefined
+}
+
+/**
  * Tool cursors mapping
  */
 export const TOOL_CURSORS: Record<string, string> = {

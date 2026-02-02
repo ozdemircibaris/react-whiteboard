@@ -20,7 +20,8 @@ import type {
   PointerMoveResult,
   PointerUpResult,
 } from './types'
-import { textTool } from './TextTool'
+import type { TextTool } from './TextTool'
+import type { ToolProvider } from './types'
 import { canContainBoundText, getBoundTextShape } from '../utils/boundText'
 
 /**
@@ -30,6 +31,8 @@ export class SelectTool implements ITool {
   readonly type = 'select' as const
   readonly cursor = 'default'
   readonly name = 'Select'
+
+  constructor(private manager: ToolProvider) {}
 
   private moveBeforeStates: Shape[] = []
   private resizeStartFontSizes: Map<string, number> = new Map()
@@ -146,9 +149,12 @@ export class SelectTool implements ITool {
     const hitShape = getShapeAtPoint(ctx.canvasPoint, store.shapes, store.shapeIds, 2)
     if (!hitShape) return
 
+    const text = this.manager.getTool('text') as TextTool | undefined
+    if (!text) return
+
     if (hitShape.type === 'text') {
       store.setTool('text')
-      textTool.editText(hitShape as TextShape, ctx.viewport, store)
+      text.editText(hitShape as TextShape, ctx.viewport, store)
       return
     }
 
@@ -158,12 +164,12 @@ export class SelectTool implements ITool {
 
       if (existingText) {
         store.setTool('text')
-        textTool.editBoundText(existingText, container, ctx.viewport, store)
+        text.editBoundText(existingText, container, ctx.viewport, store)
       } else {
         const newText = store.createBoundText(hitShape.id)
         if (newText) {
           store.setTool('text')
-          textTool.editBoundText(newText, container, ctx.viewport, store)
+          text.editBoundText(newText, container, ctx.viewport, store)
         }
       }
     }
@@ -359,5 +365,3 @@ export class SelectTool implements ITool {
     this.activeSnapLines = []
   }
 }
-
-export const selectTool = new SelectTool()

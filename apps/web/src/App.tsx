@@ -1,6 +1,7 @@
 import {
   Canvas,
   Minimap,
+  WhiteboardProvider,
   useWhiteboardStore,
   MIN_ZOOM,
   MAX_ZOOM,
@@ -250,18 +251,20 @@ function Instructions() {
 
 export default function App() {
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden">
-      <Toolbar />
+    <WhiteboardProvider>
+      <div className="flex h-screen w-screen flex-col overflow-hidden">
+        <Toolbar />
 
-      <main className="relative flex-1 w-full min-h-0 overflow-hidden">
-        <Canvas showGrid={true} gridSize={20} backgroundColor="#fafafa" />
-        <TextPropertiesPanel />
-        <ShapePropertiesPanel />
-        <div className="absolute bottom-4 right-4 z-10">
-          <Minimap width={200} height={150} />
-        </div>
-        <Instructions />
-      </main>
-    </div>
+        <main className="relative flex-1 w-full min-h-0 overflow-hidden">
+          <Canvas showGrid={true} gridSize={20} backgroundColor="#fafafa" />
+          <TextPropertiesPanel />
+          <ShapePropertiesPanel />
+          <div className="absolute bottom-4 right-4 z-10">
+            <Minimap width={200} height={150} />
+          </div>
+          <Instructions />
+        </main>
+      </div>
+    </WhiteboardProvider>
   )
 }

@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react'
-import { useWhiteboardStore } from '../core/store'
+import { useWhiteboardStore, useWhiteboardContext } from '../context'
 import { screenToCanvas, getVisibleBounds, expandBounds, boundsIntersect } from '../utils/canvas'
 import { handleImagePaste } from '../core/store/imagePasteActions'
 import { useCanvasSetup } from '../hooks/useCanvasSetup'
@@ -18,6 +18,8 @@ export interface CanvasProps {
   className?: string
   /** Called when canvas is ready */
   onReady?: () => void
+  /** Read-only mode — disables editing, allows pan/zoom */
+  readOnly?: boolean
 }
 
 const containerStyle: React.CSSProperties = {
@@ -46,11 +48,13 @@ export function Canvas({
   backgroundColor = '#fafafa',
   className = '',
   onReady,
+  readOnly = false,
 }: CanvasProps) {
   // ── Canvas setup (init + resize) ──────────────────────────────────
   const { canvasRef, containerRef, rendererRef, setupCanvas } = useCanvasSetup({ onReady })
   const textOverlayRef = useRef<HTMLDivElement>(null)
   const renderFnRef = useRef<(() => void) | null>(null)
+  const { store } = useWhiteboardContext()
 
   // ── Store selectors (render dependencies) ─────────────────────────
   const shapes = useWhiteboardStore((s) => s.shapes)
@@ -106,19 +110,22 @@ export function Canvas({
     unlockSelectedShapes,
     groupSelectedShapes,
     ungroupSelectedShapes,
+    readOnly,
   })
 
-  // ── Image paste handler (clipboard event) ───────────────────────
+  // ── Image paste handler (clipboard event, disabled in readOnly) ──
   useEffect(() => {
+    if (readOnly) return
+
     const onPaste = (e: ClipboardEvent) => {
       const container = containerRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
-      handleImagePaste(e, useWhiteboardStore.getState(), viewport, rect.width, rect.height)
+      handleImagePaste(e, store.getState(), viewport, rect.width, rect.height)
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
-  }, [viewport, containerRef])
+  }, [readOnly, viewport, containerRef])
 
   // ── Tool system (pointer events, overlay, cursor) ─────────────────
   const {
@@ -130,7 +137,7 @@ export function Canvas({
     cursorStyle,
     setTextOverlayContainer,
     isPanningRef,
-  } = useTools({ containerRef, canvasRef, renderFnRef })
+  } = useTools({ containerRef, canvasRef, renderFnRef, readOnly })
 
   // ── Touch gestures (pinch zoom, two-finger pan) ───────────────────
   const { handleTouchStart, handleTouchMove, handleTouchEnd } = useTouchGestures({
@@ -140,11 +147,12 @@ export function Canvas({
     zoom,
   })
 
-  // ── Text overlay setup ────────────────────────────────────────────
+  // ── Text overlay setup (disabled in readOnly) ────────────────────
   useEffect(() => {
+    if (readOnly) return
     setTextOverlayContainer(textOverlayRef.current)
     return () => setTextOverlayContainer(null)
-  }, [setTextOverlayContainer])
+  }, [setTextOverlayContainer, readOnly])
 
   // ── Render function ───────────────────────────────────────────────
   const render = useCallback(() => {
@@ -240,7 +248,7 @@ export function Canvas({
           cursor: isPanning || isPanningRef.current ? 'grabbing' : cursorStyle,
         }}
       />
-      <div ref={textOverlayRef} style={textOverlayStyle} />
+      {!readOnly && <div ref={textOverlayRef} style={textOverlayStyle} />}
     </div>
   )
 }

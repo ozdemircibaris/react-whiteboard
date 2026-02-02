@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from 'react'
-import { useWhiteboardStore } from '../core/store'
+import { useWhiteboardStore } from '../context'
 import type { TextFontFamily, TextShapeProps, TextShape } from '../types'
 import { FONT_FAMILIES, FONT_SIZE_PRESETS } from '../utils/fonts'
 import type { FontSizePreset } from '../utils/fonts'

@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react'
-import { useWhiteboardStore } from '../core/store'
+import { useWhiteboardStore } from '../context'
 import type { Shape } from '../types'
 
 export interface MinimapProps {

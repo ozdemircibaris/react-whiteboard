@@ -83,5 +83,3 @@ export class ArrowTool extends BaseLineTool {
     ctx.fill()
   }
 }
-
-export const arrowTool = new ArrowTool()

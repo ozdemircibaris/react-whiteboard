@@ -53,5 +53,3 @@ export class EllipseTool extends BaseShapeTool {
     }))
   }
 }
-
-export const ellipseTool = new EllipseTool()

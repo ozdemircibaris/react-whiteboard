@@ -221,5 +221,3 @@ export const createWhiteboardStore = () =>
     }))
   )
 
-// Default store instance
-export const useWhiteboardStore = createWhiteboardStore()

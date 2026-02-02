@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from 'react'
-import { useWhiteboardStore } from '../core/store'
+import { useWhiteboardStore } from '../context'
 import type {
   Shape,
   FillStyle,

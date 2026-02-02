@@ -1,17 +1,18 @@
 import type { WhiteboardStore } from '../core/store'
 import type { ToolType, Viewport } from '../types'
 import type { ITool, ToolEventContext, ToolState } from './types'
-import { createToolState, TOOL_CURSORS } from './types'
-import { selectTool } from './SelectTool'
-import { rectangleTool } from './RectangleTool'
-import { ellipseTool } from './EllipseTool'
-import { drawTool } from './DrawTool'
-import { lineTool } from './LineTool'
-import { arrowTool } from './ArrowTool'
-import { textTool } from './TextTool'
+import { createToolState } from './types'
+import { SelectTool } from './SelectTool'
+import { RectangleTool } from './RectangleTool'
+import { EllipseTool } from './EllipseTool'
+import { DrawTool } from './DrawTool'
+import { LineTool } from './LineTool'
+import { ArrowTool } from './ArrowTool'
+import { TextTool } from './TextTool'
 
 /**
- * Tool manager - handles tool switching and event routing
+ * Tool manager - handles tool switching and event routing.
+ * Each instance owns its own set of tool instances.
  */
 export class ToolManager {
   private tools: Map<ToolType, ITool> = new Map()
@@ -32,16 +33,16 @@ export class ToolManager {
   }
 
   /**
-   * Register default tools
+   * Register default tools (fresh instances per ToolManager)
    */
   private registerDefaultTools(): void {
-    this.registerTool(selectTool)
-    this.registerTool(rectangleTool)
-    this.registerTool(ellipseTool)
-    this.registerTool(drawTool)
-    this.registerTool(lineTool)
-    this.registerTool(arrowTool)
-    this.registerTool(textTool)
+    this.registerTool(new SelectTool(this))
+    this.registerTool(new RectangleTool())
+    this.registerTool(new EllipseTool())
+    this.registerTool(new DrawTool())
+    this.registerTool(new LineTool())
+    this.registerTool(new ArrowTool())
+    this.registerTool(new TextTool())
   }
 
   /**
@@ -77,6 +78,14 @@ export class ToolManager {
    */
   setStoreGetter(getter: () => WhiteboardStore): void {
     this.storeGetter = getter
+  }
+
+  /**
+   * Set the overlay container for TextTool inline editing
+   */
+  setOverlayContainer(el: HTMLElement | null): void {
+    const textTool = this.tools.get('text') as TextTool | undefined
+    textTool?.setOverlayContainer(el)
   }
 
   /**
@@ -121,13 +130,6 @@ export class ToolManager {
   getCursor(): string {
     if (!this.activeTool) return 'default'
     return this.activeTool.cursor
-  }
-
-  /**
-   * Get cursor for a tool type
-   */
-  getCursorForTool(type: ToolType): string {
-    return TOOL_CURSORS[type] || 'default'
   }
 
   /**
@@ -214,8 +216,3 @@ export class ToolManager {
     this.state = createToolState()
   }
 }
-
-/**
- * Singleton tool manager instance
- */
-export const toolManager = new ToolManager()
