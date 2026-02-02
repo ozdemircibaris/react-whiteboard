@@ -6,6 +6,8 @@ import { useCanvasSetup } from '../hooks/useCanvasSetup'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { useTouchGestures } from '../hooks/useTouchGestures'
 import { useTools } from '../hooks/useTools'
+import { resolveTheme } from '../types/theme'
+import type { ThemeColors } from '../types/theme'
 
 export interface CanvasProps {
   /** Show grid */
@@ -20,6 +22,8 @@ export interface CanvasProps {
   onReady?: () => void
   /** Read-only mode — disables editing, allows pan/zoom */
   readOnly?: boolean
+  /** Theme colors for canvas rendering (grid, selection, etc.) */
+  theme?: Partial<ThemeColors>
 }
 
 const containerStyle: React.CSSProperties = {
@@ -45,16 +49,18 @@ const textOverlayStyle: React.CSSProperties = {
 export function Canvas({
   showGrid = true,
   gridSize = 20,
-  backgroundColor = '#fafafa',
+  backgroundColor,
   className = '',
   onReady,
   readOnly = false,
+  theme,
 }: CanvasProps) {
+  const resolvedBg = backgroundColor ?? theme?.canvasBackground ?? '#fafafa'
   // ── Canvas setup (init + resize) ──────────────────────────────────
   const { canvasRef, containerRef, rendererRef, setupCanvas } = useCanvasSetup({ onReady })
   const textOverlayRef = useRef<HTMLDivElement>(null)
   const renderFnRef = useRef<(() => void) | null>(null)
-  const { store } = useWhiteboardContext()
+  const { store, toolManager } = useWhiteboardContext()
 
   // ── Store selectors (render dependencies) ─────────────────────────
   const shapes = useWhiteboardStore((s) => s.shapes)
@@ -85,6 +91,15 @@ export function Canvas({
   const unlockSelectedShapes = useWhiteboardStore((s) => s.unlockSelectedShapes)
   const groupSelectedShapes = useWhiteboardStore((s) => s.groupSelectedShapes)
   const ungroupSelectedShapes = useWhiteboardStore((s) => s.ungroupSelectedShapes)
+
+  // ── Sync theme to renderer + tool manager ────────────────────────
+  useEffect(() => {
+    if (theme) {
+      const resolved = resolveTheme(theme)
+      rendererRef.current?.setTheme(theme)
+      toolManager.setTheme(resolved)
+    }
+  }, [theme, toolManager, rendererRef])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
   useKeyboardShortcuts({
@@ -168,7 +183,7 @@ export function Canvas({
     // Clear and fill background
     renderer.clear(rect.width, rect.height)
     ctx.save()
-    ctx.fillStyle = backgroundColor
+    ctx.fillStyle = resolvedBg
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.restore()
 
@@ -192,7 +207,7 @@ export function Canvas({
     renderOverlay(ctx)
 
     renderer.resetTransform()
-  }, [shapes, shapeIds, viewport, selectedIds, showGrid, gridSize, backgroundColor, renderOverlay, canvasRef, containerRef, rendererRef])
+  }, [shapes, shapeIds, viewport, selectedIds, showGrid, gridSize, resolvedBg, renderOverlay, canvasRef, containerRef, rendererRef])
 
   // Keep renderFnRef updated (in useEffect, not component body — StrictMode safe)
   useEffect(() => {

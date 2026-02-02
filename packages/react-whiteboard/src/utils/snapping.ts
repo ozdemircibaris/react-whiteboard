@@ -125,11 +125,12 @@ function getBoundsEdges(bounds: Bounds): BoundsEdges {
 export function drawSnapLines(
   ctx: CanvasRenderingContext2D,
   snapLines: SnapLine[],
+  color?: string,
 ): void {
   if (snapLines.length === 0) return
 
   ctx.save()
-  ctx.strokeStyle = '#ff6b6b'
+  ctx.strokeStyle = color ?? '#ff6b6b'
   ctx.lineWidth = 1
   ctx.setLineDash([4, 4])
 

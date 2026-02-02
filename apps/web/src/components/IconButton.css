@@ -1,0 +1,22 @@
+.wb-icon-btn--default {
+  background: transparent;
+  color: var(--wb-text-secondary);
+}
+.wb-icon-btn--default:hover:not(:disabled) {
+  background: var(--wb-bg-hover);
+  color: var(--wb-text);
+}
+
+.wb-icon-btn--active {
+  background: var(--wb-bg-active);
+  color: var(--wb-text-on-active);
+}
+
+.wb-icon-btn--destructive {
+  background: transparent;
+  color: var(--wb-bg-destructive);
+}
+.wb-icon-btn--destructive:hover:not(:disabled) {
+  background: var(--wb-bg-destructive);
+  color: var(--wb-text-on-active);
+}

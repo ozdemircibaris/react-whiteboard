@@ -1,18 +1,16 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useMemo } from 'react'
 import { useWhiteboardStore } from '../context'
 import type { Shape } from '../types'
+import type { ThemeColors } from '../types/theme'
+import { resolveTheme } from '../types/theme'
 
 export interface MinimapProps {
   width?: number
   height?: number
   className?: string
+  /** Theme colors for minimap rendering */
+  theme?: Partial<ThemeColors>
 }
-
-const MINIMAP_BG = '#f8f8f8'
-const SHAPE_FILL = '#cbd5e1'
-const SHAPE_STROKE = '#94a3b8'
-const VIEWPORT_STROKE = '#3b82f6'
-const VIEWPORT_FILL = 'rgba(59, 130, 246, 0.08)'
 
 function getWorldBounds(shapes: Map<string, Shape>, shapeIds: string[]) {
   if (shapeIds.length === 0) return { x: 0, y: 0, width: 1000, height: 800 }
@@ -37,12 +35,13 @@ function getWorldBounds(shapes: Map<string, Shape>, shapeIds: string[]) {
   }
 }
 
-export function Minimap({ width = 200, height = 150, className }: MinimapProps) {
+export function Minimap({ width = 200, height = 150, className, theme: themeProp }: MinimapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const shapes = useWhiteboardStore((s) => s.shapes)
   const shapeIds = useWhiteboardStore((s) => s.shapeIds)
   const viewport = useWhiteboardStore((s) => s.viewport)
   const setViewport = useWhiteboardStore((s) => s.setViewport)
+  const theme = useMemo(() => resolveTheme(themeProp), [themeProp])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -56,7 +55,7 @@ export function Minimap({ width = 200, height = 150, className }: MinimapProps) 
     ctx.scale(dpr, dpr)
 
     // Clear
-    ctx.fillStyle = MINIMAP_BG
+    ctx.fillStyle = theme.minimapBackground
     ctx.fillRect(0, 0, width, height)
 
     const world = getWorldBounds(shapes, shapeIds)
@@ -67,8 +66,8 @@ export function Minimap({ width = 200, height = 150, className }: MinimapProps) 
     const offsetY = (height - world.height * scale) / 2
 
     // Draw shapes as simplified rectangles
-    ctx.fillStyle = SHAPE_FILL
-    ctx.strokeStyle = SHAPE_STROKE
+    ctx.fillStyle = theme.minimapShapeFill
+    ctx.strokeStyle = theme.minimapShapeStroke
     ctx.lineWidth = 1
 
     for (const id of shapeIds) {
@@ -96,12 +95,12 @@ export function Minimap({ width = 200, height = 150, className }: MinimapProps) 
     const rw = vpWidth * scale
     const rh = vpHeight * scale
 
-    ctx.fillStyle = VIEWPORT_FILL
+    ctx.fillStyle = theme.minimapViewportFill
     ctx.fillRect(rx, ry, rw, rh)
-    ctx.strokeStyle = VIEWPORT_STROKE
+    ctx.strokeStyle = theme.minimapViewportStroke
     ctx.lineWidth = 2
     ctx.strokeRect(rx, ry, rw, rh)
-  }, [shapes, shapeIds, viewport, width, height])
+  }, [shapes, shapeIds, viewport, width, height, theme])
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -140,12 +139,13 @@ export function Minimap({ width = 200, height = 150, className }: MinimapProps) 
       width={width}
       height={height}
       onClick={handleClick}
+      aria-label="Minimap"
       className={className}
       style={{
         width,
         height,
         borderRadius: 8,
-        border: '1px solid #e5e7eb',
+        border: `1px solid ${theme.minimapBorder}`,
         cursor: 'pointer',
       }}
     />

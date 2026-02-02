@@ -1,5 +1,7 @@
 import type { WhiteboardStore } from '../core/store'
 import type { ToolType, Viewport } from '../types'
+import type { ThemeColors } from '../types/theme'
+import { LIGHT_THEME } from '../types/theme'
 import type { ITool, ToolEventContext, ToolState } from './types'
 import { createToolState } from './types'
 import { SelectTool } from './SelectTool'
@@ -19,6 +21,7 @@ export class ToolManager {
   private activeTool: ITool | null = null
   private state: ToolState
   private storeGetter: (() => WhiteboardStore) | null = null
+  private _theme: ThemeColors = LIGHT_THEME
 
   constructor() {
     this.state = createToolState()
@@ -86,6 +89,20 @@ export class ToolManager {
   setOverlayContainer(el: HTMLElement | null): void {
     const textTool = this.tools.get('text') as TextTool | undefined
     textTool?.setOverlayContainer(el)
+  }
+
+  /**
+   * Set the theme colors (used by tools for overlay rendering)
+   */
+  setTheme(theme: ThemeColors): void {
+    this._theme = theme
+  }
+
+  /**
+   * Get the current theme colors
+   */
+  getTheme(): ThemeColors {
+    return this._theme
   }
 
   /**

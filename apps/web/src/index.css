@@ -17,11 +17,55 @@
   font-display: swap;
 }
 
+/* ── Light theme (default) ──────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --wb-bg: #ffffff;
+  --wb-bg-elevated: rgba(255, 255, 255, 0.88);
+  --wb-bg-hover: #f3f4f6;
+  --wb-bg-active: #2563eb;
+  --wb-bg-destructive: #dc2626;
+
+  --wb-text: #1f2937;
+  --wb-text-secondary: #6b7280;
+  --wb-text-on-active: #ffffff;
+  --wb-text-disabled: #9ca3af;
+
+  --wb-border: #e5e7eb;
+  --wb-border-subtle: rgba(0, 0, 0, 0.08);
+
+  --wb-accent: #2563eb;
+  --wb-accent-hover: #1d4ed8;
+
+  --wb-shadow: 0 2px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.05);
+
+  --wb-canvas-bg: #fafafa;
 }
 
+/* ── Dark theme ────────────────────────────────────────────────── */
+.dark {
+  --wb-bg: #1e1e2e;
+  --wb-bg-elevated: rgba(30, 30, 46, 0.88);
+  --wb-bg-hover: #2a2a3e;
+  --wb-bg-active: #4d9fff;
+  --wb-bg-destructive: #ef4444;
+
+  --wb-text: #e4e4e7;
+  --wb-text-secondary: #a1a1aa;
+  --wb-text-on-active: #ffffff;
+  --wb-text-disabled: #52525b;
+
+  --wb-border: #333355;
+  --wb-border-subtle: rgba(255, 255, 255, 0.08);
+
+  --wb-accent: #4d9fff;
+  --wb-accent-hover: #3b82f6;
+
+  --wb-shadow: 0 2px 16px rgba(0, 0, 0, 0.32), 0 1px 4px rgba(0, 0, 0, 0.24);
+
+  --wb-canvas-bg: #1a1a2e;
+}
+
+/* ── Global resets ──────────────────────────────────────────────── */
 html,
 body,
 #root {
@@ -33,8 +77,8 @@ body,
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--wb-bg);
+  color: var(--wb-text);
   font-family:
     -apple-system,
     BlinkMacSystemFont,
@@ -45,6 +89,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 * {

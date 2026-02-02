@@ -3,6 +3,7 @@ import { WhiteboardProvider, useWhiteboardContext } from '../context'
 import { Canvas } from './Canvas'
 import { Minimap } from './Minimap'
 import type { Shape, Viewport } from '../types'
+import type { ThemeColors } from '../types/theme'
 
 // ============================================================================
 // Props
@@ -36,6 +37,9 @@ export interface WhiteboardProps {
   /** Show minimap. Pass `true` for defaults or an object for custom size. */
   minimap?: boolean | { width?: number; height?: number }
 
+  /** Theme colors for canvas and minimap rendering */
+  theme?: Partial<ThemeColors>
+
   /** Overlay content rendered on top of the canvas (toolbars, panels, etc.) */
   children?: ReactNode
 }
@@ -54,6 +58,7 @@ function WhiteboardInner({
   className,
   onReady,
   minimap,
+  theme,
   children,
 }: WhiteboardProps) {
   const { store } = useWhiteboardContext()
@@ -104,10 +109,11 @@ function WhiteboardInner({
         backgroundColor={backgroundColor}
         className={className}
         onReady={onReady}
+        theme={theme}
       />
       {showMinimap && (
         <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 10 }}>
-          <Minimap width={minimapWidth} height={minimapHeight} />
+          <Minimap width={minimapWidth} height={minimapHeight} theme={theme} />
         </div>
       )}
       {children}

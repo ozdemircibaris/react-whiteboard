@@ -62,13 +62,16 @@ export function calculateRotation(
 export function drawRotationHandle(
   ctx: CanvasRenderingContext2D,
   bounds: Bounds,
+  colors?: { stroke: string; fill: string },
 ): void {
+  const stroke = colors?.stroke ?? '#0066ff'
+  const fill = colors?.fill ?? '#ffffff'
   const pos = getRotationHandlePosition(bounds)
   const topCenter = { x: bounds.x + bounds.width / 2, y: bounds.y }
 
   // Draw connecting line
   ctx.beginPath()
-  ctx.strokeStyle = '#0066ff'
+  ctx.strokeStyle = stroke
   ctx.lineWidth = 1
   ctx.setLineDash([])
   ctx.moveTo(topCenter.x, topCenter.y)
@@ -78,9 +81,9 @@ export function drawRotationHandle(
   // Draw circle
   ctx.beginPath()
   ctx.arc(pos.x, pos.y, ROTATION_HANDLE_RADIUS, 0, Math.PI * 2)
-  ctx.fillStyle = '#ffffff'
+  ctx.fillStyle = fill
   ctx.fill()
-  ctx.strokeStyle = '#0066ff'
+  ctx.strokeStyle = stroke
   ctx.lineWidth = 1.5
   ctx.stroke()
 }

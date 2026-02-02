@@ -1,4 +1,5 @@
 import type { Point, Shape, ToolType, Viewport } from '../types'
+import type { ThemeColors } from '../types/theme'
 import type { WhiteboardStore } from '../core/store'
 import type { ResizeHandle } from '../utils/hitTest'
 
@@ -161,6 +162,7 @@ export interface ToolConfig {
  */
 export interface ToolProvider {
   getTool(type: ToolType): ITool | undefined
+  getTheme(): ThemeColors
 }
 
 /**
