@@ -96,7 +96,7 @@ export function Canvas({
   useEffect(() => {
     if (theme) {
       const resolved = resolveTheme(theme)
-      rendererRef.current?.setTheme(theme)
+      rendererRef.current?.setTheme(resolved)
       toolManager.setTheme(resolved)
     }
   }, [theme, toolManager, rendererRef])

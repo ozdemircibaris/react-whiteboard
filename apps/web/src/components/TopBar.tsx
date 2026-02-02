@@ -54,9 +54,9 @@ export function TopBar() {
   }
 
   const handleLoad = async () => {
-    const text = await pickAndReadFile('.json')
-    if (!text) return
     try {
+      const text = await pickAndReadFile('.json')
+      if (!text) return
       const doc = parseDocument(text)
       const data = documentToStoreData(doc)
       loadDocument(data.shapes, data.shapeIds, data.viewport)

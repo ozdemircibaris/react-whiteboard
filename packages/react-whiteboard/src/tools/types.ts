@@ -195,19 +195,3 @@ export function createToolState(): ToolState {
     startRotations: new Map(),
   }
 }
-
-/**
- * Reset tool state
- */
-export function resetToolState(_state: ToolState): ToolState {
-  return {
-    isDragging: false,
-    dragStart: null,
-    dragCurrent: null,
-    activeShapeId: null,
-    resizeHandle: null,
-    isRotating: false,
-    startPositions: new Map(),
-    startRotations: new Map(),
-  }
-}
