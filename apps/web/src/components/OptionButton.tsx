@@ -15,7 +15,7 @@ export function OptionButton({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`h-7 rounded px-2 text-xs font-medium transition-colors ${className}`}
+      className={`h-7 rounded px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wb-accent)] ${className}`}
       style={{
         background: active ? 'var(--wb-bg-active)' : 'var(--wb-bg-hover)',
         color: active ? 'var(--wb-text-on-active)' : 'var(--wb-text)',

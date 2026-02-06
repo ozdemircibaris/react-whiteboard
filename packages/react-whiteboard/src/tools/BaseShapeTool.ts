@@ -11,6 +11,7 @@ import type {
   PointerMoveResult,
   PointerUpResult,
 } from './types'
+import { drawIndicatorLabel } from './drawIndicator'
 
 export interface ShapeBounds {
   x: number
@@ -129,7 +130,7 @@ export abstract class BaseShapeTool implements ITool {
   renderOverlay(
     ctx: CanvasRenderingContext2D,
     state: ToolState,
-    _viewport: Viewport
+    viewport: Viewport
   ): void {
     if (!this.previewShape || !state.isDragging) return
 
@@ -140,6 +141,15 @@ export abstract class BaseShapeTool implements ITool {
     this.renderPreview(ctx, rc, this.previewShape)
 
     ctx.restore()
+
+    // Draw dimension indicator below the shape
+    const { width, height } = this.previewShape
+    if (width > 10 && height > 10) {
+      const label = `${Math.round(width)} × ${Math.round(height)}`
+      const labelX = this.previewShape.x + width / 2
+      const labelY = this.previewShape.y + height + 16 / viewport.zoom
+      drawIndicatorLabel(ctx, label, labelX, labelY, viewport.zoom)
+    }
   }
 
   protected calculateBounds(

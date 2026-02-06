@@ -11,6 +11,7 @@ import type {
   PointerUpResult,
 } from './types'
 import { snapToAngle } from '../utils/canvas'
+import { drawIndicatorLabel } from './drawIndicator'
 
 /**
  * Minimum length to create a shape
@@ -182,7 +183,7 @@ export abstract class BaseLineTool implements ITool {
   renderOverlay(
     ctx: CanvasRenderingContext2D,
     state: ToolState,
-    _viewport: Viewport
+    viewport: Viewport
   ): void {
     if (!this.previewStart || !this.previewEnd || !state.isDragging) return
 
@@ -204,6 +205,19 @@ export abstract class BaseLineTool implements ITool {
     this.renderAdditionalOverlay(ctx, this.previewStart, this.previewEnd)
 
     ctx.restore()
+
+    // Draw angle + length indicator at midpoint
+    const dx = this.previewEnd.x - this.previewStart.x
+    const dy = this.previewEnd.y - this.previewStart.y
+    const length = Math.hypot(dx, dy)
+    if (length > 10) {
+      const angleDeg = Math.round(Math.atan2(-dy, dx) * 180 / Math.PI)
+      const normalizedAngle = ((angleDeg % 360) + 360) % 360
+      const label = `${Math.round(length)}px  ${normalizedAngle}°`
+      const midX = (this.previewStart.x + this.previewEnd.x) / 2
+      const midY = (this.previewStart.y + this.previewEnd.y) / 2 + 20 / viewport.zoom
+      drawIndicatorLabel(ctx, label, midX, midY, viewport.zoom)
+    }
   }
 
   /**

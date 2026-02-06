@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   Canvas,
   Minimap,
@@ -7,7 +7,7 @@ import {
   LIGHT_THEME,
   DARK_THEME,
 } from '@ozdemircibaris/react-whiteboard'
-import type { ThemeColors } from '@ozdemircibaris/react-whiteboard'
+import type { ThemeColors, CanvasContextMenuEvent } from '@ozdemircibaris/react-whiteboard'
 import { useTheme } from './hooks/useTheme'
 import { FloatingToolbar } from './components/FloatingToolbar'
 import { TopBar } from './components/TopBar'
@@ -16,6 +16,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { TextPropertiesPanel } from './components/TextPropertiesPanel'
 import { ShapePropertiesPanel } from './components/ShapePropertiesPanel'
 import { KeyboardShortcutsPanel } from './components/KeyboardShortcutsPanel'
+import { ContextMenu } from './components/ContextMenu'
 
 /** Sync default text color when theme changes */
 function useTextColorSync(theme: ThemeColors) {
@@ -30,6 +31,16 @@ function WhiteboardApp() {
   const libraryTheme = resolved === 'dark' ? DARK_THEME : LIGHT_THEME
   useTextColorSync(libraryTheme)
 
+  const [contextMenu, setContextMenu] = useState<CanvasContextMenuEvent | null>(null)
+
+  const handleContextMenu = useCallback((event: CanvasContextMenuEvent) => {
+    setContextMenu(event)
+  }, [])
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null)
+  }, [])
+
   return (
     <div className="relative h-screen w-screen overflow-hidden">
       <Canvas
@@ -37,13 +48,14 @@ function WhiteboardApp() {
         gridSize={20}
         backgroundColor={libraryTheme.canvasBackground}
         theme={libraryTheme}
+        onContextMenu={handleContextMenu}
       />
 
       {/* Floating UI */}
       <TopBar />
       <ThemeToggle resolved={resolved} toggle={toggle} />
       <TextPropertiesPanel isDark={resolved === 'dark'} />
-      <ShapePropertiesPanel />
+      <ShapePropertiesPanel isDark={resolved === 'dark'} />
       <FloatingToolbar />
 
       {/* Bottom-right stack: zoom + minimap */}
@@ -53,6 +65,10 @@ function WhiteboardApp() {
       </div>
 
       <KeyboardShortcutsPanel />
+
+      {contextMenu && (
+        <ContextMenu event={contextMenu} onClose={closeContextMenu} />
+      )}
     </div>
   )
 }

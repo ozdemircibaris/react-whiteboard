@@ -147,6 +147,34 @@ export function measureTextLines(
  * Preserves explicit newlines, then wraps each paragraph by word boundaries.
  * Returns actual rendered width (may be less than maxWidth for short text).
  */
+/**
+ * Break a single word into chunks that each fit within maxWidth.
+ * Returns the word as-is in a single-element array if it fits.
+ */
+function breakWord(word: string, maxWidth: number, ctx: CanvasRenderingContext2D): string[] {
+  if (ctx.measureText(word).width <= maxWidth) return [word]
+
+  const chunks: string[] = []
+  let current = ''
+  for (const char of word) {
+    const test = current + char
+    if (ctx.measureText(test).width > maxWidth && current) {
+      chunks.push(current)
+      current = char
+    } else {
+      current = test
+    }
+  }
+  if (current) chunks.push(current)
+  return chunks
+}
+
+/**
+ * Word-wrap text within a given maxWidth and measure the result.
+ * Preserves explicit newlines, then wraps each paragraph by word boundaries.
+ * Long words/URLs that exceed maxWidth are broken at character boundaries.
+ * Returns actual rendered width (may be less than maxWidth for short text).
+ */
 export function wrapTextLines(
   text: string,
   maxWidth: number,
@@ -177,16 +205,20 @@ export function wrapTextLines(
     const words = paragraph.split(' ')
     let currentLine = ''
 
-    for (const word of words) {
-      const testLine = currentLine ? `${currentLine} ${word}` : word
-      const testWidth = ctx.measureText(testLine).width
+    for (const rawWord of words) {
+      const wordChunks = breakWord(rawWord, maxWidth, ctx)
 
-      if (testWidth <= maxWidth || !currentLine) {
-        currentLine = testLine
-      } else {
-        actualMaxWidth = Math.max(actualMaxWidth, ctx.measureText(currentLine).width)
-        wrappedLines.push(currentLine)
-        currentLine = word
+      for (const word of wordChunks) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word
+        const testWidth = ctx.measureText(testLine).width
+
+        if (testWidth <= maxWidth || !currentLine) {
+          currentLine = testLine
+        } else {
+          actualMaxWidth = Math.max(actualMaxWidth, ctx.measureText(currentLine).width)
+          wrappedLines.push(currentLine)
+          currentLine = word
+        }
       }
     }
 
