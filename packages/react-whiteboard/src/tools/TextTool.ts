@@ -159,6 +159,7 @@ export class TextTool implements ITool {
       {
         onConfirm: (t) => this.handleConfirm(t),
         onCancel: () => this.cancelEdit(),
+        onStyleChange: (props) => this.handleStyleChange(props),
       },
       shape.width,
     )
@@ -193,6 +194,7 @@ export class TextTool implements ITool {
       {
         onConfirm: (t) => this.handleConfirm(t),
         onCancel: () => this.cancelEdit(),
+        onStyleChange: (props) => this.handleStyleChange(props),
       },
       maxWidth,
     )
@@ -215,6 +217,7 @@ export class TextTool implements ITool {
       {
         onConfirm: (t) => this.handleConfirm(t),
         onCancel: () => this.cancelEdit(),
+        onStyleChange: (props) => this.handleStyleChange(props),
       },
       DEFAULT_TEXT_MAX_WIDTH,
     )
@@ -270,6 +273,24 @@ export class TextTool implements ITool {
     if (confirmedId) {
       store.setTool('select')
       store.select(confirmedId)
+    }
+  }
+
+  private handleStyleChange(props: Partial<Omit<TextShapeProps, 'text'>>): void {
+    const store = this.currentStore
+    if (!store) return
+
+    // Update store defaults so new text shapes use the toggled style
+    store.setCurrentTextProps(props)
+
+    // If editing an existing shape, update its props live
+    if (this.editingShapeId) {
+      const existing = store.shapes.get(this.editingShapeId) as TextShape | undefined
+      if (existing) {
+        store.updateShape(this.editingShapeId, {
+          props: { ...existing.props, ...props },
+        }, false)
+      }
     }
   }
 

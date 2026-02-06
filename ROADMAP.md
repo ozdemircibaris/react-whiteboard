@@ -129,7 +129,7 @@ Production-level editing UX.
 - [x] Copy/Paste (Cmd+C, Cmd+V, Cmd+D, Cmd+X) with paste offset
 - [x] Marquee/lasso selection (drag to select multiple)
 - [x] Z-order controls (bring forward, send backward, front, back) with Cmd+]/[ shortcuts
-- [ ] Bound text: double-click rectangle/ellipse to add/edit text label inside shape (Excalidraw-style container text with parentId binding, auto-center, move/resize sync, delete cascade)
+- [x] Bound text: double-click rectangle/ellipse to add/edit text label inside shape (parentId binding, auto-center, move/resize sync, delete cascade)
 - [x] External paste (images from clipboard)
 - [x] Snap to grid
 - [x] Snap to shape edges/centers (smart guides)
@@ -142,24 +142,26 @@ Production-level editing UX.
 ### Phase 11: Export & Import
 Enable sharing and saving.
 
-- [ ] Export to PNG (canvas.toDataURL with background)
+- [x] Export to PNG (canvas.toDataURL with background, configurable padding/DPI)
 - [ ] Export to SVG (shape-to-SVG conversion with RoughJS SVG mode)
-- [ ] Export to JSON (serialize shapes + viewport)
-- [ ] Import from JSON
+- [x] Export to JSON (serialize shapes + viewport with version tracking)
+- [x] Import from JSON (with validation and error handling)
 - [ ] Import from Excalidraw format (.excalidraw files)
-- [ ] Download/export UI
+- [x] Download/export UI (downloadFile + pickAndReadFile utilities)
 
 ### Phase 12: Library API
 Clean, composable public API for library consumers.
 
-- [ ] `<Whiteboard />` wrapper component with sensible defaults
-- [ ] Props: initialData, onChange, tools, readOnly, theme, locale
-- [ ] Hooks: useWhiteboard(), useViewport(), useSelection(), useShapes()
-- [ ] Event callbacks: onShapeCreate, onShapeUpdate, onShapeDelete, onViewportChange
-- [ ] Custom tool registration API
-- [ ] Custom shape renderer API
-- [ ] Headless mode (bring your own UI)
+- [x] `<Whiteboard />` wrapper component with sensible defaults
+- [x] Props: initialData, onChange, readOnly, theme, showGrid, gridSize, backgroundColor, minimap, onReady
+- [x] Hooks: useWhiteboardContext(), useWhiteboardStore(), useToolManager(), useTextProperties(), useShapeProperties()
+- [ ] Event callbacks: onShapeCreate, onShapeUpdate, onShapeDelete, onViewportChange (granular per-event)
+- [x] Custom tool registration API (ToolManager accessible via useToolManager)
+- [ ] Custom shape renderer API (runtime plugin system)
+- [x] Headless mode (WhiteboardProvider + useWhiteboardStore without Canvas)
 - [ ] API documentation + Storybook
+- [ ] `tools` prop for component-level tool registration
+- [ ] `locale` prop for i18n
 
 ### Phase 13: Persistence (Supabase)
 Cloud save/load for the SaaS layer.
@@ -186,12 +188,13 @@ Real-time multi-user editing.
 ### Phase 15: Production Polish
 Ship-quality reliability.
 
-- [ ] Performance: viewport culling (skip off-screen shapes), shape caching, render budgeting
+- [x] Performance: viewport culling (skip off-screen shapes) with configurable buffer zone
+- [ ] Performance: shape caching, render budgeting, dual-canvas architecture
 - [ ] Large board testing (1000+ shapes)
-- [ ] Memory leak profiling
+- [ ] Memory leak profiling (image cache eviction, etc.)
 - [ ] Error boundaries
-- [ ] Accessibility (keyboard navigation, screen reader)
-- [ ] Dark mode / light mode / custom themes
+- [ ] Accessibility (canvas ARIA roles, keyboard navigation, screen reader, focus management)
+- [x] Dark mode / light mode / custom themes (full ThemeColors system)
 - [ ] Mobile responsive
 - [ ] i18n support
 - [ ] Comprehensive test suite

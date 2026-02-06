@@ -14,6 +14,7 @@ export function applyResize(
   state: ToolState,
   moveBeforeStates: Shape[],
   resizeStartFontSizes: Map<string, number>,
+  shiftKey: boolean = false,
 ): void {
   if (!state.dragStart || !state.dragCurrent || !state.resizeHandle) return
 
@@ -22,16 +23,23 @@ export function applyResize(
   const isCornerHandle = !state.resizeHandle.includes('center')
 
   state.startPositions.forEach((startBounds, id) => {
-    const newBounds = calculateResizedBounds(startBounds, state.resizeHandle!, dx, dy)
     const shape = store.shapes.get(id)
-    if (!shape) return
+    if (!shape || shape.isLocked) return
+
+    let newBounds = calculateResizedBounds(startBounds, state.resizeHandle!, dx, dy)
+
+    // Aspect ratio lock: Shift for normal shapes, always for images
+    const shouldLockRatio = (shiftKey || shape.type === 'image') && isCornerHandle
+    if (shouldLockRatio && startBounds.width > 0 && startBounds.height > 0) {
+      newBounds = constrainAspectRatio(startBounds, newBounds, state.resizeHandle!)
+    }
 
     switch (shape.type) {
       case 'text':
         resizeText(store, id, shape as TextShape, newBounds, startBounds, isCornerHandle, resizeStartFontSizes)
         break
       case 'line':
-        resizeLine(store, id, shape as LineShape, newBounds, startBounds, moveBeforeStates)
+        resizeLine(store, id, newBounds, startBounds, moveBeforeStates)
         break
       case 'arrow':
         resizeArrow(store, id, shape as ArrowShape, newBounds, startBounds, moveBeforeStates)
@@ -48,6 +56,39 @@ export function applyResize(
       store.syncBoundTextToParent(id)
     }
   })
+}
+
+/**
+ * Constrain new bounds to maintain the original aspect ratio.
+ */
+function constrainAspectRatio(
+  startBounds: ResizeBounds,
+  newBounds: ResizeBounds,
+  handle: string,
+): ResizeBounds {
+  const ratio = startBounds.width / startBounds.height
+  let { x, y, width, height } = newBounds
+
+  // Use the dominant axis delta to drive the other
+  const scaleX = width / startBounds.width
+  const scaleY = height / startBounds.height
+  const scale = Math.max(Math.abs(scaleX), Math.abs(scaleY))
+  width = startBounds.width * scale
+  height = startBounds.height * scale
+
+  // Adjust origin for top/left handles
+  if (handle.includes('left')) {
+    x = startBounds.x + startBounds.width - width
+  }
+  if (handle.includes('top')) {
+    y = startBounds.y + startBounds.height - height
+  }
+
+  // Enforce minimum size
+  if (width < 10) { width = 10; height = 10 / ratio }
+  if (height < 10) { height = 10; width = 10 * ratio }
+
+  return { x, y, width, height }
 }
 
 interface ResizeBounds {
@@ -69,13 +110,13 @@ function resizeText(
   if (isCornerHandle && startBounds.width > 0) {
     const originalFontSize = resizeStartFontSizes.get(id) ?? textShape.props.fontSize
     const scaleFactor = newBounds.width / startBounds.width
-    const newFontSize = Math.max(8, Math.round(originalFontSize * scaleFactor))
+    const newFontSize = Math.max(8, Math.min(200, Math.round(originalFontSize * scaleFactor)))
     const newProps = { ...textShape.props, fontSize: newFontSize }
     const { height } = wrapTextLines(textShape.props.text, newBounds.width, newProps)
     newBounds.height = height
     store.updateShape(id, { ...newBounds, props: newProps }, false)
   } else {
-    const { height } = wrapTextLines(textShape.props.text, newBounds.width, textShape.props)
+    const { height } = wrapTextLines(textShape.props.text, Math.max(newBounds.width, 20), textShape.props)
     newBounds.height = height
     store.updateShape(id, newBounds, false)
   }
@@ -84,17 +125,16 @@ function resizeText(
 function resizeLine(
   store: WhiteboardStore,
   id: string,
-  shape: LineShape,
   newBounds: ResizeBounds,
   startBounds: ResizeBounds,
   moveBeforeStates: Shape[],
 ): void {
   const original = moveBeforeStates.find((s) => s.id === id) as LineShape | undefined
-  if (original && startBounds.width > 0 && startBounds.height > 0) {
-    const scaleX = newBounds.width / startBounds.width
-    const scaleY = newBounds.height / startBounds.height
-    const newPoints = original.props.points.map((p) => ({ x: p.x * scaleX, y: p.y * scaleY }))
-    store.updateShape(id, { ...newBounds, props: { ...shape.props, points: newPoints } }, false)
+  const safeScaleX = startBounds.width > 0 ? newBounds.width / startBounds.width : 1
+  const safeScaleY = startBounds.height > 0 ? newBounds.height / startBounds.height : 1
+  if (original) {
+    const newPoints = original.props.points.map((p) => ({ x: p.x * safeScaleX, y: p.y * safeScaleY }))
+    store.updateShape(id, { ...newBounds, props: { ...original.props, points: newPoints } }, false)
   } else {
     store.updateShape(id, newBounds, false)
   }
@@ -109,11 +149,11 @@ function resizeArrow(
   moveBeforeStates: Shape[],
 ): void {
   const original = moveBeforeStates.find((s) => s.id === id) as ArrowShape | undefined
-  if (original && startBounds.width > 0 && startBounds.height > 0) {
-    const scaleX = newBounds.width / startBounds.width
-    const scaleY = newBounds.height / startBounds.height
-    const newStart = { x: original.props.start.x * scaleX, y: original.props.start.y * scaleY }
-    const newEnd = { x: original.props.end.x * scaleX, y: original.props.end.y * scaleY }
+  const safeScaleX = startBounds.width > 0 ? newBounds.width / startBounds.width : 1
+  const safeScaleY = startBounds.height > 0 ? newBounds.height / startBounds.height : 1
+  if (original) {
+    const newStart = { x: original.props.start.x * safeScaleX, y: original.props.start.y * safeScaleY }
+    const newEnd = { x: original.props.end.x * safeScaleX, y: original.props.end.y * safeScaleY }
     store.updateShape(id, { ...newBounds, props: { ...shape.props, start: newStart, end: newEnd } }, false)
   } else {
     store.updateShape(id, newBounds, false)
@@ -129,12 +169,12 @@ function resizePath(
   moveBeforeStates: Shape[],
 ): void {
   const original = moveBeforeStates.find((s) => s.id === id) as PathShape | undefined
-  if (original && startBounds.width > 0 && startBounds.height > 0) {
-    const scaleX = newBounds.width / startBounds.width
-    const scaleY = newBounds.height / startBounds.height
+  const safeScaleX = startBounds.width > 0 ? newBounds.width / startBounds.width : 1
+  const safeScaleY = startBounds.height > 0 ? newBounds.height / startBounds.height : 1
+  if (original) {
     const newPoints = original.props.points.map((p) => ({
-      x: p.x * scaleX,
-      y: p.y * scaleY,
+      x: p.x * safeScaleX,
+      y: p.y * safeScaleY,
       pressure: p.pressure,
     }))
     store.updateShape(id, { ...newBounds, props: { ...shape.props, points: newPoints } }, false)

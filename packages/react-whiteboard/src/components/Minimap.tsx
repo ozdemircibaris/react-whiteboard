@@ -10,6 +10,10 @@ export interface MinimapProps {
   className?: string
   /** Theme colors for minimap rendering */
   theme?: Partial<ThemeColors>
+  /** Actual canvas width for accurate viewport indicator (defaults to window.innerWidth) */
+  canvasWidth?: number
+  /** Actual canvas height for accurate viewport indicator (defaults to window.innerHeight) */
+  canvasHeight?: number
 }
 
 function getWorldBounds(shapes: Map<string, Shape>, shapeIds: string[]) {
@@ -38,7 +42,7 @@ function getWorldBounds(shapes: Map<string, Shape>, shapeIds: string[]) {
   }
 }
 
-export function Minimap({ width = 200, height = 150, className, theme: themeProp }: MinimapProps) {
+export function Minimap({ width = 200, height = 150, className, theme: themeProp, canvasWidth, canvasHeight }: MinimapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const shapes = useWhiteboardStore((s) => s.shapes)
   const shapeIds = useWhiteboardStore((s) => s.shapeIds)
@@ -85,11 +89,10 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
     }
 
     // Draw viewport rectangle
-    // Viewport in canvas coords: top-left is (-viewport.x / zoom, -viewport.y / zoom)
-    // Size is (canvasDisplayWidth / zoom, canvasDisplayHeight / zoom)
-    // We don't know canvasDisplayWidth here, estimate from viewport
-    const vpWidth = 1200 / viewport.zoom // approximate canvas width
-    const vpHeight = 800 / viewport.zoom  // approximate canvas height
+    const actualWidth = canvasWidth ?? (typeof window !== 'undefined' ? window.innerWidth : 1200)
+    const actualHeight = canvasHeight ?? (typeof window !== 'undefined' ? window.innerHeight : 800)
+    const vpWidth = actualWidth / viewport.zoom
+    const vpHeight = actualHeight / viewport.zoom
     const vpX = -viewport.x / viewport.zoom
     const vpY = -viewport.y / viewport.zoom
 
@@ -126,8 +129,10 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
       const worldY = (clickY - offsetY) / scale + world.y
 
       // Center viewport on clicked point
-      const vpWidth = 1200 / viewport.zoom
-      const vpHeight = 800 / viewport.zoom
+      const actualW = canvasWidth ?? (typeof window !== 'undefined' ? window.innerWidth : 1200)
+      const actualH = canvasHeight ?? (typeof window !== 'undefined' ? window.innerHeight : 800)
+      const vpWidth = actualW / viewport.zoom
+      const vpHeight = actualH / viewport.zoom
       setViewport({
         x: -(worldX - vpWidth / 2) * viewport.zoom,
         y: -(worldY - vpHeight / 2) * viewport.zoom,

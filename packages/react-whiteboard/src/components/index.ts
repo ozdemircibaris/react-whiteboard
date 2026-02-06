@@ -1,5 +1,5 @@
 export { Canvas } from './Canvas'
-export type { CanvasProps } from './Canvas'
+export type { CanvasProps, CanvasContextMenuEvent } from './Canvas'
 export { Minimap } from './Minimap'
 export type { MinimapProps } from './Minimap'
 export { Whiteboard } from './Whiteboard'

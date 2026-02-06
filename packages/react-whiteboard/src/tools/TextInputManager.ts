@@ -6,6 +6,8 @@ export { DEFAULT_TEXT_PROPS }
 export interface TextInputCallbacks {
   onConfirm: (text: string) => void
   onCancel: () => void
+  /** Called when bold/italic is toggled via keyboard shortcut during editing */
+  onStyleChange?: (props: Partial<Omit<TextShapeProps, 'text'>>) => void
 }
 
 /** Minimum dimensions for the editing textarea */
@@ -46,7 +48,7 @@ export class TextInputManager {
   }
 
   getValue(): string {
-    return this.textareaElement?.value.trim() ?? ''
+    return this.textareaElement?.value.trimEnd() ?? ''
   }
 
   /**
@@ -214,7 +216,43 @@ export class TextInputManager {
       return
     }
 
+    // Bold toggle: Cmd+B / Ctrl+B
+    if (e.key === 'b' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      e.stopPropagation()
+      this.toggleBold()
+      return
+    }
+
+    // Italic toggle: Cmd+I / Ctrl+I
+    if (e.key === 'i' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      e.stopPropagation()
+      this.toggleItalic()
+      return
+    }
+
     e.stopPropagation()
+  }
+
+  private toggleBold(): void {
+    const next = this.textProps.fontWeight === 700 ? 400 : 700
+    this.textProps = { ...this.textProps, fontWeight: next }
+    this.refreshStyles()
+    this.callbacks?.onStyleChange?.({ fontWeight: next })
+  }
+
+  private toggleItalic(): void {
+    const next = this.textProps.fontStyle === 'italic' ? 'normal' as const : 'italic' as const
+    this.textProps = { ...this.textProps, fontStyle: next }
+    this.refreshStyles()
+    this.callbacks?.onStyleChange?.({ fontStyle: next })
+  }
+
+  private refreshStyles(): void {
+    if (!this.textareaElement) return
+    this.textareaElement.style.font = resolveFont(this.textProps)
+    this.autoResize()
   }
 
   private handleBlur = (): void => {

@@ -33,7 +33,7 @@ export function IconButton({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className={`wb-icon-btn ${variant} ${dim} inline-flex items-center justify-center rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed`}
+      className={`wb-icon-btn ${variant} ${dim} inline-flex items-center justify-center rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wb-accent)]`}
     >
       {icon}
     </button>

@@ -66,11 +66,13 @@ export function exportToJSON(
  * Throws on invalid input.
  */
 export function parseDocument(json: string): WhiteboardDocument {
-  const data = JSON.parse(json) as Record<string, unknown>
+  const raw: unknown = JSON.parse(json)
 
-  if (typeof data !== 'object' || data === null) {
+  if (typeof raw !== 'object' || raw === null) {
     throw new Error('Invalid document: not an object')
   }
+
+  const data = raw as Record<string, unknown>
 
   if (data.source !== 'react-whiteboard') {
     throw new Error('Invalid document: unrecognized source')
@@ -89,7 +91,13 @@ export function parseDocument(json: string): WhiteboardDocument {
     throw new Error('Invalid document: invalid viewport')
   }
 
-  return data as unknown as WhiteboardDocument
+  return {
+    version: data.version,
+    source: data.source as 'react-whiteboard',
+    viewport,
+    shapes: data.shapes as Shape[],
+    shapeIds: data.shapeIds as string[],
+  }
 }
 
 /**

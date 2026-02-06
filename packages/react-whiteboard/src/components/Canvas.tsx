@@ -2,12 +2,24 @@ import { useRef, useEffect, useCallback } from 'react'
 import { useWhiteboardStore, useWhiteboardContext } from '../context'
 import { screenToCanvas, getVisibleBounds, expandBounds, boundsIntersect } from '../utils/canvas'
 import { handleImagePaste } from '../core/store/imagePasteActions'
+import { getShapeAtPoint } from '../utils/hitTest'
 import { useCanvasSetup } from '../hooks/useCanvasSetup'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { useTouchGestures } from '../hooks/useTouchGestures'
 import { useTools } from '../hooks/useTools'
 import { resolveTheme } from '../types/theme'
 import type { ThemeColors } from '../types/theme'
+import type { Point } from '../types'
+
+/** Event data passed to the onContextMenu callback */
+export interface CanvasContextMenuEvent {
+  /** Screen-space position (use for menu placement) */
+  screenPoint: Point
+  /** Canvas-space position */
+  canvasPoint: Point
+  /** Shape under the cursor, or null if empty space */
+  shapeId: string | null
+}
 
 export interface CanvasProps {
   /** Show grid */
@@ -24,6 +36,8 @@ export interface CanvasProps {
   readOnly?: boolean
   /** Theme colors for canvas rendering (grid, selection, etc.) */
   theme?: Partial<ThemeColors>
+  /** Called on right-click. Prevents browser context menu automatically. */
+  onContextMenu?: (event: CanvasContextMenuEvent) => void
 }
 
 const containerStyle: React.CSSProperties = {
@@ -54,6 +68,7 @@ export function Canvas({
   onReady,
   readOnly = false,
   theme,
+  onContextMenu,
 }: CanvasProps) {
   const resolvedBg = backgroundColor ?? theme?.canvasBackground ?? '#fafafa'
   // ── Canvas setup (init + resize) ──────────────────────────────────
@@ -246,16 +261,48 @@ export function Canvas({
     return () => canvas.removeEventListener('wheel', handleWheel)
   }, [canvasRef, containerRef, viewport, zoom])
 
+  // ── Context menu (right-click) ────────────────────────────────────
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      if (!onContextMenu) return
+
+      const container = containerRef.current
+      if (!container) return
+
+      const rect = container.getBoundingClientRect()
+      const screenPoint: Point = { x: e.clientX, y: e.clientY }
+      const canvasPoint = screenToCanvas(screenPoint, viewport, rect)
+
+      const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
+
+      // Auto-select hit shape if not already selected
+      if (hitShape && !selectedIds.has(hitShape.id)) {
+        store.getState().select(hitShape.id)
+      }
+
+      onContextMenu({
+        screenPoint,
+        canvasPoint,
+        shapeId: hitShape?.id ?? null,
+      })
+    },
+    [onContextMenu, containerRef, viewport, shapes, shapeIds, selectedIds, store],
+  )
+
   // ── JSX ───────────────────────────────────────────────────────────
   return (
     <div ref={containerRef} className={className} style={containerStyle}>
       <canvas
         ref={canvasRef}
+        role="application"
+        aria-label="Whiteboard canvas"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
         onDoubleClick={handleDoubleClick}
+        onContextMenu={handleContextMenu}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

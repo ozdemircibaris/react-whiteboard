@@ -5,14 +5,24 @@ import { PanelSection } from './PanelSection'
 import { OptionButton } from './OptionButton'
 import { ColorSwatch } from './ColorSwatch'
 
-const STROKE_COLORS = [
+const STROKE_COLORS_LIGHT = [
   '#1e1e1e', '#6b7280', '#dc2626', '#2563eb',
   '#16a34a', '#ea580c', '#9333ea', '#ec4899',
 ]
 
-const FILL_COLORS = [
+const STROKE_COLORS_DARK = [
+  '#e0e0e0', '#9ca3af', '#f87171', '#60a5fa',
+  '#4ade80', '#fb923c', '#c084fc', '#f472b6',
+]
+
+const FILL_COLORS_LIGHT = [
   'transparent', '#fef3c7', '#dbeafe', '#dcfce7',
   '#fce7f3', '#f3e8ff', '#e0f2fe', '#e0e0e0',
+]
+
+const FILL_COLORS_DARK = [
+  'transparent', '#422006', '#172554', '#052e16',
+  '#500724', '#3b0764', '#082f49', '#374151',
 ]
 
 const FILL_STYLES: { value: FillStyle; label: string }[] = [
@@ -30,7 +40,10 @@ const STROKE_STYLES: { value: StrokeStyle; label: string }[] = [
 
 const STROKE_WIDTHS = [1, 2, 4, 6]
 
-export function ShapePropertiesPanel() {
+export function ShapePropertiesPanel({ isDark = false }: { isDark?: boolean }) {
+  const strokeColors = isDark ? STROKE_COLORS_DARK : STROKE_COLORS_LIGHT
+  const fillColors = isDark ? FILL_COLORS_DARK : FILL_COLORS_LIGHT
+
   const {
     currentProps,
     selectedCount,
@@ -51,7 +64,7 @@ export function ShapePropertiesPanel() {
     <div className="absolute top-1/2 right-3 -translate-y-1/2 z-50">
       <GlassPanel className="flex flex-col gap-3 px-4 py-3 min-w-[220px]">
         <PanelSection label="Stroke">
-          {STROKE_COLORS.map((c) => (
+          {strokeColors.map((c) => (
             <ColorSwatch
               key={c}
               color={c}
@@ -89,7 +102,7 @@ export function ShapePropertiesPanel() {
 
         {hasFillableShape && (
           <PanelSection label="Fill">
-            {FILL_COLORS.map((c) => (
+            {fillColors.map((c) => (
               <ColorSwatch
                 key={c}
                 color={c}

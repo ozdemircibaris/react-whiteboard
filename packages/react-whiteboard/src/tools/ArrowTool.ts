@@ -66,6 +66,9 @@ export class ArrowTool extends BaseLineTool {
     to: Point,
     size: number
   ): void {
+    // Skip if points are identical (zero-length arrow)
+    if (from.x === to.x && from.y === to.y) return
+
     const angle = Math.atan2(to.y - from.y, to.x - from.x)
     const headAngle = Math.PI / 6 // 30 degrees
 

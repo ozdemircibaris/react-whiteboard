@@ -52,7 +52,7 @@ export function ColorSwatch({
     <button
       onClick={onClick}
       aria-label={readableLabel}
-      className={`h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 ${
+      className={`h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wb-accent)] focus-visible:ring-offset-1 ${
         active ? 'scale-110' : ''
       }`}
       style={{
