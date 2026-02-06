@@ -138,6 +138,7 @@ export type { WhiteboardDocument } from './utils/serialization'
 // ============================================================================
 
 export { exportToPng, downloadPng } from './utils/exportPng'
+export { clearImageCache } from './core/renderer/imageRenderer'
 export type { ExportPngOptions } from './utils/exportPng'
 
 // ============================================================================

@@ -251,6 +251,8 @@ export function Canvas({
     <div ref={containerRef} className={className} style={containerStyle}>
       <canvas
         ref={canvasRef}
+        role="application"
+        aria-label="Whiteboard canvas"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
