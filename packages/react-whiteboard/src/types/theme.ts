@@ -40,6 +40,9 @@ export interface ThemeColors {
   minimapViewportFill: string
   /** Minimap border color */
   minimapBorder: string
+
+  /** Default text color for new text shapes */
+  defaultTextColor: string
 }
 
 export const LIGHT_THEME: ThemeColors = {
@@ -58,6 +61,7 @@ export const LIGHT_THEME: ThemeColors = {
   minimapViewportStroke: '#3b82f6',
   minimapViewportFill: 'rgba(59, 130, 246, 0.08)',
   minimapBorder: '#e5e7eb',
+  defaultTextColor: '#1e1e1e',
 }
 
 export const DARK_THEME: ThemeColors = {
@@ -76,6 +80,7 @@ export const DARK_THEME: ThemeColors = {
   minimapViewportStroke: '#4d9fff',
   minimapViewportFill: 'rgba(77, 159, 255, 0.1)',
   minimapBorder: '#333355',
+  defaultTextColor: '#e0e0e0',
 }
 
 /** Merge a partial theme with a base theme (defaults to LIGHT_THEME) */

@@ -25,6 +25,9 @@ function getWorldBounds(shapes: Map<string, Shape>, shapeIds: string[]) {
     maxY = Math.max(maxY, s.y + s.height)
   }
 
+  // If no shapes were found in the map, return default bounds
+  if (!isFinite(minX)) return { x: 0, y: 0, width: 1000, height: 800 }
+
   // Add padding
   const pad = 100
   return {

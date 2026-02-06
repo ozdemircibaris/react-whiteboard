@@ -75,12 +75,12 @@ export function exportToPng(
   const offsetY = padding - bounds.minY
   ctx.setTransform(scale, 0, 0, scale, offsetX * scale, offsetY * scale)
 
-  // Render shapes using the real renderer
+  // Render shapes using the real renderer (pass allShapes for bound text)
   const renderer = new CanvasRenderer(ctx)
   for (const id of shapeIds) {
     const shape = shapes.get(id)
     if (shape) {
-      renderer.drawShape(shape, selectedIds.has(id))
+      renderer.drawShape(shape, selectedIds.has(id), shapes)
     }
   }
 

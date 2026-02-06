@@ -28,7 +28,7 @@ export function FloatingToolbar() {
 
   return (
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
-      <GlassPanel className="flex items-center gap-0.5 px-1.5 py-1.5">
+      <GlassPanel role="toolbar" aria-label="Drawing tools" className="flex items-center gap-0.5 px-1.5 py-1.5">
         {TOOLS.map(({ type, label, icon }) => (
           <IconButton
             key={type}

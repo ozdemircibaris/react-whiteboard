@@ -35,7 +35,8 @@ export function createHistoryActions(set: StoreApi['set'], get: StoreApi['get'])
           const newShapeIds = [...s.shapeIds]
           shapesToRestore.forEach((shape) => {
             newShapes.set(shape.id, shape)
-            if (!newShapeIds.includes(shape.id)) {
+            // Don't add bound text children to shapeIds (they have parentId)
+            if (!shape.parentId && !newShapeIds.includes(shape.id)) {
               newShapeIds.push(shape.id)
             }
           })
@@ -79,7 +80,8 @@ export function createHistoryActions(set: StoreApi['set'], get: StoreApi['get'])
           const newShapeIds = [...s.shapeIds]
           shapesToAdd.forEach((shape) => {
             newShapes.set(shape.id, shape)
-            if (!newShapeIds.includes(shape.id)) {
+            // Don't add bound text children to shapeIds (they have parentId)
+            if (!shape.parentId && !newShapeIds.includes(shape.id)) {
               newShapeIds.push(shape.id)
             }
           })
