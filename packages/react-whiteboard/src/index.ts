@@ -103,7 +103,9 @@ export {
   useTools,
   useTextProperties,
   useShapeProperties,
+  useWhiteboardEvents,
 } from './hooks'
+export type { WhiteboardEventCallbacks } from './hooks'
 
 // ============================================================================
 // Tools (advanced — custom tool API)
@@ -140,6 +142,13 @@ export type { WhiteboardDocument } from './utils/serialization'
 export { exportToPng, downloadPng } from './utils/exportPng'
 export { clearImageCache } from './core/renderer/imageRenderer'
 export type { ExportPngOptions } from './utils/exportPng'
+
+// ============================================================================
+// Utils — SVG Export
+// ============================================================================
+
+export { exportToSvg, downloadSvg } from './utils/exportSvg'
+export type { ExportSvgOptions } from './utils/exportSvg'
 
 // ============================================================================
 // Utils — Fonts
