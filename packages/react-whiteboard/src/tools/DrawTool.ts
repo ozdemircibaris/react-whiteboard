@@ -19,6 +19,9 @@ const DEFAULT_PATH_PROPS = {
   strokeWidth: 3,
 }
 
+/** Maximum points per stroke to prevent memory/performance issues */
+const MAX_POINTS = 2000
+
 /**
  * Shared stroke options for perfect-freehand
  */
@@ -84,11 +87,15 @@ export class DrawTool implements ITool {
 
     state.dragCurrent = ctx.canvasPoint
 
-    this.points.push({
-      x: ctx.canvasPoint.x,
-      y: ctx.canvasPoint.y,
-      pressure: ctx.pressure,
-    })
+    // Cap point count to prevent unbounded memory growth on long strokes.
+    // After limit, downsample by skipping every other point.
+    if (this.points.length < MAX_POINTS || this.points.length % 2 === 0) {
+      this.points.push({
+        x: ctx.canvasPoint.x,
+        y: ctx.canvasPoint.y,
+        pressure: ctx.pressure,
+      })
+    }
 
     return { handled: true, cursor: 'crosshair' }
   }

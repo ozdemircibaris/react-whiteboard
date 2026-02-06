@@ -67,18 +67,22 @@ export class SelectTool implements ITool {
       const selectionBounds = getSelectionBounds(selectedShapes)
 
       if (selectionBounds) {
-        // Check rotation handle first
-        if (hitTestRotationHandle(canvasPoint, selectionBounds)) {
-          const rot = initRotation(canvasPoint, selectedShapes, state)
-          this.rotationInitialAngle = rot.initialAngle
-          this.moveBeforeStates = rot.beforeStates
-          return rot.result
-        }
+        // Block resize/rotate for locked shapes
+        const hasUnlocked = selectedShapes.some((s) => !s.isLocked)
+        if (hasUnlocked) {
+          // Check rotation handle first
+          if (hitTestRotationHandle(canvasPoint, selectionBounds)) {
+            const rot = initRotation(canvasPoint, selectedShapes, state)
+            this.rotationInitialAngle = rot.initialAngle
+            this.moveBeforeStates = rot.beforeStates
+            return rot.result
+          }
 
-        // Check resize handles
-        const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
-        if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
-          return this.startResize(canvasPoint, handle, selectedShapes, state)
+          // Check resize handles
+          const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
+          if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
+            return this.startResize(canvasPoint, handle, selectedShapes, state)
+          }
         }
       }
     }
@@ -94,6 +98,12 @@ export class SelectTool implements ITool {
         }
       } else if (!selectedIds.has(hitShape.id)) {
         store.select(hitShape.id)
+      }
+
+      // Block move for locked shapes (allow selection for unlock access)
+      const movableShapes = this.getSelectedShapes(store).filter((s) => !s.isLocked)
+      if (movableShapes.length === 0) {
+        return { handled: true, capture: false, cursor: 'not-allowed' }
       }
       return this.startMove(canvasPoint, store, state)
     }
@@ -124,7 +134,7 @@ export class SelectTool implements ITool {
     // Resize drag
     if (state.isDragging && state.resizeHandle && state.dragStart) {
       state.dragCurrent = canvasPoint
-      applyResize(store, state, this.moveBeforeStates, this.resizeStartFontSizes)
+      applyResize(store, state, this.moveBeforeStates, this.resizeStartFontSizes, ctx.shiftKey)
       return { handled: true, cursor: RESIZE_CURSORS[state.resizeHandle] }
     }
 
@@ -267,7 +277,8 @@ export class SelectTool implements ITool {
     const selectedShapes: Shape[] = []
     store.selectedIds.forEach((id) => {
       const shape = store.shapes.get(id)
-      if (shape) {
+      // Skip locked shapes — they stay in place
+      if (shape && !shape.isLocked) {
         state.startPositions.set(id, {
           x: shape.x, y: shape.y, width: shape.width, height: shape.height,
         })
@@ -330,7 +341,9 @@ export class SelectTool implements ITool {
       }
     }
     const hitShape = getShapeAtPoint(canvasPoint, store.shapes, store.shapeIds, 2)
-    if (hitShape) return { handled: true, cursor: 'move' }
+    if (hitShape) {
+      return { handled: true, cursor: hitShape.isLocked ? 'not-allowed' : 'move' }
+    }
     return { handled: false, cursor: 'default' }
   }
 
