@@ -157,10 +157,10 @@ Clean, composable public API for library consumers.
 - [x] Hooks: useWhiteboardContext(), useWhiteboardStore(), useToolManager(), useTextProperties(), useShapeProperties()
 - [x] Event callbacks: onShapeCreate, onShapeUpdate, onShapeDelete, onViewportChange (via useWhiteboardEvents hook + Whiteboard props)
 - [x] Custom tool registration API (ToolManager accessible via useToolManager)
-- [ ] Custom shape renderer API (runtime plugin system)
+- [x] Custom shape renderer API (runtime plugin system)
 - [x] Headless mode (WhiteboardProvider + useWhiteboardStore without Canvas)
-- [ ] API documentation + Storybook
-- [ ] `tools` prop for component-level tool registration
+- [ ] API documentation
+- [x] `tools` prop for component-level tool registration
 - [ ] `locale` prop for i18n
 
 ### Phase 13: Persistence (Supabase)

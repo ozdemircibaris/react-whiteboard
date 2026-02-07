@@ -5,6 +5,8 @@ import { Minimap } from './Minimap'
 import { useWhiteboardEvents } from '../hooks/useWhiteboardEvents'
 import type { Shape, Viewport } from '../types'
 import type { ThemeColors } from '../types/theme'
+import type { CustomShapeRenderer } from '../core/renderer/ShapeRendererRegistry'
+import type { ITool } from '../tools/types'
 
 // ============================================================================
 // Props
@@ -49,6 +51,11 @@ export interface WhiteboardProps {
   onShapeDelete?: (shape: Shape) => void
   /** Fired when the viewport (pan/zoom) changes */
   onViewportChange?: (viewport: Viewport) => void
+
+  /** Custom shape renderers (additive to built-in shapes) */
+  customShapes?: CustomShapeRenderer[]
+  /** Custom tools (additive to default tools) */
+  tools?: ITool[]
 
   /** Overlay content rendered on top of the canvas (toolbars, panels, etc.) */
   children?: ReactNode
@@ -150,7 +157,7 @@ function WhiteboardInner({
  */
 export function Whiteboard(props: WhiteboardProps) {
   return (
-    <WhiteboardProvider>
+    <WhiteboardProvider customShapes={props.customShapes} tools={props.tools}>
       <WhiteboardInner {...props} />
     </WhiteboardProvider>
   )

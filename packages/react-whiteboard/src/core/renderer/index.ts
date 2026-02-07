@@ -25,6 +25,7 @@ import {
   drawBoundingBox,
 } from './shapeRenderers'
 import { drawImage } from './imageRenderer'
+import type { ShapeRendererRegistry } from './ShapeRendererRegistry'
 
 /**
  * Canvas renderer with RoughJS for hand-drawn aesthetic.
@@ -36,6 +37,7 @@ export class CanvasRenderer {
   private selectionFn: (x: number, y: number, w: number, h: number) => void
   private cornerOnlySelectionFn: (x: number, y: number, w: number, h: number) => void
   private theme: ThemeColors
+  private registry: ShapeRendererRegistry | null = null
 
   constructor(ctx: CanvasRenderingContext2D, theme?: Partial<ThemeColors>) {
     this.ctx = ctx
@@ -53,6 +55,11 @@ export class CanvasRenderer {
   /** Get the current resolved theme */
   getTheme(): ThemeColors {
     return this.theme
+  }
+
+  /** Set the custom shape renderer registry */
+  setRegistry(registry: ShapeRendererRegistry): void {
+    this.registry = registry
   }
 
   private get dpr(): number {
@@ -141,8 +148,21 @@ export class CanvasRenderer {
       case 'image':
         drawImage(this.ctx, shape as ImageShape, isSelected, fn)
         break
-      default:
-        drawBoundingBox(this.ctx, shape, isSelected, fn)
+      default: {
+        const custom = this.registry?.getRenderer(shape.type)
+        if (custom) {
+          custom.draw({
+            ctx: this.ctx,
+            roughCanvas: this.roughCanvas,
+            shape,
+            isSelected,
+            drawSelection: fn,
+            allShapes: allShapes ?? new Map(),
+          })
+        } else {
+          drawBoundingBox(this.ctx, shape, isSelected, fn)
+        }
+      }
     }
   }
 

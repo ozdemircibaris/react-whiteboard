@@ -1,4 +1,5 @@
 import type { Point, Shape, PathShape, LineShape, ArrowShape } from '../types'
+import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 
 /** Threshold for detecting degenerate shapes */
 const EPSILON = 0.0001
@@ -219,9 +220,15 @@ export function hitTestArrow(point: Point, shape: ArrowShape, tolerance: number 
 }
 
 /**
- * Hit test a single shape
+ * Hit test a single shape.
+ * Pass an optional registry to support custom shape hit testing.
  */
-export function hitTestShape(point: Point, shape: Shape, tolerance: number = 0): boolean {
+export function hitTestShape(
+  point: Point,
+  shape: Shape,
+  tolerance: number = 0,
+  registry?: ShapeRendererRegistry,
+): boolean {
   if (shape.isLocked) return false
 
   switch (shape.type) {
@@ -239,7 +246,12 @@ export function hitTestShape(point: Point, shape: Shape, tolerance: number = 0):
     case 'image':
     case 'group':
       return hitTestRectangle(point, shape, tolerance)
-    default:
+    default: {
+      const custom = registry?.getRenderer(shape.type)
+      if (custom?.hitTest) {
+        return custom.hitTest(point, shape, tolerance)
+      }
       return hitTestRectangle(point, shape, tolerance)
+    }
   }
 }

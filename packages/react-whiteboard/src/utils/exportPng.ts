@@ -1,5 +1,6 @@
 import type { Shape } from '../types'
 import { CanvasRenderer } from '../core/renderer'
+import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 
 /** Options for PNG export */
 export interface ExportPngOptions {
@@ -9,6 +10,8 @@ export interface ExportPngOptions {
   backgroundColor?: string
   /** Device pixel ratio for export resolution (default: 2) */
   scale?: number
+  /** Custom shape renderer registry for custom shapes */
+  registry?: ShapeRendererRegistry
 }
 
 /**
@@ -77,6 +80,9 @@ export function exportToPng(
 
   // Render shapes using the real renderer (pass allShapes for bound text)
   const renderer = new CanvasRenderer(ctx)
+  if (options.registry) {
+    renderer.setRegistry(options.registry)
+  }
   for (const id of shapeIds) {
     const shape = shapes.get(id)
     if (shape) {

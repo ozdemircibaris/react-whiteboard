@@ -74,6 +74,7 @@ export {
   WhiteboardProvider,
   useWhiteboardStore,
   useToolManager,
+  useShapeRendererRegistry,
 } from './context'
 export type { WhiteboardProviderProps } from './context'
 
@@ -81,8 +82,13 @@ export type { WhiteboardProviderProps } from './context'
 // Core
 // ============================================================================
 
-export { createWhiteboardStore, CanvasRenderer } from './core'
-export type { WhiteboardStore } from './core'
+export { createWhiteboardStore, CanvasRenderer, ShapeRendererRegistry } from './core'
+export type {
+  WhiteboardStore,
+  CustomShapeRenderer,
+  CustomShapeDrawContext,
+  CustomShapeSvgContext,
+} from './core'
 export { MIN_ZOOM, MAX_ZOOM } from './core/store/viewportActions'
 
 // ============================================================================

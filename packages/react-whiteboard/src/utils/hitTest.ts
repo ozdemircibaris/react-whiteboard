@@ -1,4 +1,5 @@
 import type { Point, Shape, Bounds, PathShape } from '../types'
+import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 
 // Re-export from sub-modules
 export {
@@ -67,20 +68,22 @@ export function getShapeBounds(shape: Shape): Bounds {
 import { hitTestShape } from './shapeHitTest'
 
 /**
- * Find the shape at a given point (returns the topmost shape)
+ * Find the shape at a given point (returns the topmost shape).
+ * Pass an optional registry for custom shape hit testing.
  */
 export function getShapeAtPoint(
   point: Point,
   shapes: Map<string, Shape>,
   shapeIds: string[],
-  tolerance: number = 0
+  tolerance: number = 0,
+  registry?: ShapeRendererRegistry,
 ): Shape | null {
   for (let i = shapeIds.length - 1; i >= 0; i--) {
     const id = shapeIds[i]
     if (!id) continue
 
     const shape = shapes.get(id)
-    if (shape && hitTestShape(point, shape, tolerance)) {
+    if (shape && hitTestShape(point, shape, tolerance, registry)) {
       return shape
     }
   }
@@ -88,19 +91,21 @@ export function getShapeAtPoint(
 }
 
 /**
- * Find all shapes at a given point
+ * Find all shapes at a given point.
+ * Pass an optional registry for custom shape hit testing.
  */
 export function getShapesAtPoint(
   point: Point,
   shapes: Map<string, Shape>,
   shapeIds: string[],
-  tolerance: number = 0
+  tolerance: number = 0,
+  registry?: ShapeRendererRegistry,
 ): Shape[] {
   const result: Shape[] = []
 
   for (const id of shapeIds) {
     const shape = shapes.get(id)
-    if (shape && hitTestShape(point, shape, tolerance)) {
+    if (shape && hitTestShape(point, shape, tolerance, registry)) {
       result.push(shape)
     }
   }

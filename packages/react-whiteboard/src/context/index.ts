@@ -3,5 +3,6 @@ export {
   useWhiteboardStore,
   useWhiteboardContext,
   useToolManager,
+  useShapeRendererRegistry,
   type WhiteboardProviderProps,
 } from './WhiteboardContext'
