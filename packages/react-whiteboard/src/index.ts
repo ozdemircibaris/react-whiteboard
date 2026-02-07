@@ -103,7 +103,7 @@ export type { CanvasProps, CanvasContextMenuEvent, MinimapProps, WhiteboardProps
 // ============================================================================
 
 export {
-  useCanvasSetup,
+  useDualCanvasSetup,
   useKeyboardShortcuts,
   useTouchGestures,
   useTools,

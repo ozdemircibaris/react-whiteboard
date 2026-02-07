@@ -18,9 +18,13 @@ import { TextTool } from './TextTool'
  * Each instance owns its own set of tool instances.
  */
 export class ToolManager {
+  private static EMPTY_SET: ReadonlySet<string> = new Set<string>()
+
   private tools: Map<ToolType, ITool> = new Map()
   private activeTool: ITool | null = null
   private state: ToolState
+  private cachedTransientIds: ReadonlySet<string> = ToolManager.EMPTY_SET
+  private cachedTransientSize = 0
   private storeGetter: (() => WhiteboardStore) | null = null
   private _theme: ThemeColors = LIGHT_THEME
   private _registry: ShapeRendererRegistry | null = null
@@ -236,6 +240,24 @@ export class ToolManager {
    */
   isDragging(): boolean {
     return this.state.isDragging
+  }
+
+  /**
+   * Get IDs of shapes being actively moved/resized/rotated.
+   * Used by dual-canvas architecture to render these shapes on the interactive canvas
+   * instead of the static canvas during drag operations.
+   * Cached to avoid allocations on the hot render path.
+   */
+  getTransientShapeIds(): ReadonlySet<string> {
+    if (!this.state.isDragging || this.state.startPositions.size === 0) {
+      return ToolManager.EMPTY_SET
+    }
+    // Rebuild only when the set of dragged shapes changes
+    if (this.state.startPositions.size !== this.cachedTransientSize) {
+      this.cachedTransientIds = new Set(this.state.startPositions.keys())
+      this.cachedTransientSize = this.state.startPositions.size
+    }
+    return this.cachedTransientIds
   }
 
   /**

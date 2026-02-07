@@ -24,6 +24,7 @@ import {
   drawText,
   drawBoundingBox,
 } from './shapeRenderers'
+import { applyRotation } from './shapeRenderers/shared'
 import { drawImage } from './imageRenderer'
 import type { ShapeRendererRegistry } from './ShapeRendererRegistry'
 
@@ -32,6 +33,8 @@ import type { ShapeRendererRegistry } from './ShapeRendererRegistry'
  * Orchestrates shape rendering and handles grid/selection drawing.
  */
 export class CanvasRenderer {
+  private static NOOP_SELECTION = (_x: number, _y: number, _w: number, _h: number) => {}
+
   private ctx: CanvasRenderingContext2D
   private roughCanvas: RoughCanvas
   private selectionFn: (x: number, y: number, w: number, h: number) => void
@@ -122,31 +125,40 @@ export class CanvasRenderer {
   /**
    * Draw a shape — dispatches to type-specific renderer.
    * Pass allShapes to enable bound text rendering inside container shapes.
+   * When skipSelection is true, selection outlines are suppressed (used by static canvas).
    */
-  drawShape(shape: Shape, isSelected: boolean = false, allShapes?: Map<string, Shape>): void {
-    const fn = this.selectionFn
+  drawShape(
+    shape: Shape,
+    isSelected: boolean = false,
+    allShapes?: Map<string, Shape>,
+    skipSelection: boolean = false,
+  ): void {
+    const noop = CanvasRenderer.NOOP_SELECTION
+    const fn = skipSelection ? noop : this.selectionFn
+    const cornerFn = skipSelection ? noop : this.cornerOnlySelectionFn
+    const sel = skipSelection ? false : isSelected
 
     switch (shape.type) {
       case 'rectangle':
-        drawRectangle(this.ctx, this.roughCanvas, shape as RectangleShape, isSelected, fn, allShapes)
+        drawRectangle(this.ctx, this.roughCanvas, shape as RectangleShape, sel, fn, allShapes)
         break
       case 'ellipse':
-        drawEllipse(this.ctx, this.roughCanvas, shape as EllipseShape, isSelected, fn, allShapes)
+        drawEllipse(this.ctx, this.roughCanvas, shape as EllipseShape, sel, fn, allShapes)
         break
       case 'path':
-        drawPath(this.ctx, shape as PathShape, isSelected, fn)
+        drawPath(this.ctx, shape as PathShape, sel, fn)
         break
       case 'line':
-        drawLine(this.ctx, this.roughCanvas, shape as LineShape, isSelected, fn)
+        drawLine(this.ctx, this.roughCanvas, shape as LineShape, sel, fn)
         break
       case 'arrow':
-        drawArrow(this.ctx, this.roughCanvas, shape as ArrowShape, isSelected, fn)
+        drawArrow(this.ctx, this.roughCanvas, shape as ArrowShape, sel, fn)
         break
       case 'text':
-        drawText(this.ctx, shape as TextShape, isSelected, this.cornerOnlySelectionFn)
+        drawText(this.ctx, shape as TextShape, sel, cornerFn)
         break
       case 'image':
-        drawImage(this.ctx, shape as ImageShape, isSelected, fn)
+        drawImage(this.ctx, shape as ImageShape, sel, fn)
         break
       default: {
         const custom = this.registry?.getRenderer(shape.type)
@@ -155,15 +167,28 @@ export class CanvasRenderer {
             ctx: this.ctx,
             roughCanvas: this.roughCanvas,
             shape,
-            isSelected,
+            isSelected: sel,
             drawSelection: fn,
             allShapes: allShapes ?? new Map(),
           })
         } else {
-          drawBoundingBox(this.ctx, shape, isSelected, fn)
+          drawBoundingBox(this.ctx, shape, sel, fn)
         }
       }
     }
+  }
+
+  /**
+   * Draw only the selection outline for a shape (without rendering the shape itself).
+   * Applies the shape's rotation transform so handles are correctly positioned.
+   * Used by the interactive canvas for non-transient selected shapes.
+   */
+  drawSelectionForShape(shape: Shape): void {
+    const cornersOnly = shape.type === 'text'
+    this.ctx.save()
+    applyRotation(this.ctx, shape.rotation, shape.x, shape.y, shape.width, shape.height)
+    this.drawSelectionOutline(cornersOnly, shape.x, shape.y, shape.width, shape.height)
+    this.ctx.restore()
   }
 
   /**

@@ -3,7 +3,7 @@ import { useWhiteboardStore, useWhiteboardContext } from '../context'
 import { screenToCanvas, getVisibleBounds, expandBounds, boundsIntersect } from '../utils/canvas'
 import { handleImagePaste } from '../core/store/imagePasteActions'
 import { getShapeAtPoint } from '../utils/hitTest'
-import { useCanvasSetup } from '../hooks/useCanvasSetup'
+import { useDualCanvasSetup } from '../hooks/useDualCanvasSetup'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { useTouchGestures } from '../hooks/useTouchGestures'
 import { useTools } from '../hooks/useTools'
@@ -42,20 +42,20 @@ export interface CanvasProps {
 
 const containerStyle: React.CSSProperties = {
   position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
+  top: 0, left: 0, right: 0, bottom: 0,
   overflow: 'hidden',
   touchAction: 'none',
 }
 
+const canvasBaseStyle: React.CSSProperties = {
+  display: 'block',
+  position: 'absolute',
+  top: 0, left: 0,
+}
+
 const textOverlayStyle: React.CSSProperties = {
   position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
+  top: 0, left: 0, right: 0, bottom: 0,
   pointerEvents: 'none',
   overflow: 'hidden',
 }
@@ -71,8 +71,13 @@ export function Canvas({
   onContextMenu,
 }: CanvasProps) {
   const resolvedBg = backgroundColor ?? theme?.canvasBackground ?? '#fafafa'
-  // ── Canvas setup (init + resize) ──────────────────────────────────
-  const { canvasRef, containerRef, rendererRef, setupCanvas } = useCanvasSetup({ onReady })
+
+  // ── Dual canvas setup (static + interactive) ──────────────────────
+  const {
+    staticCanvasRef, interactiveCanvasRef, containerRef,
+    staticRendererRef, interactiveRendererRef, setupCanvases,
+  } = useDualCanvasSetup({ onReady })
+
   const textOverlayRef = useRef<HTMLDivElement>(null)
   const renderFnRef = useRef<(() => void) | null>(null)
   const { store, toolManager, shapeRendererRegistry } = useWhiteboardContext()
@@ -108,52 +113,48 @@ export function Canvas({
   const ungroupSelectedShapes = useWhiteboardStore((s) => s.ungroupSelectedShapes)
   const setTool = useWhiteboardStore((s) => s.setTool)
 
-  // ── Wire shape renderer registry to canvas renderer ──────────────
-  useEffect(() => {
-    rendererRef.current?.setRegistry(shapeRendererRegistry)
-  }, [shapeRendererRegistry, rendererRef])
+  // ── Refs for render data (avoid stale closures in render fns) ─────
+  const shapesRef = useRef(shapes)
+  const shapeIdsRef = useRef(shapeIds)
+  shapesRef.current = shapes
+  shapeIdsRef.current = shapeIds
 
-  // ── Sync theme to renderer + tool manager ────────────────────────
+  const hadTransientRef = useRef(false)
+  const staticRafRef = useRef(0)
+  const renderStaticRef = useRef<(() => void) | null>(null)
+  const renderInteractiveRef = useRef<(() => void) | null>(null)
+
+  // ── Wire shape renderer registry to both renderers ────────────────
+  useEffect(() => {
+    staticRendererRef.current?.setRegistry(shapeRendererRegistry)
+    interactiveRendererRef.current?.setRegistry(shapeRendererRegistry)
+  }, [shapeRendererRegistry, staticRendererRef, interactiveRendererRef])
+
+  // ── Sync theme to both renderers + tool manager ───────────────────
   useEffect(() => {
     if (theme) {
       const resolved = resolveTheme(theme)
-      rendererRef.current?.setTheme(resolved)
+      staticRendererRef.current?.setTheme(resolved)
+      interactiveRendererRef.current?.setTheme(resolved)
       toolManager.setTheme(resolved)
     }
-  }, [theme, toolManager, rendererRef])
+  }, [theme, toolManager, staticRendererRef, interactiveRendererRef])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
   useKeyboardShortcuts({
-    shapes,
-    shapeIds,
-    selectedIds,
-    undo,
-    redo,
-    deleteShapes,
-    clearSelection,
-    selectMultiple,
-    updateShape,
-    recordBatchUpdate,
-    copySelectedShapes,
-    cutSelectedShapes,
-    pasteShapes,
-    duplicateSelectedShapes,
-    bringToFront,
-    sendToBack,
-    bringForward,
-    sendBackward,
-    lockSelectedShapes,
-    unlockSelectedShapes,
-    groupSelectedShapes,
-    ungroupSelectedShapes,
-    setTool,
-    readOnly,
+    shapes, shapeIds, selectedIds,
+    undo, redo, deleteShapes, clearSelection, selectMultiple,
+    updateShape, recordBatchUpdate,
+    copySelectedShapes, cutSelectedShapes, pasteShapes, duplicateSelectedShapes,
+    bringToFront, sendToBack, bringForward, sendBackward,
+    lockSelectedShapes, unlockSelectedShapes,
+    groupSelectedShapes, ungroupSelectedShapes,
+    setTool, readOnly,
   })
 
-  // ── Image paste handler (clipboard event, disabled in readOnly) ──
+  // ── Image paste handler (clipboard event, disabled in readOnly) ───
   useEffect(() => {
     if (readOnly) return
-
     const onPaste = (e: ClipboardEvent) => {
       const container = containerRef.current
       if (!container) return
@@ -164,24 +165,16 @@ export function Canvas({
     return () => window.removeEventListener('paste', onPaste)
   }, [readOnly, viewport, containerRef])
 
-  // ── Tool system (pointer events, overlay, cursor) ─────────────────
+  // ── Tool system (pointer events bound to interactive canvas) ──────
   const {
-    handlePointerDown,
-    handlePointerMove,
-    handlePointerUp,
-    handleDoubleClick,
-    renderOverlay,
-    cursorStyle,
-    setTextOverlayContainer,
-    isPanningRef,
-  } = useTools({ containerRef, canvasRef, renderFnRef, readOnly })
+    handlePointerDown, handlePointerMove, handlePointerUp,
+    handleDoubleClick, renderOverlay, cursorStyle,
+    setTextOverlayContainer, isPanningRef,
+  } = useTools({ containerRef, canvasRef: interactiveCanvasRef, renderFnRef, readOnly })
 
-  // ── Touch gestures (pinch zoom, two-finger pan) ───────────────────
+  // ── Touch gestures (pinch zoom, two-finger pan) ──────────────────
   const { handleTouchStart, handleTouchMove, handleTouchEnd } = useTouchGestures({
-    containerRef,
-    viewport,
-    pan,
-    zoom,
+    containerRef, viewport, pan, zoom,
   })
 
   // ── Text overlay setup (disabled in readOnly) ────────────────────
@@ -191,72 +184,136 @@ export function Canvas({
     return () => setTextOverlayContainer(null)
   }, [setTextOverlayContainer, readOnly])
 
-  // ── Render function ───────────────────────────────────────────────
-  const render = useCallback(() => {
-    const canvas = canvasRef.current
+  // ── Static render: background, grid, committed shapes ────────────
+  const renderStatic = useCallback(() => {
+    const canvas = staticCanvasRef.current
     const container = containerRef.current
-    const renderer = rendererRef.current
+    const renderer = staticRendererRef.current
     if (!canvas || !container || !renderer) return
 
     const rect = container.getBoundingClientRect()
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Clear and fill background
+    const curShapes = shapesRef.current
+    const curShapeIds = shapeIdsRef.current
+    const transientIds = toolManager.getTransientShapeIds()
+
     renderer.clear(rect.width, rect.height)
     ctx.save()
     ctx.fillStyle = resolvedBg
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.restore()
 
-    // Grid
     if (showGrid) {
       renderer.drawGrid(viewport, rect.width, rect.height, gridSize)
     }
 
-    // Draw shapes in z-order (with viewport culling)
     renderer.applyViewport(viewport)
     const visibleBounds = getVisibleBounds(viewport, rect.width, rect.height)
     const cullingBounds = expandBounds(visibleBounds, 100 / viewport.zoom)
-    for (const id of shapeIds) {
-      const shape = shapes.get(id)
+
+    for (const id of curShapeIds) {
+      if (transientIds.has(id)) continue
+      const shape = curShapes.get(id)
       if (shape && boundsIntersect(shape, cullingBounds)) {
-        renderer.drawShape(shape, selectedIds.has(id), shapes)
+        renderer.drawShape(shape, false, curShapes, true)
       }
     }
-
-    // Tool overlay (preview shapes while drawing)
-    renderOverlay(ctx)
-
     renderer.resetTransform()
-  }, [shapes, shapeIds, viewport, selectedIds, showGrid, gridSize, resolvedBg, renderOverlay, canvasRef, containerRef, rendererRef])
+  }, [viewport, showGrid, gridSize, resolvedBg, staticCanvasRef, containerRef, staticRendererRef, toolManager])
 
-  // Keep renderFnRef updated (in useEffect, not component body — StrictMode safe)
-  useEffect(() => {
-    renderFnRef.current = render
-  }, [render])
+  // ── Interactive render: selection UI, transient shapes, overlays ──
+  const renderInteractive = useCallback(() => {
+    const canvas = interactiveCanvasRef.current
+    const container = containerRef.current
+    const renderer = interactiveRendererRef.current
+    if (!canvas || !container || !renderer) return
 
-  // ── Reactive rendering (re-render when state changes) ─────────────
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const curShapes = shapesRef.current
+    const transientIds = toolManager.getTransientShapeIds()
+
+    // Detect drag-end: transient set was populated, now empty -> sync static canvas
+    if (hadTransientRef.current && transientIds.size === 0) {
+      cancelAnimationFrame(staticRafRef.current)
+      staticRafRef.current = requestAnimationFrame(() => renderStaticRef.current?.())
+    }
+    hadTransientRef.current = transientIds.size > 0
+
+    const rect = container.getBoundingClientRect()
+    renderer.clear(rect.width, rect.height)
+    renderer.applyViewport(viewport)
+
+    // Draw transient shapes (being moved/resized/rotated) with selection
+    for (const id of transientIds) {
+      const shape = curShapes.get(id)
+      if (shape) renderer.drawShape(shape, selectedIds.has(id), curShapes)
+    }
+
+    // Draw selection outlines for non-transient selected shapes
+    for (const id of selectedIds) {
+      if (transientIds.has(id)) continue
+      const shape = curShapes.get(id)
+      if (shape) renderer.drawSelectionForShape(shape)
+    }
+
+    renderOverlay(ctx)
+    renderer.resetTransform()
+  }, [selectedIds, viewport, renderOverlay, interactiveCanvasRef, containerRef, interactiveRendererRef, toolManager])
+
+  // ── Keep render refs current (StrictMode safe) ────────────────────
   useEffect(() => {
-    const raf = requestAnimationFrame(render)
+    renderStaticRef.current = renderStatic
+    renderInteractiveRef.current = renderInteractive
+    renderFnRef.current = renderInteractive
+  }, [renderStatic, renderInteractive])
+
+  // ── Reactive static rendering (viewport/grid/bg changes) ─────────
+  useEffect(() => {
+    const raf = requestAnimationFrame(renderStatic)
     return () => cancelAnimationFrame(raf)
-  }, [render])
+  }, [renderStatic])
+
+  // ── Re-render when shapes change outside drag ─────────────────────
+  // Note: on drag-end, renderInteractive also schedules a static re-render
+  // (via hadTransientRef detection). Both paths use staticRafRef so the last
+  // one wins via cancelAnimationFrame — no double-render occurs.
+  useEffect(() => {
+    if (!toolManager.isDragging()) {
+      cancelAnimationFrame(staticRafRef.current)
+      staticRafRef.current = requestAnimationFrame(() => {
+        renderStaticRef.current?.()
+        renderInteractiveRef.current?.()
+      })
+    }
+  }, [shapes, shapeIds, toolManager])
+
+  // ── Reactive interactive rendering (selection/overlay changes) ────
+  useEffect(() => {
+    const raf = requestAnimationFrame(renderInteractive)
+    return () => cancelAnimationFrame(raf)
+  }, [renderInteractive])
 
   // ── Initial render after canvas setup ─────────────────────────────
   useEffect(() => {
-    requestAnimationFrame(() => renderFnRef.current?.())
-  }, [setupCanvas])
+    requestAnimationFrame(() => {
+      renderStaticRef.current?.()
+      renderInteractiveRef.current?.()
+    })
+  }, [setupCanvases])
 
-  // ── Wheel zoom (needs passive: false for preventDefault) ──────────
+  // ── Wheel zoom (bound to interactive canvas, passive: false) ──────
   useEffect(() => {
-    const canvas = canvasRef.current
+    const canvas = interactiveCanvasRef.current
     if (!canvas) return
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       const container = containerRef.current
       if (!container) return
-
       const rect = container.getBoundingClientRect()
       const center = screenToCanvas({ x: e.clientX, y: e.clientY }, viewport, rect)
       zoom(-e.deltaY * 0.001, center)
@@ -264,33 +321,23 @@ export function Canvas({
 
     canvas.addEventListener('wheel', handleWheel, { passive: false })
     return () => canvas.removeEventListener('wheel', handleWheel)
-  }, [canvasRef, containerRef, viewport, zoom])
+  }, [interactiveCanvasRef, containerRef, viewport, zoom])
 
   // ── Context menu (right-click) ────────────────────────────────────
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
       if (!onContextMenu) return
-
       const container = containerRef.current
       if (!container) return
-
       const rect = container.getBoundingClientRect()
       const screenPoint: Point = { x: e.clientX, y: e.clientY }
       const canvasPoint = screenToCanvas(screenPoint, viewport, rect)
-
       const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2, shapeRendererRegistry)
-
-      // Auto-select hit shape if not already selected
       if (hitShape && !selectedIds.has(hitShape.id)) {
         store.getState().select(hitShape.id)
       }
-
-      onContextMenu({
-        screenPoint,
-        canvasPoint,
-        shapeId: hitShape?.id ?? null,
-      })
+      onContextMenu({ screenPoint, canvasPoint, shapeId: hitShape?.id ?? null })
     },
     [onContextMenu, containerRef, viewport, shapes, shapeIds, selectedIds, store, shapeRendererRegistry],
   )
@@ -298,8 +345,9 @@ export function Canvas({
   // ── JSX ───────────────────────────────────────────────────────────
   return (
     <div ref={containerRef} className={className} style={containerStyle}>
+      <canvas ref={staticCanvasRef} style={canvasBaseStyle} />
       <canvas
-        ref={canvasRef}
+        ref={interactiveCanvasRef}
         role="application"
         aria-label="Whiteboard canvas"
         onPointerDown={handlePointerDown}
@@ -313,7 +361,7 @@ export function Canvas({
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
         style={{
-          display: 'block',
+          ...canvasBaseStyle,
           cursor: isPanning || isPanningRef.current ? 'grabbing' : cursorStyle,
         }}
       />
