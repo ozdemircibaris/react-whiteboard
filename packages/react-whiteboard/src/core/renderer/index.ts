@@ -28,6 +28,16 @@ import { applyRotation } from './shapeRenderers/shared'
 import { drawImage } from './imageRenderer'
 import type { ShapeRendererRegistry } from './ShapeRendererRegistry'
 
+/** Cached bitmap entry for a shape during drag */
+interface DragCacheEntry {
+  canvas: HTMLCanvasElement
+  key: string
+  /** Half-width of cache region in canvas space */
+  halfW: number
+  /** Half-height of cache region in canvas space */
+  halfH: number
+}
+
 /**
  * Canvas renderer with RoughJS for hand-drawn aesthetic.
  * Orchestrates shape rendering and handles grid/selection drawing.
@@ -41,6 +51,7 @@ export class CanvasRenderer {
   private cornerOnlySelectionFn: (x: number, y: number, w: number, h: number) => void
   private theme: ThemeColors
   private registry: ShapeRendererRegistry | null = null
+  private dragCache = new Map<string, DragCacheEntry>()
 
   constructor(ctx: CanvasRenderingContext2D, theme?: Partial<ThemeColors>) {
     this.ctx = ctx
@@ -177,6 +188,99 @@ export class CanvasRenderer {
       }
     }
   }
+
+  // ── Drag bitmap cache ─────────────────────────────────────────────
+
+  /**
+   * Build a cache key from shape properties that affect rendering (excludes x,y).
+   */
+  private shapeCacheKey(shape: Shape, zoom: number): string {
+    const p = shape.props as Record<string, unknown>
+    return `${shape.type}|${shape.width}|${shape.height}|${shape.rotation}|${shape.opacity}|${shape.seed}|${shape.roughness}|${zoom}|${JSON.stringify(p)}`
+  }
+
+  /**
+   * Draw a shape using a cached offscreen bitmap.
+   * On first call (cache miss), renders the shape to an offscreen canvas with RoughJS.
+   * On subsequent calls with same visual properties, blits the cached bitmap.
+   * Selection outlines are drawn directly (cheap, no caching needed).
+   */
+  drawShapeCached(
+    shape: Shape,
+    isSelected: boolean,
+    zoom: number,
+    allShapes?: Map<string, Shape>,
+  ): void {
+    const key = this.shapeCacheKey(shape, zoom)
+    let entry = this.dragCache.get(shape.id)
+
+    if (!entry || entry.key !== key) {
+      entry = this.renderToCache(shape, key, zoom, allShapes)
+    }
+
+    // Blit cached bitmap centered on shape's current position
+    const blitX = shape.x + shape.width / 2 - entry.halfW
+    const blitY = shape.y + shape.height / 2 - entry.halfH
+    this.ctx.drawImage(entry.canvas, blitX, blitY, entry.halfW * 2, entry.halfH * 2)
+
+    if (isSelected) this.drawSelectionForShape(shape)
+  }
+
+  /**
+   * Render a shape to an offscreen canvas and store in the drag cache.
+   */
+  private renderToCache(
+    shape: Shape,
+    key: string,
+    zoom: number,
+    allShapes?: Map<string, Shape>,
+  ): DragCacheEntry {
+    const strokeWidth = (shape.props as Record<string, unknown>)?.strokeWidth as number ?? 2
+    const padding = Math.max(strokeWidth, 2) + 12
+    const { rotation, width, height } = shape
+
+    // Compute axis-aligned bounding box of the rotated shape
+    const cosA = Math.abs(Math.cos(rotation))
+    const sinA = Math.abs(Math.sin(rotation))
+    const rotW = width * cosA + height * sinA
+    const rotH = width * sinA + height * cosA
+    const halfW = rotW / 2 + padding
+    const halfH = rotH / 2 + padding
+
+    // Create offscreen canvas at correct pixel density
+    const pixW = Math.ceil(halfW * 2 * this.dpr * zoom)
+    const pixH = Math.ceil(halfH * 2 * this.dpr * zoom)
+    const offCanvas = document.createElement('canvas')
+    offCanvas.width = Math.max(pixW, 1)
+    offCanvas.height = Math.max(pixH, 1)
+    const offCtx = offCanvas.getContext('2d')!
+    offCtx.scale(this.dpr * zoom, this.dpr * zoom)
+
+    // Position shape so its center aligns with cache center
+    const tempX = halfW - width / 2
+    const tempY = halfH - height / 2
+    const tempShape = { ...shape, x: tempX, y: tempY } as Shape
+
+    // Swap ctx/roughCanvas to render onto the offscreen canvas
+    const origCtx = this.ctx
+    const origRc = this.roughCanvas
+    this.ctx = offCtx
+    this.roughCanvas = rough.canvas(offCanvas)
+    this.drawShape(tempShape, false, allShapes, true)
+    this.ctx = origCtx
+    this.roughCanvas = origRc
+
+    const entry: DragCacheEntry = { canvas: offCanvas, key, halfW, halfH }
+    this.dragCache.set(shape.id, entry)
+    return entry
+  }
+
+  /** Clear the drag bitmap cache (call when drag ends) */
+  clearDragCache(): void {
+    this.dragCache.clear()
+  }
+
+  // ── Selection rendering ─────────────────────────────────────────
 
   /**
    * Draw only the selection outline for a shape (without rendering the shape itself).

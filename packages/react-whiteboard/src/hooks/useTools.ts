@@ -68,10 +68,13 @@ export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = fals
   )
 
   /**
-   * Request a re-render after tool events (for overlay updates)
+   * Request a re-render after tool events (for overlay updates).
+   * Deduplicates: if multiple events fire in one frame, only the last triggers a render.
    */
+  const renderRafRef = useRef(0)
   const requestRender = useCallback(() => {
-    requestAnimationFrame(() => renderFnRef.current?.())
+    cancelAnimationFrame(renderRafRef.current)
+    renderRafRef.current = requestAnimationFrame(() => renderFnRef.current?.())
   }, [renderFnRef])
 
   /**

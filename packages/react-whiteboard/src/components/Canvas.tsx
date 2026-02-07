@@ -75,62 +75,63 @@ export function Canvas({
   // ── Dual canvas setup (static + interactive) ──────────────────────
   const {
     staticCanvasRef, interactiveCanvasRef, containerRef,
-    staticRendererRef, interactiveRendererRef, setupCanvases,
-  } = useDualCanvasSetup({ onReady })
+    staticRendererRef, interactiveRendererRef, setupVersion,
+  } = useDualCanvasSetup({ onReady, theme })
 
   const textOverlayRef = useRef<HTMLDivElement>(null)
   const renderFnRef = useRef<(() => void) | null>(null)
   const { store, toolManager, shapeRendererRegistry } = useWhiteboardContext()
 
-  // ── Store selectors (render dependencies) ─────────────────────────
-  const shapes = useWhiteboardStore((s) => s.shapes)
-  const shapeIds = useWhiteboardStore((s) => s.shapeIds)
+  // ── Store selectors (minimal — only values that drive React rendering) ──
   const viewport = useWhiteboardStore((s) => s.viewport)
   const selectedIds = useWhiteboardStore((s) => s.selectedIds)
   const isPanning = useWhiteboardStore((s) => s.isPanning)
-
-  // Store actions (for hooks)
   const pan = useWhiteboardStore((s) => s.pan)
   const zoom = useWhiteboardStore((s) => s.zoom)
-  const undo = useWhiteboardStore((s) => s.undo)
-  const redo = useWhiteboardStore((s) => s.redo)
-  const deleteShapes = useWhiteboardStore((s) => s.deleteShapes)
-  const clearSelection = useWhiteboardStore((s) => s.clearSelection)
-  const selectMultiple = useWhiteboardStore((s) => s.selectMultiple)
-  const updateShape = useWhiteboardStore((s) => s.updateShape)
-  const recordBatchUpdate = useWhiteboardStore((s) => s.recordBatchUpdate)
-  const copySelectedShapes = useWhiteboardStore((s) => s.copySelectedShapes)
-  const cutSelectedShapes = useWhiteboardStore((s) => s.cutSelectedShapes)
-  const pasteShapes = useWhiteboardStore((s) => s.pasteShapes)
-  const duplicateSelectedShapes = useWhiteboardStore((s) => s.duplicateSelectedShapes)
-  const bringToFront = useWhiteboardStore((s) => s.bringToFront)
-  const sendToBack = useWhiteboardStore((s) => s.sendToBack)
-  const bringForward = useWhiteboardStore((s) => s.bringForward)
-  const sendBackward = useWhiteboardStore((s) => s.sendBackward)
-  const lockSelectedShapes = useWhiteboardStore((s) => s.lockSelectedShapes)
-  const unlockSelectedShapes = useWhiteboardStore((s) => s.unlockSelectedShapes)
-  const groupSelectedShapes = useWhiteboardStore((s) => s.groupSelectedShapes)
-  const ungroupSelectedShapes = useWhiteboardStore((s) => s.ungroupSelectedShapes)
-  const setTool = useWhiteboardStore((s) => s.setTool)
 
-  // ── Refs for render data (avoid stale closures in render fns) ─────
-  const shapesRef = useRef(shapes)
-  const shapeIdsRef = useRef(shapeIds)
-  shapesRef.current = shapes
-  shapeIdsRef.current = shapeIds
+  // ── Refs for render data (updated outside React render cycle) ─────
+  // shapes/shapeIds are synced via store.subscribe below — NOT via React
+  // subscriptions — to avoid component re-renders during drag operations.
+  const shapesRef = useRef(store.getState().shapes)
+  const shapeIdsRef = useRef(store.getState().shapeIds)
+  const viewportRef = useRef(viewport)
+  viewportRef.current = viewport
 
   const hadTransientRef = useRef(false)
   const staticRafRef = useRef(0)
   const renderStaticRef = useRef<(() => void) | null>(null)
   const renderInteractiveRef = useRef<(() => void) | null>(null)
 
+  // ── Sync shapes/shapeIds refs via store subscription (no React re-render) ──
+  useEffect(() => {
+    const scheduleStaticRender = () => {
+      if (!toolManager.isDragging()) {
+        cancelAnimationFrame(staticRafRef.current)
+        staticRafRef.current = requestAnimationFrame(() => {
+          renderStaticRef.current?.()
+          renderInteractiveRef.current?.()
+        })
+      }
+    }
+    const unsubShapes = store.subscribe(
+      (s) => s.shapes,
+      (shapes) => { shapesRef.current = shapes; scheduleStaticRender() },
+    )
+    const unsubIds = store.subscribe(
+      (s) => s.shapeIds,
+      (ids) => { shapeIdsRef.current = ids; scheduleStaticRender() },
+    )
+    return () => { unsubShapes(); unsubIds() }
+  }, [store, toolManager])
+
   // ── Wire shape renderer registry to both renderers ────────────────
   useEffect(() => {
     staticRendererRef.current?.setRegistry(shapeRendererRegistry)
     interactiveRendererRef.current?.setRegistry(shapeRendererRegistry)
-  }, [shapeRendererRegistry, staticRendererRef, interactiveRendererRef])
+  }, [shapeRendererRegistry, staticRendererRef, interactiveRendererRef, setupVersion])
 
   // ── Sync theme to both renderers + tool manager ───────────────────
+  // setupVersion ensures this re-fires when renderers are recreated (e.g. on resize)
   useEffect(() => {
     if (theme) {
       const resolved = resolveTheme(theme)
@@ -138,32 +139,23 @@ export function Canvas({
       interactiveRendererRef.current?.setTheme(resolved)
       toolManager.setTheme(resolved)
     }
-  }, [theme, toolManager, staticRendererRef, interactiveRendererRef])
+  }, [theme, toolManager, staticRendererRef, interactiveRendererRef, setupVersion])
 
-  // ── Keyboard shortcuts ────────────────────────────────────────────
-  useKeyboardShortcuts({
-    shapes, shapeIds, selectedIds,
-    undo, redo, deleteShapes, clearSelection, selectMultiple,
-    updateShape, recordBatchUpdate,
-    copySelectedShapes, cutSelectedShapes, pasteShapes, duplicateSelectedShapes,
-    bringToFront, sendToBack, bringForward, sendBackward,
-    lockSelectedShapes, unlockSelectedShapes,
-    groupSelectedShapes, ungroupSelectedShapes,
-    setTool, readOnly,
-  })
+  // ── Keyboard shortcuts (getState is stable — listener registered once) ──
+  useKeyboardShortcuts({ getState: store.getState, readOnly })
 
-  // ── Image paste handler (clipboard event, disabled in readOnly) ───
+  // ── Image paste handler (uses viewportRef to avoid re-registration) ──
   useEffect(() => {
     if (readOnly) return
     const onPaste = (e: ClipboardEvent) => {
       const container = containerRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
-      handleImagePaste(e, store.getState(), viewport, rect.width, rect.height)
+      handleImagePaste(e, store.getState(), viewportRef.current, rect.width, rect.height)
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
-  }, [readOnly, viewport, containerRef])
+  }, [readOnly, containerRef, store])
 
   // ── Tool system (pointer events bound to interactive canvas) ──────
   const {
@@ -236,10 +228,16 @@ export function Canvas({
     const curShapes = shapesRef.current
     const transientIds = toolManager.getTransientShapeIds()
 
-    // Detect drag-end: transient set was populated, now empty -> sync static canvas
+    // Detect drag-start: re-render static canvas to exclude transient shapes (fixes ghost)
+    if (!hadTransientRef.current && transientIds.size > 0) {
+      cancelAnimationFrame(staticRafRef.current)
+      staticRafRef.current = requestAnimationFrame(() => renderStaticRef.current?.())
+    }
+    // Detect drag-end: re-render static canvas to include all shapes + clear cache
     if (hadTransientRef.current && transientIds.size === 0) {
       cancelAnimationFrame(staticRafRef.current)
       staticRafRef.current = requestAnimationFrame(() => renderStaticRef.current?.())
+      renderer.clearDragCache()
     }
     hadTransientRef.current = transientIds.size > 0
 
@@ -247,15 +245,22 @@ export function Canvas({
     renderer.clear(rect.width, rect.height)
     renderer.applyViewport(viewport)
 
-    // Draw transient shapes (being moved/resized/rotated) with selection
-    for (const id of transientIds) {
-      const shape = curShapes.get(id)
-      if (shape) renderer.drawShape(shape, selectedIds.has(id), curShapes)
+    // Draw transient shapes using bitmap cache (avoids RoughJS recomputation)
+    // Shadow is applied only to the shape bitmaps, not to selection handles
+    if (transientIds.size > 0) {
+      ctx.save()
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.12)'
+      ctx.shadowBlur = 8
+      ctx.shadowOffsetY = 3
+      for (const id of transientIds) {
+        const shape = curShapes.get(id)
+        if (shape) renderer.drawShapeCached(shape, false, viewport.zoom, curShapes)
+      }
+      ctx.restore()
     }
 
-    // Draw selection outlines for non-transient selected shapes
+    // Draw selection outlines (both transient and non-transient)
     for (const id of selectedIds) {
-      if (transientIds.has(id)) continue
       const shape = curShapes.get(id)
       if (shape) renderer.drawSelectionForShape(shape)
     }
@@ -277,35 +282,21 @@ export function Canvas({
     return () => cancelAnimationFrame(raf)
   }, [renderStatic])
 
-  // ── Re-render when shapes change outside drag ─────────────────────
-  // Note: on drag-end, renderInteractive also schedules a static re-render
-  // (via hadTransientRef detection). Both paths use staticRafRef so the last
-  // one wins via cancelAnimationFrame — no double-render occurs.
-  useEffect(() => {
-    if (!toolManager.isDragging()) {
-      cancelAnimationFrame(staticRafRef.current)
-      staticRafRef.current = requestAnimationFrame(() => {
-        renderStaticRef.current?.()
-        renderInteractiveRef.current?.()
-      })
-    }
-  }, [shapes, shapeIds, toolManager])
-
   // ── Reactive interactive rendering (selection/overlay changes) ────
   useEffect(() => {
     const raf = requestAnimationFrame(renderInteractive)
     return () => cancelAnimationFrame(raf)
   }, [renderInteractive])
 
-  // ── Initial render after canvas setup ─────────────────────────────
+  // ── Render after canvas setup (setupVersion bumps when renderers are created) ──
   useEffect(() => {
     requestAnimationFrame(() => {
       renderStaticRef.current?.()
       renderInteractiveRef.current?.()
     })
-  }, [setupCanvases])
+  }, [setupVersion])
 
-  // ── Wheel zoom (bound to interactive canvas, passive: false) ──────
+  // ── Wheel zoom (registered once — uses viewportRef for latest state) ──
   useEffect(() => {
     const canvas = interactiveCanvasRef.current
     if (!canvas) return
@@ -315,13 +306,13 @@ export function Canvas({
       const container = containerRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
-      const center = screenToCanvas({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const center = screenToCanvas({ x: e.clientX, y: e.clientY }, viewportRef.current, rect)
       zoom(-e.deltaY * 0.001, center)
     }
 
     canvas.addEventListener('wheel', handleWheel, { passive: false })
     return () => canvas.removeEventListener('wheel', handleWheel)
-  }, [interactiveCanvasRef, containerRef, viewport, zoom])
+  }, [interactiveCanvasRef, containerRef, zoom])
 
   // ── Context menu (right-click) ────────────────────────────────────
   const handleContextMenu = useCallback(
@@ -332,14 +323,15 @@ export function Canvas({
       if (!container) return
       const rect = container.getBoundingClientRect()
       const screenPoint: Point = { x: e.clientX, y: e.clientY }
-      const canvasPoint = screenToCanvas(screenPoint, viewport, rect)
+      const canvasPoint = screenToCanvas(screenPoint, viewportRef.current, rect)
+      const { shapes, shapeIds, selectedIds: sel } = store.getState()
       const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2, shapeRendererRegistry)
-      if (hitShape && !selectedIds.has(hitShape.id)) {
+      if (hitShape && !sel.has(hitShape.id)) {
         store.getState().select(hitShape.id)
       }
       onContextMenu({ screenPoint, canvasPoint, shapeId: hitShape?.id ?? null })
     },
-    [onContextMenu, containerRef, viewport, shapes, shapeIds, selectedIds, store, shapeRendererRegistry],
+    [onContextMenu, containerRef, store, shapeRendererRegistry],
   )
 
   // ── JSX ───────────────────────────────────────────────────────────

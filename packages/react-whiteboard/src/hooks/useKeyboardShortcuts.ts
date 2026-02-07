@@ -1,30 +1,10 @@
 import { useEffect, useRef } from 'react'
+import type { WhiteboardStore } from '../core/store/createStore'
 import type { Shape, ToolType } from '../types'
 
 interface KeyboardShortcutsOptions {
-  shapes: Map<string, Shape>
-  shapeIds: string[]
-  selectedIds: Set<string>
-  undo: () => void
-  redo: () => void
-  deleteShapes: (ids: string[]) => void
-  clearSelection: () => void
-  selectMultiple: (ids: string[]) => void
-  updateShape: (id: string, updates: Partial<Shape>, recordHistory?: boolean) => void
-  recordBatchUpdate: (before: Shape[], after: Shape[]) => void
-  copySelectedShapes: () => void
-  cutSelectedShapes: () => void
-  pasteShapes: () => void
-  duplicateSelectedShapes: () => void
-  bringToFront: () => void
-  sendToBack: () => void
-  bringForward: () => void
-  sendBackward: () => void
-  lockSelectedShapes: () => void
-  unlockSelectedShapes: () => void
-  groupSelectedShapes: () => void
-  ungroupSelectedShapes: () => void
-  setTool: (tool: ToolType) => void
+  /** Always-fresh state accessor (e.g. store.getState). Avoids stale closures. */
+  getState: () => WhiteboardStore
   readOnly?: boolean
 }
 
@@ -39,48 +19,21 @@ const TOOL_SHORTCUTS: Record<string, ToolType> = {
 }
 
 /**
- * Hook for managing keyboard shortcuts
- * Returns a ref for tracking shift key state
+ * Hook for managing keyboard shortcuts.
+ *
+ * Uses `getState()` to read shapes/selectedIds at keypress time,
+ * so the event listener never re-registers when store state changes.
  */
-export function useKeyboardShortcuts({
-  shapes,
-  shapeIds,
-  selectedIds,
-  undo,
-  redo,
-  deleteShapes,
-  clearSelection,
-  selectMultiple,
-  updateShape,
-  recordBatchUpdate,
-  copySelectedShapes,
-  cutSelectedShapes,
-  pasteShapes,
-  duplicateSelectedShapes,
-  bringToFront,
-  sendToBack,
-  bringForward,
-  sendBackward,
-  lockSelectedShapes,
-  unlockSelectedShapes,
-  groupSelectedShapes,
-  ungroupSelectedShapes,
-  setTool,
-  readOnly = false,
-}: KeyboardShortcutsOptions) {
+export function useKeyboardShortcuts({ getState, readOnly = false }: KeyboardShortcutsOptions) {
   const isShiftPressedRef = useRef(false)
 
   // Track shift key for angle snapping
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') {
-        isShiftPressedRef.current = true
-      }
+      if (e.key === 'Shift') isShiftPressedRef.current = true
     }
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') {
-        isShiftPressedRef.current = false
-      }
+      if (e.key === 'Shift') isShiftPressedRef.current = false
     }
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
@@ -90,7 +43,7 @@ export function useKeyboardShortcuts({
     }
   }, [])
 
-  // Keyboard shortcuts (disabled in readOnly mode)
+  // Keyboard shortcuts (registered once — getState is stable)
   useEffect(() => {
     if (readOnly) return
 
@@ -101,116 +54,117 @@ export function useKeyboardShortcuts({
 
       const isMod = e.metaKey || e.ctrlKey
       const moveAmount = e.shiftKey ? 10 : 1
+      const state = getState()
 
       // Undo: Cmd/Ctrl+Z
       if (isMod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault()
-        undo()
+        state.undo()
         return
       }
 
       // Redo: Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y
       if ((isMod && e.key.toLowerCase() === 'z' && e.shiftKey) || (isMod && e.key.toLowerCase() === 'y')) {
         e.preventDefault()
-        redo()
+        state.redo()
         return
       }
 
       // Copy: Cmd/Ctrl+C
       if (isMod && e.key.toLowerCase() === 'c') {
         e.preventDefault()
-        copySelectedShapes()
+        state.copySelectedShapes()
         return
       }
 
       // Cut: Cmd/Ctrl+X
       if (isMod && e.key.toLowerCase() === 'x') {
         e.preventDefault()
-        cutSelectedShapes()
+        state.cutSelectedShapes()
         return
       }
 
       // Paste: Cmd/Ctrl+V
       if (isMod && e.key.toLowerCase() === 'v') {
         e.preventDefault()
-        pasteShapes()
+        state.pasteShapes()
         return
       }
 
       // Duplicate: Cmd/Ctrl+D
       if (isMod && e.key.toLowerCase() === 'd') {
         e.preventDefault()
-        duplicateSelectedShapes()
+        state.duplicateSelectedShapes()
         return
       }
 
       // Z-order: Cmd/Ctrl+] (bring forward), Cmd/Ctrl+Shift+] (bring to front)
       if (isMod && e.key === ']') {
         e.preventDefault()
-        if (e.shiftKey) bringToFront()
-        else bringForward()
+        if (e.shiftKey) state.bringToFront()
+        else state.bringForward()
         return
       }
 
       // Z-order: Cmd/Ctrl+[ (send backward), Cmd/Ctrl+Shift+[ (send to back)
       if (isMod && e.key === '[') {
         e.preventDefault()
-        if (e.shiftKey) sendToBack()
-        else sendBackward()
+        if (e.shiftKey) state.sendToBack()
+        else state.sendBackward()
         return
       }
 
       // Lock: Cmd/Ctrl+L
       if (isMod && e.key.toLowerCase() === 'l' && !e.shiftKey) {
         e.preventDefault()
-        lockSelectedShapes()
+        state.lockSelectedShapes()
         return
       }
 
       // Unlock: Cmd/Ctrl+Shift+L
       if (isMod && e.key.toLowerCase() === 'l' && e.shiftKey) {
         e.preventDefault()
-        unlockSelectedShapes()
+        state.unlockSelectedShapes()
         return
       }
 
       // Group: Cmd/Ctrl+G
       if (isMod && e.key.toLowerCase() === 'g' && !e.shiftKey) {
         e.preventDefault()
-        groupSelectedShapes()
+        state.groupSelectedShapes()
         return
       }
 
       // Ungroup: Cmd/Ctrl+Shift+G
       if (isMod && e.key.toLowerCase() === 'g' && e.shiftKey) {
         e.preventDefault()
-        ungroupSelectedShapes()
+        state.ungroupSelectedShapes()
         return
       }
 
       // Select All: Cmd/Ctrl+A
       if (isMod && e.key.toLowerCase() === 'a') {
         e.preventDefault()
-        selectMultiple(shapeIds)
+        state.selectMultiple(state.shapeIds)
         return
       }
 
       // Delete selected: Delete or Backspace
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedIds.size > 0) {
         e.preventDefault()
-        deleteShapes(Array.from(selectedIds))
+        state.deleteShapes(Array.from(state.selectedIds))
         return
       }
 
       // Clear selection: Escape
       if (e.key === 'Escape') {
         e.preventDefault()
-        clearSelection()
+        state.clearSelection()
         return
       }
 
       // Move selected shapes with arrow keys
-      if (selectedIds.size > 0 && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      if (state.selectedIds.size > 0 && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault()
         const delta = { x: 0, y: 0 }
 
@@ -229,13 +183,12 @@ export function useKeyboardShortcuts({
             break
         }
 
-        // Collect before states, update without history, then record batch
         const beforeShapes: Shape[] = []
-        selectedIds.forEach((id) => {
-          const shape = shapes.get(id)
+        state.selectedIds.forEach((id) => {
+          const shape = state.shapes.get(id)
           if (shape) {
             beforeShapes.push(structuredClone(shape) as Shape)
-            updateShape(id, { x: shape.x + delta.x, y: shape.y + delta.y }, false)
+            state.updateShape(id, { x: shape.x + delta.x, y: shape.y + delta.y }, false)
           }
         })
 
@@ -245,7 +198,7 @@ export function useKeyboardShortcuts({
             x: before.x + delta.x,
             y: before.y + delta.y,
           } as Shape))
-          recordBatchUpdate(beforeShapes, afterShapes)
+          state.recordBatchUpdate(beforeShapes, afterShapes)
         }
         return
       }
@@ -255,20 +208,14 @@ export function useKeyboardShortcuts({
         const tool = TOOL_SHORTCUTS[e.key.toLowerCase()]
         if (tool) {
           e.preventDefault()
-          setTool(tool)
+          state.setTool(tool)
         }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [
-    readOnly, undo, redo, selectedIds, shapeIds, shapes, deleteShapes, clearSelection,
-    selectMultiple, updateShape, recordBatchUpdate, copySelectedShapes,
-    cutSelectedShapes, pasteShapes, duplicateSelectedShapes, bringToFront,
-    sendToBack, bringForward, sendBackward, lockSelectedShapes,
-    unlockSelectedShapes, groupSelectedShapes, ungroupSelectedShapes, setTool,
-  ])
+  }, [readOnly, getState])
 
   return isShiftPressedRef
 }
