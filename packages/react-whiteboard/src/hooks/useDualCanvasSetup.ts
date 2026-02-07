@@ -1,22 +1,29 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { CanvasRenderer } from '../core/renderer'
 import { getDevicePixelRatio } from '../utils/canvas'
+import type { ThemeColors } from '../types/theme'
 
 interface DualCanvasSetupOptions {
   onReady?: () => void
+  theme?: Partial<ThemeColors>
 }
 
 /**
  * Hook for dual-canvas initialization and resize handling.
  * Manages two stacked canvases (static + interactive) with matching DPI/size.
  */
-export function useDualCanvasSetup({ onReady }: DualCanvasSetupOptions) {
+export function useDualCanvasSetup({ onReady, theme }: DualCanvasSetupOptions) {
   const staticCanvasRef = useRef<HTMLCanvasElement>(null)
   const interactiveCanvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const staticRendererRef = useRef<CanvasRenderer | null>(null)
   const interactiveRendererRef = useRef<CanvasRenderer | null>(null)
   const readyFiredRef = useRef(false)
+  const themeRef = useRef(theme)
+  themeRef.current = theme
+
+  // Bumped on each setup so downstream effects (e.g. theme sync) can re-fire
+  const [setupVersion, setSetupVersion] = useState(0)
 
   const setupCanvases = useCallback(() => {
     const staticCanvas = staticCanvasRef.current
@@ -41,9 +48,11 @@ export function useDualCanvasSetup({ onReady }: DualCanvasSetupOptions) {
       canvas.style.height = `${h}px`
     }
 
-    // Create renderer instances
-    staticRendererRef.current = new CanvasRenderer(staticCtx)
-    interactiveRendererRef.current = new CanvasRenderer(interactiveCtx)
+    // Create renderer instances with the current theme
+    staticRendererRef.current = new CanvasRenderer(staticCtx, themeRef.current)
+    interactiveRendererRef.current = new CanvasRenderer(interactiveCtx, themeRef.current)
+
+    setSetupVersion((v) => v + 1)
 
     if (!readyFiredRef.current) {
       readyFiredRef.current = true
@@ -77,5 +86,6 @@ export function useDualCanvasSetup({ onReady }: DualCanvasSetupOptions) {
     staticRendererRef,
     interactiveRendererRef,
     setupCanvases,
+    setupVersion,
   }
 }

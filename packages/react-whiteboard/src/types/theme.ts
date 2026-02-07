@@ -65,21 +65,21 @@ export const LIGHT_THEME: ThemeColors = {
 }
 
 export const DARK_THEME: ThemeColors = {
-  canvasBackground: '#1a1a2e',
-  grid: '#2a2a3e',
+  canvasBackground: '#1e1e2e',
+  grid: '#252538',
   selectionStroke: '#4d9fff',
-  selectionHandleFill: '#2a2a3e',
+  selectionHandleFill: '#1e1e2e',
   rotationStroke: '#4d9fff',
-  rotationHandleFill: '#2a2a3e',
-  marqueeFill: 'rgba(77, 159, 255, 0.1)',
-  marqueeStroke: 'rgba(77, 159, 255, 0.5)',
+  rotationHandleFill: '#1e1e2e',
+  marqueeFill: 'rgba(77, 159, 255, 0.08)',
+  marqueeStroke: 'rgba(77, 159, 255, 0.4)',
   snapLine: '#ff8080',
-  minimapBackground: '#1e1e2e',
+  minimapBackground: '#1a1a28',
   minimapShapeFill: '#3a3a5e',
   minimapShapeStroke: '#5a5a7e',
   minimapViewportStroke: '#4d9fff',
   minimapViewportFill: 'rgba(77, 159, 255, 0.1)',
-  minimapBorder: '#333355',
+  minimapBorder: '#2a2a40',
   defaultTextColor: '#e0e0e0',
 }
 
