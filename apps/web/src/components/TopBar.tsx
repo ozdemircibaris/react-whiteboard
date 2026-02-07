@@ -8,6 +8,7 @@ import {
   Save,
   FolderOpen,
   Image,
+  FileCode2,
   Trash2,
 } from 'lucide-react'
 import {
@@ -18,6 +19,7 @@ import {
   downloadFile,
   pickAndReadFile,
   downloadPng,
+  downloadSvg,
 } from '@ozdemircibaris/react-whiteboard'
 import { GlassPanel } from './GlassPanel'
 import { IconButton } from './IconButton'
@@ -67,6 +69,10 @@ export function TopBar() {
 
   const handleExportPng = () => {
     downloadPng(shapes, shapeIds, selectedIds)
+  }
+
+  const handleExportSvg = () => {
+    downloadSvg(shapes, shapeIds)
   }
 
   return (
@@ -132,6 +138,12 @@ export function TopBar() {
           icon={<Image size={16} />}
           label="Export PNG"
           onClick={handleExportPng}
+          disabled={shapeIds.length === 0}
+        />
+        <IconButton
+          icon={<FileCode2 size={16} />}
+          label="Export SVG"
+          onClick={handleExportSvg}
           disabled={shapeIds.length === 0}
         />
 

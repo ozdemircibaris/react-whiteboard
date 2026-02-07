@@ -4,6 +4,7 @@ import { createWhiteboardStore } from '../core/store/createStore'
 import type { WhiteboardStore } from '../core/store/createStore'
 import { ToolManager } from '../tools/ToolManager'
 import type { TextTool } from '../tools/TextTool'
+import { loadFonts } from '../utils/fonts'
 
 // ============================================================================
 // Context
@@ -59,13 +60,15 @@ export function useToolManager(): ToolManager {
 
 export interface WhiteboardProviderProps {
   children: ReactNode
+  /** Custom font URLs to override the default CDN-hosted Virgil + Cascadia Code fonts. */
+  fontUrls?: Record<string, string>
 }
 
 /**
  * Provides an isolated whiteboard store + tool manager.
  * Multiple <WhiteboardProvider> instances on the same page are fully independent.
  */
-export function WhiteboardProvider({ children }: WhiteboardProviderProps) {
+export function WhiteboardProvider({ children, fontUrls }: WhiteboardProviderProps) {
   const storeRef = useRef<WhiteboardStoreApi | null>(null)
   const toolManagerRef = useRef<ToolManager | null>(null)
 
@@ -79,6 +82,11 @@ export function WhiteboardProvider({ children }: WhiteboardProviderProps) {
 
   const store = storeRef.current
   const toolManager = toolManagerRef.current
+
+  // Auto-load hand-drawn fonts on mount
+  useEffect(() => {
+    loadFonts(fontUrls)
+  }, [fontUrls])
 
   // Wire ToolManager -> store
   useEffect(() => {

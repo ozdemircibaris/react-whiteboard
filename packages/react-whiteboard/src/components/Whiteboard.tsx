@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { WhiteboardProvider, useWhiteboardContext } from '../context'
 import { Canvas } from './Canvas'
 import { Minimap } from './Minimap'
+import { useWhiteboardEvents } from '../hooks/useWhiteboardEvents'
 import type { Shape, Viewport } from '../types'
 import type { ThemeColors } from '../types/theme'
 
@@ -40,6 +41,15 @@ export interface WhiteboardProps {
   /** Theme colors for canvas and minimap rendering */
   theme?: Partial<ThemeColors>
 
+  /** Fired when a new shape is added to the canvas */
+  onShapeCreate?: (shape: Shape) => void
+  /** Fired when an existing shape is modified */
+  onShapeUpdate?: (shape: Shape, previous: Shape) => void
+  /** Fired when a shape is removed from the canvas */
+  onShapeDelete?: (shape: Shape) => void
+  /** Fired when the viewport (pan/zoom) changes */
+  onViewportChange?: (viewport: Viewport) => void
+
   /** Overlay content rendered on top of the canvas (toolbars, panels, etc.) */
   children?: ReactNode
 }
@@ -59,11 +69,18 @@ function WhiteboardInner({
   onReady,
   minimap,
   theme,
+  onShapeCreate,
+  onShapeUpdate,
+  onShapeDelete,
+  onViewportChange,
   children,
 }: WhiteboardProps) {
   const { store } = useWhiteboardContext()
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
+
+  // Granular event callbacks
+  useWhiteboardEvents({ onShapeCreate, onShapeUpdate, onShapeDelete, onViewportChange })
 
   // Load initial data on mount (intentionally runs once — initialData is treated like defaultValue)
   const initialDataRef = useRef(initialData)

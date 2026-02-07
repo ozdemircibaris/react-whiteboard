@@ -114,7 +114,7 @@ An open-source, high-quality whiteboard library for React that competes with Exc
 ### Phase 9: Rendering Quality
 Bring the rendering closer to Excalidraw's level of polish.
 
-- [ ] Hand-drawn font (Virgil/Excalifont) for text shapes
+- [x] Hand-drawn font (Virgil/Excalifont) auto-loaded via WhiteboardProvider with configurable fontUrls
 - [x] Fill style options per shape: solid, hachure, cross-hatch, dots
 - [x] Stroke style options: solid, dashed, dotted
 - [x] Shape opacity control in UI (ShapePropertiesPanel)
@@ -143,7 +143,7 @@ Production-level editing UX.
 Enable sharing and saving.
 
 - [x] Export to PNG (canvas.toDataURL with background, configurable padding/DPI)
-- [ ] Export to SVG (shape-to-SVG conversion with RoughJS SVG mode)
+- [x] Export to SVG (shape-to-SVG conversion with RoughJS SVG mode, perfect-freehand paths, bound text)
 - [x] Export to JSON (serialize shapes + viewport with version tracking)
 - [x] Import from JSON (with validation and error handling)
 - [ ] Import from Excalidraw format (.excalidraw files)
@@ -155,7 +155,7 @@ Clean, composable public API for library consumers.
 - [x] `<Whiteboard />` wrapper component with sensible defaults
 - [x] Props: initialData, onChange, readOnly, theme, showGrid, gridSize, backgroundColor, minimap, onReady
 - [x] Hooks: useWhiteboardContext(), useWhiteboardStore(), useToolManager(), useTextProperties(), useShapeProperties()
-- [ ] Event callbacks: onShapeCreate, onShapeUpdate, onShapeDelete, onViewportChange (granular per-event)
+- [x] Event callbacks: onShapeCreate, onShapeUpdate, onShapeDelete, onViewportChange (via useWhiteboardEvents hook + Whiteboard props)
 - [x] Custom tool registration API (ToolManager accessible via useToolManager)
 - [ ] Custom shape renderer API (runtime plugin system)
 - [x] Headless mode (WhiteboardProvider + useWhiteboardStore without Canvas)
