@@ -121,7 +121,7 @@ Bring the rendering closer to Excalidraw's level of polish.
 - [x] Color picker (stroke + fill) per shape (ShapePropertiesPanel)
 - [x] Stroke width control per shape (ShapePropertiesPanel)
 - [x] Corner radius control for rectangles (ShapePropertiesPanel)
-- [ ] Dual-canvas architecture: static canvas (shapes that haven't changed) + interactive canvas (active shape + selection). Eliminates full redraw on every frame
+- [x] Dual-canvas architecture: static canvas (shapes that haven't changed) + interactive canvas (active shape + selection). Eliminates full redraw on every frame
 
 ### Phase 10: Editing Polish
 Production-level editing UX.
@@ -189,7 +189,7 @@ Real-time multi-user editing.
 Ship-quality reliability.
 
 - [x] Performance: viewport culling (skip off-screen shapes) with configurable buffer zone
-- [ ] Performance: shape caching, render budgeting, dual-canvas architecture
+- [ ] Performance: shape caching, render budgeting
 - [ ] Large board testing (1000+ shapes)
 - [ ] Memory leak profiling (image cache eviction, etc.)
 - [ ] Error boundaries

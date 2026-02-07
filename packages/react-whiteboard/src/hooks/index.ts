@@ -1,4 +1,4 @@
-export { useCanvasSetup } from './useCanvasSetup'
+export { useDualCanvasSetup } from './useDualCanvasSetup'
 export { useKeyboardShortcuts } from './useKeyboardShortcuts'
 export { useTouchGestures } from './useTouchGestures'
 export { useTools } from './useTools'
