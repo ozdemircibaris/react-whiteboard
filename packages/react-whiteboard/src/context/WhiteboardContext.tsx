@@ -3,7 +3,10 @@ import { useStore } from 'zustand'
 import { createWhiteboardStore } from '../core/store/createStore'
 import type { WhiteboardStore } from '../core/store/createStore'
 import { ToolManager } from '../tools/ToolManager'
+import type { ITool } from '../tools/types'
 import type { TextTool } from '../tools/TextTool'
+import { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
+import type { CustomShapeRenderer } from '../core/renderer/ShapeRendererRegistry'
 import { loadFonts } from '../utils/fonts'
 
 // ============================================================================
@@ -16,6 +19,7 @@ type WhiteboardStoreApi = ReturnType<typeof createWhiteboardStore>
 interface WhiteboardContextValue {
   store: WhiteboardStoreApi
   toolManager: ToolManager
+  shapeRendererRegistry: ShapeRendererRegistry
 }
 
 const WhiteboardContext = createContext<WhiteboardContextValue | null>(null)
@@ -25,7 +29,7 @@ const WhiteboardContext = createContext<WhiteboardContextValue | null>(null)
 // ============================================================================
 
 /**
- * Access the raw context value (store + toolManager).
+ * Access the raw context value (store + toolManager + shapeRendererRegistry).
  * Throws if used outside <WhiteboardProvider>.
  */
 export function useWhiteboardContext(): WhiteboardContextValue {
@@ -54,6 +58,14 @@ export function useToolManager(): ToolManager {
   return toolManager
 }
 
+/**
+ * Access the ShapeRendererRegistry for registering custom shape renderers.
+ */
+export function useShapeRendererRegistry(): ShapeRendererRegistry {
+  const { shapeRendererRegistry } = useWhiteboardContext()
+  return shapeRendererRegistry
+}
+
 // ============================================================================
 // Provider
 // ============================================================================
@@ -62,15 +74,20 @@ export interface WhiteboardProviderProps {
   children: ReactNode
   /** Custom font URLs to override the default CDN-hosted Virgil + Cascadia Code fonts. */
   fontUrls?: Record<string, string>
+  /** Custom shape renderers to register (additive to built-in shapes) */
+  customShapes?: CustomShapeRenderer[]
+  /** Custom tools to register (additive to default tools) */
+  tools?: ITool[]
 }
 
 /**
- * Provides an isolated whiteboard store + tool manager.
+ * Provides an isolated whiteboard store + tool manager + shape renderer registry.
  * Multiple <WhiteboardProvider> instances on the same page are fully independent.
  */
-export function WhiteboardProvider({ children, fontUrls }: WhiteboardProviderProps) {
+export function WhiteboardProvider({ children, fontUrls, customShapes, tools }: WhiteboardProviderProps) {
   const storeRef = useRef<WhiteboardStoreApi | null>(null)
   const toolManagerRef = useRef<ToolManager | null>(null)
+  const registryRef = useRef<ShapeRendererRegistry | null>(null)
 
   // Lazy init (runs once per mount, no re-creation on re-render)
   if (!storeRef.current) {
@@ -79,18 +96,23 @@ export function WhiteboardProvider({ children, fontUrls }: WhiteboardProviderPro
   if (!toolManagerRef.current) {
     toolManagerRef.current = new ToolManager()
   }
+  if (!registryRef.current) {
+    registryRef.current = new ShapeRendererRegistry()
+  }
 
   const store = storeRef.current
   const toolManager = toolManagerRef.current
+  const registry = registryRef.current
 
   // Auto-load hand-drawn fonts on mount
   useEffect(() => {
     loadFonts(fontUrls)
   }, [fontUrls])
 
-  // Wire ToolManager -> store
+  // Wire ToolManager -> store + registry
   useEffect(() => {
     toolManager.setStoreGetter(() => store.getState())
+    toolManager.setRegistry(registry)
 
     // Wire TextTool viewport subscriber
     const textTool = toolManager.getTool('text') as TextTool | undefined
@@ -99,11 +121,37 @@ export function WhiteboardProvider({ children, fontUrls }: WhiteboardProviderPro
         store.subscribe((s) => s.viewport, listener),
       )
     }
-  }, [store, toolManager])
+  }, [store, toolManager, registry])
+
+  // Register/unregister custom shape renderers from props
+  useEffect(() => {
+    if (!customShapes) return
+    for (const renderer of customShapes) {
+      registry.registerRenderer(renderer)
+    }
+    return () => {
+      for (const renderer of customShapes) {
+        registry.unregisterRenderer(renderer.type)
+      }
+    }
+  }, [customShapes, registry])
+
+  // Register/unregister custom tools from props
+  useEffect(() => {
+    if (!tools) return
+    for (const tool of tools) {
+      toolManager.registerTool(tool)
+    }
+    return () => {
+      for (const tool of tools) {
+        toolManager.unregisterTool(tool.type)
+      }
+    }
+  }, [tools, toolManager])
 
   const value = useMemo<WhiteboardContextValue>(
-    () => ({ store, toolManager }),
-    [store, toolManager],
+    () => ({ store, toolManager, shapeRendererRegistry: registry }),
+    [store, toolManager, registry],
   )
 
   return (

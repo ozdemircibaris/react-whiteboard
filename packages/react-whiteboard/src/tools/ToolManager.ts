@@ -2,6 +2,7 @@ import type { WhiteboardStore } from '../core/store'
 import type { ToolType, Viewport } from '../types'
 import type { ThemeColors } from '../types/theme'
 import { LIGHT_THEME } from '../types/theme'
+import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 import type { ITool, ToolEventContext, ToolState } from './types'
 import { createToolState } from './types'
 import { SelectTool } from './SelectTool'
@@ -22,6 +23,7 @@ export class ToolManager {
   private state: ToolState
   private storeGetter: (() => WhiteboardStore) | null = null
   private _theme: ThemeColors = LIGHT_THEME
+  private _registry: ShapeRendererRegistry | null = null
 
   constructor() {
     this.state = createToolState()
@@ -103,6 +105,20 @@ export class ToolManager {
    */
   getTheme(): ThemeColors {
     return this._theme
+  }
+
+  /**
+   * Set the custom shape renderer registry
+   */
+  setRegistry(registry: ShapeRendererRegistry): void {
+    this._registry = registry
+  }
+
+  /**
+   * Get the custom shape renderer registry
+   */
+  getRegistry(): ShapeRendererRegistry | null {
+    return this._registry
   }
 
   /**

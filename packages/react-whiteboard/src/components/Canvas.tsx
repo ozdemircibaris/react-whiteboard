@@ -75,7 +75,7 @@ export function Canvas({
   const { canvasRef, containerRef, rendererRef, setupCanvas } = useCanvasSetup({ onReady })
   const textOverlayRef = useRef<HTMLDivElement>(null)
   const renderFnRef = useRef<(() => void) | null>(null)
-  const { store, toolManager } = useWhiteboardContext()
+  const { store, toolManager, shapeRendererRegistry } = useWhiteboardContext()
 
   // ── Store selectors (render dependencies) ─────────────────────────
   const shapes = useWhiteboardStore((s) => s.shapes)
@@ -107,6 +107,11 @@ export function Canvas({
   const groupSelectedShapes = useWhiteboardStore((s) => s.groupSelectedShapes)
   const ungroupSelectedShapes = useWhiteboardStore((s) => s.ungroupSelectedShapes)
   const setTool = useWhiteboardStore((s) => s.setTool)
+
+  // ── Wire shape renderer registry to canvas renderer ──────────────
+  useEffect(() => {
+    rendererRef.current?.setRegistry(shapeRendererRegistry)
+  }, [shapeRendererRegistry, rendererRef])
 
   // ── Sync theme to renderer + tool manager ────────────────────────
   useEffect(() => {
@@ -274,7 +279,7 @@ export function Canvas({
       const screenPoint: Point = { x: e.clientX, y: e.clientY }
       const canvasPoint = screenToCanvas(screenPoint, viewport, rect)
 
-      const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
+      const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2, shapeRendererRegistry)
 
       // Auto-select hit shape if not already selected
       if (hitShape && !selectedIds.has(hitShape.id)) {
@@ -287,7 +292,7 @@ export function Canvas({
         shapeId: hitShape?.id ?? null,
       })
     },
-    [onContextMenu, containerRef, viewport, shapes, shapeIds, selectedIds, store],
+    [onContextMenu, containerRef, viewport, shapes, shapeIds, selectedIds, store, shapeRendererRegistry],
   )
 
   // ── JSX ───────────────────────────────────────────────────────────

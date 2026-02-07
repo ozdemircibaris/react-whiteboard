@@ -9,6 +9,7 @@ import type {
   PathShape,
   ImageShape,
 } from '../types'
+import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 import {
   renderRectangle,
   renderEllipse,
@@ -28,6 +29,8 @@ export interface ExportSvgOptions {
   padding?: number
   /** Background color (default: '#ffffff'). Set to 'transparent' for none. */
   backgroundColor?: string
+  /** Custom shape renderer registry for SVG export of custom shapes */
+  registry?: ShapeRendererRegistry
 }
 
 // ============================================================================
@@ -140,6 +143,13 @@ export function exportToSvg(
       case 'image':
         el = renderImage(shape as ImageShape)
         break
+      default: {
+        const custom = options.registry?.getRenderer(shape.type)
+        if (custom?.svgRender) {
+          el = custom.svgRender({ roughSvg: rs, shape, allShapes: shapes })
+        }
+        break
+      }
     }
 
     if (el) contentGroup.appendChild(el)
