@@ -63,6 +63,10 @@ export function handleImagePaste(
         },
       }
 
+      // Switch to select tool before adding shape.
+      // If the user is mid-drag, this ensures isDragging is reset so
+      // scheduleStaticRender doesn't skip the static canvas render.
+      store.setTool('select')
       store.addShape(shape, true)
       store.select(shape.id)
     }

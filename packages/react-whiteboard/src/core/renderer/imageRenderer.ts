@@ -11,7 +11,11 @@ function evictOldest(): void {
   if (imageCache.size <= MAX_CACHE_SIZE) return
   // Map iterates in insertion order — delete the first (oldest) entry
   const oldest = imageCache.keys().next().value
-  if (oldest !== undefined) imageCache.delete(oldest)
+  if (oldest !== undefined) {
+    // Revoke blob URLs to free memory (no-op for non-blob URLs)
+    if (oldest.startsWith('blob:')) URL.revokeObjectURL(oldest)
+    imageCache.delete(oldest)
+  }
 }
 
 function getOrLoadImage(src: string): HTMLImageElement | null {

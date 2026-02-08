@@ -74,7 +74,7 @@ export function Canvas({
 
   // ── Dual canvas setup (static + interactive) ──────────────────────
   const {
-    staticCanvasRef, interactiveCanvasRef, containerRef,
+    staticCanvasRef, interactiveCanvasRef, containerRef, containerSizeRef,
     staticRendererRef, interactiveRendererRef, setupVersion,
   } = useDualCanvasSetup({ onReady, theme })
 
@@ -179,30 +179,31 @@ export function Canvas({
   // ── Static render: background, grid, committed shapes ────────────
   const renderStatic = useCallback(() => {
     const canvas = staticCanvasRef.current
-    const container = containerRef.current
     const renderer = staticRendererRef.current
-    if (!canvas || !container || !renderer) return
+    if (!canvas || !renderer) return
 
-    const rect = container.getBoundingClientRect()
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+
+    const { width, height } = containerSizeRef.current
+    if (width === 0 || height === 0) return
 
     const curShapes = shapesRef.current
     const curShapeIds = shapeIdsRef.current
     const transientIds = toolManager.getTransientShapeIds()
 
-    renderer.clear(rect.width, rect.height)
+    renderer.clear(width, height)
     ctx.save()
     ctx.fillStyle = resolvedBg
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.restore()
 
     if (showGrid) {
-      renderer.drawGrid(viewport, rect.width, rect.height, gridSize)
+      renderer.drawGrid(viewport, width, height, gridSize)
     }
 
     renderer.applyViewport(viewport)
-    const visibleBounds = getVisibleBounds(viewport, rect.width, rect.height)
+    const visibleBounds = getVisibleBounds(viewport, width, height)
     const cullingBounds = expandBounds(visibleBounds, 100 / viewport.zoom)
 
     for (const id of curShapeIds) {
@@ -213,17 +214,19 @@ export function Canvas({
       }
     }
     renderer.resetTransform()
-  }, [viewport, showGrid, gridSize, resolvedBg, staticCanvasRef, containerRef, staticRendererRef, toolManager])
+  }, [viewport, showGrid, gridSize, resolvedBg, staticCanvasRef, containerSizeRef, staticRendererRef, toolManager])
 
   // ── Interactive render: selection UI, transient shapes, overlays ──
   const renderInteractive = useCallback(() => {
     const canvas = interactiveCanvasRef.current
-    const container = containerRef.current
     const renderer = interactiveRendererRef.current
-    if (!canvas || !container || !renderer) return
+    if (!canvas || !renderer) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+
+    const { width, height } = containerSizeRef.current
+    if (width === 0 || height === 0) return
 
     const curShapes = shapesRef.current
     const transientIds = toolManager.getTransientShapeIds()
@@ -241,14 +244,13 @@ export function Canvas({
     }
     hadTransientRef.current = transientIds.size > 0
 
-    const rect = container.getBoundingClientRect()
-    renderer.clear(rect.width, rect.height)
+    renderer.clear(width, height)
     renderer.applyViewport(viewport)
 
     // Draw transient shapes using bitmap cache (avoids RoughJS recomputation)
     // Shadow is applied only to the shape bitmaps, not to selection handles
     if (transientIds.size > 0) {
-      const visibleBounds = getVisibleBounds(viewport, rect.width, rect.height)
+      const visibleBounds = getVisibleBounds(viewport, width, height)
       const cullingBounds = expandBounds(visibleBounds, 100 / viewport.zoom)
       ctx.save()
       ctx.shadowColor = 'rgba(0, 0, 0, 0.12)'
@@ -271,7 +273,7 @@ export function Canvas({
 
     renderOverlay(ctx)
     renderer.resetTransform()
-  }, [selectedIds, viewport, renderOverlay, interactiveCanvasRef, containerRef, interactiveRendererRef, toolManager])
+  }, [selectedIds, viewport, renderOverlay, interactiveCanvasRef, containerSizeRef, interactiveRendererRef, toolManager])
 
   // ── Keep render refs current (StrictMode safe) ────────────────────
   useEffect(() => {

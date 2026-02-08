@@ -12,14 +12,15 @@ const DEFAULT_VIEWPORT: Viewport = {
   zoom: 1,
 }
 
-/** Track active zoom animation for cancellation */
-let activeZoomAnimation: number | null = null
-
 function clampZoom(zoom: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
 }
 
 export function createViewportActions(set: StoreApi['set'], get: StoreApi['get']) {
+  // Track active zoom animation per store instance (not module-level)
+  // so multiple whiteboard instances don't interfere with each other.
+  let activeZoomAnimation: number | null = null
+
   return {
     setViewport: (viewport: Partial<Viewport>) =>
       set((state) => {
