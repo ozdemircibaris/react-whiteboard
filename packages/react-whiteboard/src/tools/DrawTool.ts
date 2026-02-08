@@ -22,6 +22,9 @@ const DEFAULT_PATH_PROPS = {
 /** Maximum points per stroke to prevent memory/performance issues */
 const MAX_POINTS = 2000
 
+/** Minimum squared distance between consecutive points to reduce jitter */
+const MIN_DISTANCE_SQ = 1.5 * 1.5
+
 /**
  * Shared stroke options for perfect-freehand
  */
@@ -86,6 +89,16 @@ export class DrawTool implements ITool {
     }
 
     state.dragCurrent = ctx.canvasPoint
+
+    // Skip points too close to the last one to reduce jitter on slow strokes
+    const last = this.points[this.points.length - 1]
+    if (last) {
+      const dx = ctx.canvasPoint.x - last.x
+      const dy = ctx.canvasPoint.y - last.y
+      if (dx * dx + dy * dy < MIN_DISTANCE_SQ) {
+        return { handled: true, cursor: 'crosshair' }
+      }
+    }
 
     // Cap point count to prevent unbounded memory growth on long strokes.
     // After limit, downsample by skipping every other point.
@@ -160,7 +173,7 @@ export class DrawTool implements ITool {
     if (outlinePoints.length < 2) return
 
     ctx.save()
-    ctx.globalAlpha = 0.8
+    ctx.globalAlpha = 0.9
     ctx.fillStyle = DEFAULT_PATH_PROPS.stroke
 
     this.fillStrokeOutline(ctx, outlinePoints)
@@ -176,19 +189,30 @@ export class DrawTool implements ITool {
   }
 
   /**
-   * Fill the stroke outline polygon on canvas
+   * Fill the stroke outline polygon on canvas using smooth quadratic curves.
+   * Uses the "average midpoints" technique: each outline point becomes a
+   * control point for a quadraticCurveTo, with the endpoint being the
+   * midpoint to the next outline point. This eliminates angular segments.
    */
   private fillStrokeOutline(ctx: CanvasRenderingContext2D, outline: number[][]): void {
-    const first = outline[0]
-    if (!first) return
+    const len = outline.length
+    if (len < 2) return
 
+    const first = outline[0]!
     ctx.beginPath()
     ctx.moveTo(first[0]!, first[1]!)
 
-    for (let i = 1; i < outline.length; i++) {
-      const pt = outline[i]!
-      ctx.lineTo(pt[0]!, pt[1]!)
+    for (let i = 1; i < len - 1; i++) {
+      const cur = outline[i]!
+      const next = outline[i + 1]!
+      const mx = (cur[0]! + next[0]!) / 2
+      const my = (cur[1]! + next[1]!) / 2
+      ctx.quadraticCurveTo(cur[0]!, cur[1]!, mx, my)
     }
+
+    // Final segment: curve to the last point
+    const last = outline[len - 1]!
+    ctx.quadraticCurveTo(last[0]!, last[1]!, last[0]!, last[1]!)
 
     ctx.closePath()
     ctx.fill()

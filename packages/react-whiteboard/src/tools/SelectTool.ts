@@ -88,7 +88,7 @@ export class SelectTool implements ITool {
     }
 
     // Check if clicking on a shape
-    const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2)
+    const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 5)
 
     if (hitShape) {
       if (shiftKey) {
@@ -156,7 +156,7 @@ export class SelectTool implements ITool {
   }
 
   onDoubleClick(ctx: ToolEventContext, store: WhiteboardStore): void {
-    const hitShape = getShapeAtPoint(ctx.canvasPoint, store.shapes, store.shapeIds, 2)
+    const hitShape = getShapeAtPoint(ctx.canvasPoint, store.shapes, store.shapeIds, 5)
     if (!hitShape) return
 
     const text = this.manager.getTool('text') as TextTool | undefined
