@@ -1,5 +1,6 @@
-import type { Shape, Viewport } from '../types'
+import type { Shape, ImageShape, Viewport } from '../types'
 import { collectBoundTextIds } from './boundText'
+import { isBlobUrl, blobUrlToDataUrl, dataUrlToBlobUrl } from './imageBlobStore'
 
 /** Current file format version */
 const FORMAT_VERSION = 1
@@ -51,14 +52,34 @@ export function serializeDocument(
 }
 
 /**
- * Serialize whiteboard state to a JSON string.
+ * Resolve blob URLs in image shapes to base64 DataURLs for persistence.
  */
-export function exportToJSON(
+async function resolveImageBlobUrls(shapes: Shape[]): Promise<Shape[]> {
+  const resolved: Shape[] = []
+  for (const shape of shapes) {
+    if (shape.type === 'image' && isBlobUrl((shape as ImageShape).props.src)) {
+      const imgShape = shape as ImageShape
+      const dataUrl = await blobUrlToDataUrl(imgShape.props.src)
+      resolved.push({ ...imgShape, props: { ...imgShape.props, src: dataUrl } } as Shape)
+    } else {
+      resolved.push(shape)
+    }
+  }
+  return resolved
+}
+
+/**
+ * Serialize whiteboard state to a JSON string.
+ * Async because blob URLs must be resolved to base64 DataURLs for persistence.
+ */
+export async function exportToJSON(
   shapes: Map<string, Shape>,
   shapeIds: string[],
   viewport: Viewport,
-): string {
-  return JSON.stringify(serializeDocument(shapes, shapeIds, viewport), null, 2)
+): Promise<string> {
+  const doc = serializeDocument(shapes, shapeIds, viewport)
+  doc.shapes = await resolveImageBlobUrls(doc.shapes)
+  return JSON.stringify(doc, null, 2)
 }
 
 /**
@@ -102,6 +123,7 @@ export function parseDocument(json: string): WhiteboardDocument {
 
 /**
  * Convert a parsed document into store-ready data structures.
+ * Converts base64 DataURL image sources to efficient blob URLs.
  */
 export function documentToStoreData(doc: WhiteboardDocument): {
   shapes: Map<string, Shape>
@@ -110,6 +132,19 @@ export function documentToStoreData(doc: WhiteboardDocument): {
 } {
   const shapes = new Map<string, Shape>()
   for (const shape of doc.shapes) {
+    if (shape.type === 'image') {
+      const imgShape = shape as ImageShape
+      const src = imgShape.props.src
+      // Convert base64 DataURLs to blob URLs for efficient in-memory storage
+      if (src.startsWith('data:')) {
+        const blobUrl = dataUrlToBlobUrl(src)
+        shapes.set(shape.id, {
+          ...imgShape,
+          props: { ...imgShape.props, src: blobUrl },
+        } as Shape)
+        continue
+      }
+    }
     shapes.set(shape.id, shape)
   }
 

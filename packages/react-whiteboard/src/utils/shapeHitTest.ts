@@ -220,6 +220,20 @@ export function hitTestArrow(point: Point, shape: ArrowShape, tolerance: number 
 }
 
 /**
+ * Quick AABB pre-check: skip expensive per-type hit tests if the point is
+ * clearly outside the shape's bounding box (+ tolerance margin).
+ */
+function outsideBounds(point: Point, shape: Shape, tolerance: number): boolean {
+  const margin = tolerance + 10 // extra slack for stroke width / arrowheads
+  return (
+    point.x < shape.x - margin ||
+    point.x > shape.x + shape.width + margin ||
+    point.y < shape.y - margin ||
+    point.y > shape.y + shape.height + margin
+  )
+}
+
+/**
  * Hit test a single shape.
  * Pass an optional registry to support custom shape hit testing.
  */
@@ -230,6 +244,9 @@ export function hitTestShape(
   registry?: ShapeRendererRegistry,
 ): boolean {
   if (shape.isLocked) return false
+
+  // Fast AABB reject — avoids expensive per-point path iteration etc.
+  if (shape.rotation === 0 && outsideBounds(point, shape, tolerance)) return false
 
   switch (shape.type) {
     case 'rectangle':

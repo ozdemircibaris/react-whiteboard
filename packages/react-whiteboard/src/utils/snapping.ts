@@ -28,6 +28,7 @@ export function snapToGrid(point: Point, gridSize: number): Point {
 /**
  * Snap moving bounds to other shape edges/centers (smart guides).
  * Returns the snapped position and visual snap lines.
+ * Uses proximity culling to skip shapes that are too far away to snap.
  */
 export function snapToShapes(
   movingBounds: Bounds,
@@ -42,40 +43,72 @@ export function snapToShapes(
   let snapX = movingBounds.x
   let snapY = movingBounds.y
 
-  const movingEdges = getBoundsEdges(movingBounds)
+  // Pre-compute moving edge positions (avoid per-shape object allocation)
+  const mLeft = movingBounds.x
+  const mCenterX = movingBounds.x + movingBounds.width / 2
+  const mRight = movingBounds.x + movingBounds.width
+  const mTop = movingBounds.y
+  const mCenterY = movingBounds.y + movingBounds.height / 2
+  const mBottom = movingBounds.y + movingBounds.height
 
   for (const id of shapeIds) {
     if (excludeIds.has(id)) continue
     const shape = allShapes.get(id)
     if (!shape) continue
 
-    const targetEdges = getBoundsEdges({
-      x: shape.x,
-      y: shape.y,
-      width: shape.width,
-      height: shape.height,
-    })
+    const tLeft = shape.x
+    const tRight = shape.x + shape.width
+    const tTop = shape.y
+    const tBottom = shape.y + shape.height
+
+    // Proximity culling: skip shapes whose edges are all too far to snap
+    const canSnapX = tRight >= mLeft - threshold && tLeft <= mRight + threshold
+    const canSnapY = tBottom >= mTop - threshold && tTop <= mBottom + threshold
+    if (!canSnapX && !canSnapY) continue
+
+    const tCenterX = tLeft + shape.width / 2
+    const tCenterY = tTop + shape.height / 2
 
     // Check vertical alignment (x-axis snapping)
-    for (const mv of movingEdges.verticals) {
-      for (const tv of targetEdges.verticals) {
-        const dx = Math.abs(mv - tv)
-        if (dx < threshold && dx < Math.abs(bestDx)) {
-          bestDx = tv - mv
-          snapX = movingBounds.x + bestDx
-        }
-      }
+    if (canSnapX) {
+      checkEdgeSnap(mLeft,    tLeft,    threshold)
+      checkEdgeSnap(mLeft,    tCenterX, threshold)
+      checkEdgeSnap(mLeft,    tRight,   threshold)
+      checkEdgeSnap(mCenterX, tLeft,    threshold)
+      checkEdgeSnap(mCenterX, tCenterX, threshold)
+      checkEdgeSnap(mCenterX, tRight,   threshold)
+      checkEdgeSnap(mRight,   tLeft,    threshold)
+      checkEdgeSnap(mRight,   tCenterX, threshold)
+      checkEdgeSnap(mRight,   tRight,   threshold)
     }
 
     // Check horizontal alignment (y-axis snapping)
-    for (const mh of movingEdges.horizontals) {
-      for (const th of targetEdges.horizontals) {
-        const dy = Math.abs(mh - th)
-        if (dy < threshold && dy < Math.abs(bestDy)) {
-          bestDy = th - mh
-          snapY = movingBounds.y + bestDy
-        }
-      }
+    if (canSnapY) {
+      checkEdgeSnapY(mTop,     tTop,     threshold)
+      checkEdgeSnapY(mTop,     tCenterY, threshold)
+      checkEdgeSnapY(mTop,     tBottom,  threshold)
+      checkEdgeSnapY(mCenterY, tTop,     threshold)
+      checkEdgeSnapY(mCenterY, tCenterY, threshold)
+      checkEdgeSnapY(mCenterY, tBottom,  threshold)
+      checkEdgeSnapY(mBottom,  tTop,     threshold)
+      checkEdgeSnapY(mBottom,  tCenterY, threshold)
+      checkEdgeSnapY(mBottom,  tBottom,  threshold)
+    }
+  }
+
+  // Inline helpers capture bestDx/bestDy via closure
+  function checkEdgeSnap(mv: number, tv: number, t: number) {
+    const d = Math.abs(mv - tv)
+    if (d < t && d < Math.abs(bestDx)) {
+      bestDx = tv - mv
+      snapX = movingBounds.x + bestDx
+    }
+  }
+  function checkEdgeSnapY(mh: number, th: number, t: number) {
+    const d = Math.abs(mh - th)
+    if (d < t && d < Math.abs(bestDy)) {
+      bestDy = th - mh
+      snapY = movingBounds.y + bestDy
     }
   }
 
@@ -104,18 +137,6 @@ export function snapToShapes(
     x: Math.abs(bestDx) < threshold ? snapX : movingBounds.x,
     y: Math.abs(bestDy) < threshold ? snapY : movingBounds.y,
     snapLines,
-  }
-}
-
-interface BoundsEdges {
-  verticals: number[]   // x-positions: left, center, right
-  horizontals: number[] // y-positions: top, center, bottom
-}
-
-function getBoundsEdges(bounds: Bounds): BoundsEdges {
-  return {
-    verticals: [bounds.x, bounds.x + bounds.width / 2, bounds.x + bounds.width],
-    horizontals: [bounds.y, bounds.y + bounds.height / 2, bounds.y + bounds.height],
   }
 }
 

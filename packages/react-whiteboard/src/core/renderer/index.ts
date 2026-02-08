@@ -192,11 +192,49 @@ export class CanvasRenderer {
   // ── Drag bitmap cache ─────────────────────────────────────────────
 
   /**
-   * Build a cache key from shape properties that affect rendering (excludes x,y).
+   * Build a lightweight cache key from shape properties that affect rendering (excludes x,y).
+   * Uses type-specific property extraction to avoid expensive JSON.stringify on large data
+   * (e.g. PathShape with thousands of points, ImageShape with base64 src).
    */
   private shapeCacheKey(shape: Shape, zoom: number): string {
-    const p = shape.props as Record<string, unknown>
-    return `${shape.type}|${shape.width}|${shape.height}|${shape.rotation}|${shape.opacity}|${shape.seed}|${shape.roughness}|${zoom}|${JSON.stringify(p)}`
+    const base = `${shape.type}|${shape.width}|${shape.height}|${shape.rotation}|${shape.opacity}|${shape.seed}|${shape.roughness}|${zoom}`
+
+    switch (shape.type) {
+      case 'rectangle': {
+        const p = (shape as RectangleShape).props
+        return `${base}|${p.fill}|${p.fillStyle}|${p.stroke}|${p.strokeWidth}|${p.strokeStyle}|${p.cornerRadius}|${p.boundTextId ?? ''}`
+      }
+      case 'ellipse': {
+        const p = (shape as EllipseShape).props
+        return `${base}|${p.fill}|${p.fillStyle}|${p.stroke}|${p.strokeWidth}|${p.strokeStyle}|${p.boundTextId ?? ''}`
+      }
+      case 'path': {
+        const p = (shape as PathShape).props
+        return `${base}|${p.stroke}|${p.strokeWidth}|${p.strokeStyle}|${p.isComplete}|${p.points.length}`
+      }
+      case 'line': {
+        const p = (shape as LineShape).props
+        const pts = p.points
+        return `${base}|${p.stroke}|${p.strokeWidth}|${p.strokeStyle}|${pts.length}|${pts[0]?.x}|${pts[0]?.y}|${pts[pts.length - 1]?.x}|${pts[pts.length - 1]?.y}`
+      }
+      case 'arrow': {
+        const p = (shape as ArrowShape).props
+        return `${base}|${p.stroke}|${p.strokeWidth}|${p.strokeStyle}|${p.start.x}|${p.start.y}|${p.end.x}|${p.end.y}|${p.startArrowhead}|${p.endArrowhead}`
+      }
+      case 'text': {
+        const p = (shape as TextShape).props
+        return `${base}|${p.text.length}|${p.fontSize}|${p.fontFamily}|${p.fontWeight}|${p.fontStyle}|${p.color}|${p.backgroundColor}|${p.align}|${p.lineHeight}`
+      }
+      case 'image': {
+        const p = (shape as ImageShape).props
+        return `${base}|${p.src.length}|${p.naturalWidth}|${p.naturalHeight}`
+      }
+      default: {
+        // Custom shapes: fallback to JSON.stringify (unavoidable for unknown prop structure)
+        const p = shape.props as Record<string, unknown>
+        return `${base}|${JSON.stringify(p)}`
+      }
+    }
   }
 
   /**

@@ -19,6 +19,8 @@ import {
   renderText,
   renderImage,
 } from './svgShapeRenderers'
+import { isBlobUrl, blobUrlToDataUrl } from './imageBlobStore'
+import { getShapesBounds } from './shapeBounds'
 
 // ============================================================================
 // Types
@@ -37,44 +39,42 @@ export interface ExportSvgOptions {
 // Helpers
 // ============================================================================
 
-function getShapesBounds(
+/**
+ * Resolve blob URLs in image shapes to base64 DataURLs so the SVG is self-contained.
+ */
+async function resolveImageSrcs(
   shapes: Map<string, Shape>,
   shapeIds: string[],
-): { minX: number; minY: number; maxX: number; maxY: number } | null {
-  if (shapeIds.length === 0) return null
-
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-
+): Promise<Map<string, Shape>> {
+  const resolved = new Map(shapes)
   for (const id of shapeIds) {
-    const s = shapes.get(id)
-    if (!s) continue
-    minX = Math.min(minX, s.x)
-    minY = Math.min(minY, s.y)
-    maxX = Math.max(maxX, s.x + s.width)
-    maxY = Math.max(maxY, s.y + s.height)
+    const shape = shapes.get(id)
+    if (!shape || shape.type !== 'image') continue
+    const imgShape = shape as ImageShape
+    if (!isBlobUrl(imgShape.props.src)) continue
+    const dataUrl = await blobUrlToDataUrl(imgShape.props.src)
+    resolved.set(id, { ...imgShape, props: { ...imgShape.props, src: dataUrl } } as Shape)
   }
-
-  if (!isFinite(minX)) return null
-  return { minX, minY, maxX, maxY }
+  return resolved
 }
-
-// ============================================================================
-// Public API
-// ============================================================================
 
 /**
  * Export all shapes to an SVG string using RoughJS SVG mode for hand-drawn aesthetics.
+ * Async because blob URLs in image shapes must be resolved to base64 DataURLs.
  * Returns null if there are no shapes to export.
  */
-export function exportToSvg(
+export async function exportToSvg(
   shapes: Map<string, Shape>,
   shapeIds: string[],
   options: ExportSvgOptions = {},
-): string | null {
+): Promise<string | null> {
   const { padding = 32, backgroundColor = '#ffffff' } = options
 
   const bounds = getShapesBounds(shapes, shapeIds)
   if (!bounds) return null
+
+  // Resolve blob URLs in image shapes to base64 DataURLs for self-contained SVG
+  const resolvedShapes = await resolveImageSrcs(shapes, shapeIds)
 
   const contentWidth = bounds.maxX - bounds.minX
   const contentHeight = bounds.maxY - bounds.minY
@@ -106,7 +106,7 @@ export function exportToSvg(
   // Collect bound text IDs to skip standalone rendering
   const boundTextIds = new Set<string>()
   for (const id of shapeIds) {
-    const shape = shapes.get(id)
+    const shape = resolvedShapes.get(id)
     if (!shape) continue
     if ((shape.type === 'rectangle' || shape.type === 'ellipse') && 'boundTextId' in shape.props) {
       const btId = (shape as RectangleShape | EllipseShape).props.boundTextId
@@ -115,7 +115,7 @@ export function exportToSvg(
   }
 
   for (const id of shapeIds) {
-    const shape = shapes.get(id)
+    const shape = resolvedShapes.get(id)
     if (!shape) continue
     if (shape.type === 'text' && boundTextIds.has(shape.id)) continue
 
@@ -123,10 +123,10 @@ export function exportToSvg(
 
     switch (shape.type) {
       case 'rectangle':
-        el = renderRectangle(rs, shape as RectangleShape, shapes)
+        el = renderRectangle(rs, shape as RectangleShape, resolvedShapes)
         break
       case 'ellipse':
-        el = renderEllipse(rs, shape as EllipseShape, shapes)
+        el = renderEllipse(rs, shape as EllipseShape, resolvedShapes)
         break
       case 'line':
         el = renderLine(rs, shape as LineShape)
@@ -146,7 +146,7 @@ export function exportToSvg(
       default: {
         const custom = options.registry?.getRenderer(shape.type)
         if (custom?.svgRender) {
-          el = custom.svgRender({ roughSvg: rs, shape, allShapes: shapes })
+          el = custom.svgRender({ roughSvg: rs, shape, allShapes: resolvedShapes })
         }
         break
       }
@@ -162,13 +162,13 @@ export function exportToSvg(
  * Export shapes to SVG and trigger a download.
  * Returns false if there are no shapes.
  */
-export function downloadSvg(
+export async function downloadSvg(
   shapes: Map<string, Shape>,
   shapeIds: string[],
   filename: string = 'whiteboard.svg',
   options: ExportSvgOptions = {},
-): boolean {
-  const svgString = exportToSvg(shapes, shapeIds, options)
+): Promise<boolean> {
+  const svgString = await exportToSvg(shapes, shapeIds, options)
   if (!svgString) return false
 
   const blob = new Blob([svgString], { type: 'image/svg+xml' })

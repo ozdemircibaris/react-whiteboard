@@ -1,6 +1,7 @@
 import type { Shape } from '../types'
 import { CanvasRenderer } from '../core/renderer'
 import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
+import { getShapesBounds } from './shapeBounds'
 
 /** Options for PNG export */
 export interface ExportPngOptions {
@@ -12,31 +13,6 @@ export interface ExportPngOptions {
   scale?: number
   /** Custom shape renderer registry for custom shapes */
   registry?: ShapeRendererRegistry
-}
-
-/**
- * Calculate the bounding box of all shapes.
- * Returns null if there are no shapes.
- */
-function getShapesBounds(
-  shapes: Map<string, Shape>,
-  shapeIds: string[],
-): { minX: number; minY: number; maxX: number; maxY: number } | null {
-  if (shapeIds.length === 0) return null
-
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-
-  for (const id of shapeIds) {
-    const s = shapes.get(id)
-    if (!s) continue
-    minX = Math.min(minX, s.x)
-    minY = Math.min(minY, s.y)
-    maxX = Math.max(maxX, s.x + s.width)
-    maxY = Math.max(maxY, s.y + s.height)
-  }
-
-  if (!isFinite(minX)) return null
-  return { minX, minY, maxX, maxY }
 }
 
 /**
