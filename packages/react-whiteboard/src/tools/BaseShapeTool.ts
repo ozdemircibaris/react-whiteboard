@@ -32,6 +32,8 @@ export abstract class BaseShapeTool implements ITool {
 
   protected previewShape: Shape | null = null
   protected previewSeed = Math.floor(Math.random() * 2147483647)
+  private cachedRc: RoughCanvas | null = null
+  private cachedRcCanvas: HTMLCanvasElement | null = null
 
   /** Create the final shape instance to be added to the store */
   protected abstract createShapeInstance(bounds: ShapeBounds, seed: number): Shape
@@ -138,10 +140,13 @@ export abstract class BaseShapeTool implements ITool {
     if (!this.previewShape || !state.isDragging) return
 
     ctx.save()
-    ctx.globalAlpha = 0.7
+    ctx.globalAlpha = 0.9
 
-    const rc = rough.canvas(ctx.canvas)
-    this.renderPreview(ctx, rc, this.previewShape)
+    if (!this.cachedRc || this.cachedRcCanvas !== ctx.canvas) {
+      this.cachedRc = rough.canvas(ctx.canvas)
+      this.cachedRcCanvas = ctx.canvas
+    }
+    this.renderPreview(ctx, this.cachedRc, this.previewShape)
 
     ctx.restore()
 

@@ -106,7 +106,7 @@ export class TextTool implements ITool {
       return { handled: true, capture: false, cursor: 'text' }
     }
 
-    const hitShape = getShapeAtPoint(canvasPoint, store.shapes, store.shapeIds, 2)
+    const hitShape = getShapeAtPoint(canvasPoint, store.shapes, store.shapeIds, 5)
 
     if (hitShape && hitShape.type === 'text') {
       this.startEditing(hitShape as TextShape, ctx.viewport, store)
@@ -134,7 +134,7 @@ export class TextTool implements ITool {
   }
 
   onDoubleClick(ctx: ToolEventContext, store: WhiteboardStore): void {
-    const hitShape = getShapeAtPoint(ctx.canvasPoint, store.shapes, store.shapeIds, 2)
+    const hitShape = getShapeAtPoint(ctx.canvasPoint, store.shapes, store.shapeIds, 5)
     if (hitShape && hitShape.type === 'text') {
       this.startEditing(hitShape as TextShape, ctx.viewport, store)
     }

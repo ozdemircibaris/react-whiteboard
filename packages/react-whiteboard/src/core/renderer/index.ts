@@ -343,8 +343,7 @@ export class CanvasRenderer {
     width: number,
     height: number,
   ): void {
-    const handleSize = 8
-    const halfHandle = handleSize / 2
+    const handleRadius = 4
 
     this.ctx.strokeStyle = this.theme.selectionStroke
     this.ctx.lineWidth = 2
@@ -353,27 +352,30 @@ export class CanvasRenderer {
 
     this.ctx.fillStyle = this.theme.selectionHandleFill
     this.ctx.strokeStyle = this.theme.selectionStroke
-    this.ctx.lineWidth = 1
+    this.ctx.lineWidth = 1.5
 
+    // Handle center positions
     const corners = [
-      { x: x - halfHandle, y: y - halfHandle },
-      { x: x + width - halfHandle, y: y - halfHandle },
-      { x: x + width - halfHandle, y: y + height - halfHandle },
-      { x: x - halfHandle, y: y + height - halfHandle },
+      { x, y },
+      { x: x + width, y },
+      { x: x + width, y: y + height },
+      { x, y: y + height },
     ]
 
     const edges = [
-      { x: x + width / 2 - halfHandle, y: y - halfHandle },
-      { x: x + width - halfHandle, y: y + height / 2 - halfHandle },
-      { x: x + width / 2 - halfHandle, y: y + height - halfHandle },
-      { x: x - halfHandle, y: y + height / 2 - halfHandle },
+      { x: x + width / 2, y },
+      { x: x + width, y: y + height / 2 },
+      { x: x + width / 2, y: y + height },
+      { x, y: y + height / 2 },
     ]
 
     const handles = cornersOnly ? corners : [...corners, ...edges]
 
     for (const handle of handles) {
-      this.ctx.fillRect(handle.x, handle.y, handleSize, handleSize)
-      this.ctx.strokeRect(handle.x, handle.y, handleSize, handleSize)
+      this.ctx.beginPath()
+      this.ctx.arc(handle.x, handle.y, handleRadius, 0, Math.PI * 2)
+      this.ctx.fill()
+      this.ctx.stroke()
     }
 
     // Draw rotation handle above top-center

@@ -130,10 +130,13 @@ export function hitTestEllipse(point: Point, shape: Shape, tolerance: number = 0
 }
 
 /**
- * Hit test for path (freehand drawing) — offsets points by shape position
+ * Hit test for path (freehand drawing).
+ * For paths with meaningful area (not a thin line), clicking inside the
+ * bounding box is sufficient — this matches user expectations for freehand drawings.
+ * For thin/linear paths, falls back to line segment distance check.
  */
 export function hitTestPath(point: Point, shape: PathShape, tolerance: number = 5): boolean {
-  const { x, y } = shape
+  const { x, y, width, height } = shape
   const { points, strokeWidth } = shape.props
 
   if (points.length === 0) return false
@@ -149,6 +152,22 @@ export function hitTestPath(point: Point, shape: PathShape, tolerance: number = 
     return Math.sqrt(dx * dx + dy * dy) <= tolerance
   }
 
+  // For paths with meaningful area, use bounding box hit test.
+  // This makes selection much easier for freehand drawings.
+  const minDimension = 10
+  if (width > minDimension && height > minDimension) {
+    const margin = tolerance + strokeWidth
+    if (
+      testPoint.x >= x - margin &&
+      testPoint.x <= x + width + margin &&
+      testPoint.y >= y - margin &&
+      testPoint.y <= y + height + margin
+    ) {
+      return true
+    }
+  }
+
+  // Fallback: line segment distance check for thin/linear paths
   for (let i = 0; i < points.length - 1; i++) {
     const current = points[i]
     const next = points[i + 1]

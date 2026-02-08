@@ -25,6 +25,10 @@ export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = fals
   const isPanningRef = useRef(false)
   const [cursorStyle, setCursorStyle] = useState('default')
 
+  // Cached container rect — refreshed at pointerdown, reused during drag
+  // to avoid getBoundingClientRect layout thrash on every pointermove
+  const cachedRectRef = useRef<DOMRect | null>(null)
+
   const toolManager = useToolManager()
 
   // Store selectors
@@ -43,13 +47,14 @@ export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = fals
     setCursorStyle(TOOL_CURSORS[currentTool] || 'default')
   }, [currentTool, readOnly])
 
-  // Build ToolEventContext from a React pointer event
+  // Build ToolEventContext from a React pointer event.
+  // Uses cachedRectRef when available (during drag) to avoid layout thrash.
   const createEventContext = useCallback(
     (e: React.PointerEvent): ToolEventContext | null => {
       const container = containerRef.current
       if (!container) return null
 
-      const rect = container.getBoundingClientRect()
+      const rect = cachedRectRef.current ?? container.getBoundingClientRect()
       const screenPoint: Point = { x: e.clientX, y: e.clientY }
       const canvasPoint = screenToCanvas(screenPoint, viewport, rect)
 
@@ -88,6 +93,10 @@ export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = fals
 
       canvas.setPointerCapture(e.pointerId)
       lastPointerRef.current = { x: e.clientX, y: e.clientY }
+
+      // Cache container rect for the duration of this drag session
+      const container = containerRef.current
+      cachedRectRef.current = container ? container.getBoundingClientRect() : null
 
       // Middle mouse or alt+left click → panning
       if (e.button === 1 || (e.button === 0 && e.altKey)) {
@@ -185,6 +194,7 @@ export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = fals
       }
 
       lastPointerRef.current = null
+      cachedRectRef.current = null
       requestRender()
     },
     [canvasRef, createEventContext, setIsPanning, requestRender, readOnly],
