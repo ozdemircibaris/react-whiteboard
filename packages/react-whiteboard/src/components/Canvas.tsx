@@ -248,13 +248,17 @@ export function Canvas({
     // Draw transient shapes using bitmap cache (avoids RoughJS recomputation)
     // Shadow is applied only to the shape bitmaps, not to selection handles
     if (transientIds.size > 0) {
+      const visibleBounds = getVisibleBounds(viewport, rect.width, rect.height)
+      const cullingBounds = expandBounds(visibleBounds, 100 / viewport.zoom)
       ctx.save()
       ctx.shadowColor = 'rgba(0, 0, 0, 0.12)'
       ctx.shadowBlur = 8
       ctx.shadowOffsetY = 3
       for (const id of transientIds) {
         const shape = curShapes.get(id)
-        if (shape) renderer.drawShapeCached(shape, false, viewport.zoom, curShapes)
+        if (shape && boundsIntersect(shape, cullingBounds)) {
+          renderer.drawShapeCached(shape, false, viewport.zoom, curShapes)
+        }
       }
       ctx.restore()
     }

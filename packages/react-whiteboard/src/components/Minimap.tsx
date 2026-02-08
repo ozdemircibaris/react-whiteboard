@@ -3,6 +3,7 @@ import { useWhiteboardStore } from '../context'
 import type { Shape } from '../types'
 import type { ThemeColors } from '../types/theme'
 import { resolveTheme } from '../types/theme'
+import { getShapesBounds } from '../utils/shapeBounds'
 
 export interface MinimapProps {
   width?: number
@@ -16,29 +17,17 @@ export interface MinimapProps {
   canvasHeight?: number
 }
 
+const DEFAULT_WORLD = { x: 0, y: 0, width: 1000, height: 800 } as const
+const WORLD_PAD = 100
+
 function getWorldBounds(shapes: Map<string, Shape>, shapeIds: string[]) {
-  if (shapeIds.length === 0) return { x: 0, y: 0, width: 1000, height: 800 }
-
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const id of shapeIds) {
-    const s = shapes.get(id)
-    if (!s) continue
-    minX = Math.min(minX, s.x)
-    minY = Math.min(minY, s.y)
-    maxX = Math.max(maxX, s.x + s.width)
-    maxY = Math.max(maxY, s.y + s.height)
-  }
-
-  // If no shapes were found in the map, return default bounds
-  if (!isFinite(minX)) return { x: 0, y: 0, width: 1000, height: 800 }
-
-  // Add padding
-  const pad = 100
+  const bounds = getShapesBounds(shapes, shapeIds)
+  if (!bounds) return DEFAULT_WORLD
   return {
-    x: minX - pad,
-    y: minY - pad,
-    width: maxX - minX + pad * 2,
-    height: maxY - minY + pad * 2,
+    x: bounds.minX - WORLD_PAD,
+    y: bounds.minY - WORLD_PAD,
+    width: bounds.maxX - bounds.minX + WORLD_PAD * 2,
+    height: bounds.maxY - bounds.minY + WORLD_PAD * 2,
   }
 }
 
@@ -49,6 +38,19 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
   const viewport = useWhiteboardStore((s) => s.viewport)
   const setViewport = useWhiteboardStore((s) => s.setViewport)
   const theme = useMemo(() => resolveTheme(themeProp), [themeProp])
+
+  // Memoize world bounds + transform so useEffect and handleClick share the same result
+  const world = useMemo(() => getWorldBounds(shapes, shapeIds), [shapes, shapeIds])
+  const transform = useMemo(() => {
+    const scaleX = width / world.width
+    const scaleY = height / world.height
+    const scale = Math.min(scaleX, scaleY) * 0.9
+    return {
+      scale,
+      offsetX: (width - world.width * scale) / 2,
+      offsetY: (height - world.height * scale) / 2,
+    }
+  }, [world, width, height])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -65,12 +67,7 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
     ctx.fillStyle = theme.minimapBackground
     ctx.fillRect(0, 0, width, height)
 
-    const world = getWorldBounds(shapes, shapeIds)
-    const scaleX = width / world.width
-    const scaleY = height / world.height
-    const scale = Math.min(scaleX, scaleY) * 0.9
-    const offsetX = (width - world.width * scale) / 2
-    const offsetY = (height - world.height * scale) / 2
+    const { scale, offsetX, offsetY } = transform
 
     // Draw shapes as simplified rectangles
     ctx.fillStyle = theme.minimapShapeFill
@@ -106,7 +103,7 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
     ctx.strokeStyle = theme.minimapViewportStroke
     ctx.lineWidth = 2
     ctx.strokeRect(rx, ry, rw, rh)
-  }, [shapes, shapeIds, viewport, width, height, theme])
+  }, [shapes, shapeIds, viewport, width, height, theme, world, transform])
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -117,12 +114,7 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
       const clickX = e.clientX - rect.left
       const clickY = e.clientY - rect.top
 
-      const world = getWorldBounds(shapes, shapeIds)
-      const scaleX = width / world.width
-      const scaleY = height / world.height
-      const scale = Math.min(scaleX, scaleY) * 0.9
-      const offsetX = (width - world.width * scale) / 2
-      const offsetY = (height - world.height * scale) / 2
+      const { scale, offsetX, offsetY } = transform
 
       // Convert click to world coordinates
       const worldX = (clickX - offsetX) / scale + world.x
@@ -138,7 +130,7 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
         y: -(worldY - vpHeight / 2) * viewport.zoom,
       })
     },
-    [shapes, shapeIds, viewport, width, height, setViewport],
+    [world, transform, viewport, setViewport, canvasWidth, canvasHeight],
   )
 
   return (

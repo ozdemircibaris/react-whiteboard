@@ -50,8 +50,8 @@ export function TopBar() {
   const bringForward = useWhiteboardStore((s) => s.bringForward)
   const sendBackward = useWhiteboardStore((s) => s.sendBackward)
 
-  const handleSave = () => {
-    const json = exportToJSON(shapes, shapeIds, viewport)
+  const handleSave = async () => {
+    const json = await exportToJSON(shapes, shapeIds, viewport)
     downloadFile(json, 'whiteboard.json', 'application/json')
   }
 
@@ -71,8 +71,8 @@ export function TopBar() {
     downloadPng(shapes, shapeIds, selectedIds)
   }
 
-  const handleExportSvg = () => {
-    downloadSvg(shapes, shapeIds)
+  const handleExportSvg = async () => {
+    await downloadSvg(shapes, shapeIds)
   }
 
   return (

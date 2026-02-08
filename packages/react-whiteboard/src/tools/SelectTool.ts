@@ -22,7 +22,7 @@ import type {
 } from './types'
 import type { TextTool } from './TextTool'
 import type { ToolProvider } from './types'
-import { canContainBoundText, getBoundTextShape } from '../utils/boundText'
+import { canContainBoundText, getBoundTextShape, BOUND_TEXT_PADDING } from '../utils/boundText'
 
 /**
  * Select tool — handles selection, moving, resizing, and rotating shapes
@@ -295,11 +295,10 @@ export class SelectTool implements ITool {
     const dy = state.dragCurrent.y - state.dragStart.y
 
     // Calculate combined bounds of selection for snapping
-    const entries = Array.from(state.startPositions.entries())
-    if (entries.length === 0) return
+    if (state.startPositions.size === 0) return
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const [, sp] of entries) {
+    for (const sp of state.startPositions.values()) {
       minX = Math.min(minX, sp.x + dx)
       minY = Math.min(minY, sp.y + dy)
       maxX = Math.max(maxX, sp.x + dx + sp.width)
@@ -313,14 +312,29 @@ export class SelectTool implements ITool {
     const snapDx = result.x - minX
     const snapDy = result.y - minY
 
+    // Batch all position updates (shapes + bound text) into a single Map copy
+    const batchUpdates = new Map<string, Partial<Shape>>()
     state.startPositions.forEach((startPos, id) => {
-      store.updateShape(id, {
-        x: startPos.x + dx + snapDx,
-        y: startPos.y + dy + snapDy,
-      }, false)
-      // Sync bound text position when container moves
-      store.syncBoundTextToParent(id)
+      const newX = startPos.x + dx + snapDx
+      const newY = startPos.y + dy + snapDy
+      batchUpdates.set(id, { x: newX, y: newY })
+
+      // Inline bound text sync: move text with parent (no rewrap needed for position-only moves)
+      const shape = store.shapes.get(id)
+      if (shape && canContainBoundText(shape.type)) {
+        const textShape = getBoundTextShape(
+          shape as RectangleShape | EllipseShape,
+          store.shapes,
+        )
+        if (textShape) {
+          batchUpdates.set(textShape.id, {
+            x: newX + BOUND_TEXT_PADDING,
+            y: newY + BOUND_TEXT_PADDING,
+          })
+        }
+      }
     })
+    store.updateShapesBatch(batchUpdates)
   }
 
   private getHoverCursor(

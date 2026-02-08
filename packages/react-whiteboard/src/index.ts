@@ -147,6 +147,18 @@ export type { WhiteboardDocument } from './utils/serialization'
 
 export { exportToPng, downloadPng } from './utils/exportPng'
 export { clearImageCache } from './core/renderer/imageRenderer'
+
+// ============================================================================
+// Utils — Image Blob Store
+// ============================================================================
+
+export {
+  storeBlobAsUrl,
+  isBlobUrl,
+  dataUrlToBlobUrl,
+  blobUrlToDataUrl,
+  clearBlobStore,
+} from './utils/imageBlobStore'
 export type { ExportPngOptions } from './utils/exportPng'
 
 // ============================================================================
@@ -209,3 +221,10 @@ export {
 
 export { snapToGrid, snapToShapes } from './utils/snapping'
 export type { SnapLine, SnapResult } from './utils/snapping'
+
+// ============================================================================
+// Utils — Shape Bounds
+// ============================================================================
+
+export { getShapesBounds } from './utils/shapeBounds'
+export type { ShapesBounds } from './utils/shapeBounds'

@@ -135,6 +135,22 @@ export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
       })
     },
 
+    /**
+     * Batch-update multiple shapes in a single Map copy (no history).
+     * Use for hot-path operations like drag-move to avoid N separate Map allocations.
+     */
+    updateShapesBatch: (updates: Map<string, Partial<Shape>>) => {
+      set((state) => {
+        const newShapes = new Map(state.shapes)
+        for (const [id, partial] of updates) {
+          const shape = newShapes.get(id)
+          if (!shape) continue
+          newShapes.set(id, { ...shape, ...partial } as Shape)
+        }
+        return { shapes: newShapes }
+      })
+    },
+
     getShape: (id: string) => get().shapes.get(id),
 
     clearShapes: (recordHistory = true) => {

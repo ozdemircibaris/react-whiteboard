@@ -33,6 +33,7 @@ export interface WhiteboardStore {
   // Shape actions
   addShape: (shape: Shape, recordHistory?: boolean) => void
   updateShape: (id: string, updates: Partial<Shape>, recordHistory?: boolean) => void
+  updateShapesBatch: (updates: Map<string, Partial<Shape>>) => void
   deleteShape: (id: string, recordHistory?: boolean) => void
   deleteShapes: (ids: string[], recordHistory?: boolean) => void
   getShape: (id: string) => Shape | undefined
