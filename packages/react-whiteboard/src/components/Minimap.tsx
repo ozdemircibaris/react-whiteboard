@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react'
-import { useWhiteboardStore } from '../context'
+import { useWhiteboardStore, useWhiteboardContext } from '../context'
 import type { Shape } from '../types'
 import type { ThemeColors } from '../types/theme'
 import { resolveTheme } from '../types/theme'
@@ -33,13 +33,19 @@ function getWorldBounds(shapes: Map<string, Shape>, shapeIds: string[]) {
 
 export function Minimap({ width = 200, height = 150, className, theme: themeProp, canvasWidth, canvasHeight }: MinimapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const rafRef = useRef(0)
+  const { store } = useWhiteboardContext()
+
   const shapes = useWhiteboardStore((s) => s.shapes)
   const shapeIds = useWhiteboardStore((s) => s.shapeIds)
-  const viewport = useWhiteboardStore((s) => s.viewport)
   const setViewport = useWhiteboardStore((s) => s.setViewport)
   const theme = useMemo(() => resolveTheme(themeProp), [themeProp])
 
-  // Memoize world bounds + transform so useEffect and handleClick share the same result
+  // Track viewport in a ref — updated via store subscription (no React re-render).
+  // This avoids 60fps re-renders during pan/zoom.
+  const viewportRef = useRef(store.getState().viewport)
+
+  // Memoize world bounds + transform so render and handleClick share the same result
   const world = useMemo(() => getWorldBounds(shapes, shapeIds), [shapes, shapeIds])
   const transform = useMemo(() => {
     const scaleX = width / world.width
@@ -52,12 +58,13 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
     }
   }, [world, width, height])
 
-  useEffect(() => {
+  const renderMinimap = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    const viewport = viewportRef.current
     const dpr = window.devicePixelRatio || 1
     canvas.width = width * dpr
     canvas.height = height * dpr
@@ -103,7 +110,30 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
     ctx.strokeStyle = theme.minimapViewportStroke
     ctx.lineWidth = 2
     ctx.strokeRect(rx, ry, rw, rh)
-  }, [shapes, shapeIds, viewport, width, height, theme, world, transform])
+  }, [shapes, shapeIds, width, height, theme, world, transform, canvasWidth, canvasHeight])
+
+  // RAF-throttled render: schedule at most one render per frame
+  const scheduleRender = useCallback(() => {
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(renderMinimap)
+  }, [renderMinimap])
+
+  // Subscribe to viewport changes outside React to avoid re-renders on every pan/zoom
+  useEffect(() => {
+    const unsub = store.subscribe(
+      (s) => s.viewport,
+      (viewport) => {
+        viewportRef.current = viewport
+        scheduleRender()
+      },
+    )
+    return () => { unsub(); cancelAnimationFrame(rafRef.current) }
+  }, [store, scheduleRender])
+
+  // Render when shapes/world/theme change (React-driven, infrequent)
+  useEffect(() => {
+    scheduleRender()
+  }, [scheduleRender])
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -115,6 +145,7 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
       const clickY = e.clientY - rect.top
 
       const { scale, offsetX, offsetY } = transform
+      const viewport = viewportRef.current
 
       // Convert click to world coordinates
       const worldX = (clickX - offsetX) / scale + world.x
@@ -130,7 +161,7 @@ export function Minimap({ width = 200, height = 150, className, theme: themeProp
         y: -(worldY - vpHeight / 2) * viewport.zoom,
       })
     },
-    [world, transform, viewport, setViewport, canvasWidth, canvasHeight],
+    [world, transform, setViewport, canvasWidth, canvasHeight],
   )
 
   return (

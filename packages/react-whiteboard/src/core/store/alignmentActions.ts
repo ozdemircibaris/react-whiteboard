@@ -1,6 +1,6 @@
 import type { Shape } from '../../types'
 import type { StoreApi } from './types'
-import { getBoundTextIdFromShape } from '../../utils/boundText'
+import { getBoundTextIdFromShape, BOUND_TEXT_PADDING } from '../../utils/boundText'
 
 /**
  * Alignment & distribution actions for selected shapes.
@@ -23,17 +23,28 @@ export function createAlignmentActions(
       .filter((s): s is Shape => s !== undefined)
       .map((s) => structuredClone(s) as Shape)
 
+    // Build a single batch of all position updates (shapes + bound text)
+    const batch = new Map<string, Partial<Shape>>()
     for (const { id, x, y } of updates) {
       const partial: Partial<Shape> = {}
       if (x !== undefined) partial.x = x
       if (y !== undefined) partial.y = y
-      state.updateShape(id, partial, false)
-      // Sync bound text position when container moves
+      batch.set(id, partial)
+
+      // Include bound text repositioning in the same batch
       const shape = state.shapes.get(id)
-      if (shape && getBoundTextIdFromShape(shape)) {
-        state.syncBoundTextToParent(id)
+      if (shape) {
+        const btId = getBoundTextIdFromShape(shape)
+        if (btId && state.shapes.has(btId)) {
+          const pad = BOUND_TEXT_PADDING
+          batch.set(btId, {
+            x: (x ?? shape.x) + pad,
+            y: (y ?? shape.y) + pad,
+          })
+        }
       }
     }
+    state.updateShapesBatch(batch)
 
     const after = updates
       .map((u) => get().shapes.get(u.id))

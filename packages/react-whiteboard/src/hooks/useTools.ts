@@ -35,12 +35,13 @@ export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = fals
   const pan = useWhiteboardStore((s) => s.pan)
   const setIsPanning = useWhiteboardStore((s) => s.setIsPanning)
 
-  // Sync active tool when currentTool changes (skip in readOnly)
+  // Update cursor when currentTool changes (skip in readOnly).
+  // Tool activation is handled synchronously via store subscription
+  // in WhiteboardContext — no need to call toolManager.setActiveTool here.
   useEffect(() => {
     if (readOnly) return
-    toolManager.setActiveTool(currentTool)
     setCursorStyle(TOOL_CURSORS[currentTool] || 'default')
-  }, [currentTool, toolManager, readOnly])
+  }, [currentTool, readOnly])
 
   // Build ToolEventContext from a React pointer event
   const createEventContext = useCallback(

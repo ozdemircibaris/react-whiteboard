@@ -117,8 +117,10 @@ export class DrawTool implements ITool {
     }
 
     const shape = this.createShape(this.points)
-    store.addShape(shape, true)
 
+    // Clear drag state BEFORE adding shape to store.
+    // Canvas scheduleStaticRender skips when toolManager.isDragging() is true,
+    // so isDragging must be false for the static canvas to re-render with the new shape.
     state.isDragging = false
     state.dragStart = null
     state.dragCurrent = null
@@ -126,6 +128,8 @@ export class DrawTool implements ITool {
     this.points = []
     this.currentShapeId = null
     store.setIsDrawing(false)
+
+    store.addShape(shape, true)
 
     // Switch to select tool with the new shape selected
     store.setTool('select')

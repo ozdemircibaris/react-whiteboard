@@ -3,6 +3,11 @@ import { CanvasRenderer } from '../core/renderer'
 import { getDevicePixelRatio } from '../utils/canvas'
 import type { ThemeColors } from '../types/theme'
 
+export interface ContainerSize {
+  width: number
+  height: number
+}
+
 interface DualCanvasSetupOptions {
   onReady?: () => void
   theme?: Partial<ThemeColors>
@@ -22,6 +27,9 @@ export function useDualCanvasSetup({ onReady, theme }: DualCanvasSetupOptions) {
   const themeRef = useRef(theme)
   themeRef.current = theme
 
+  // Cached container size — updated on resize, avoids getBoundingClientRect per frame
+  const containerSizeRef = useRef<ContainerSize>({ width: 0, height: 0 })
+
   // Bumped on each setup so downstream effects (e.g. theme sync) can re-fire
   const [setupVersion, setSetupVersion] = useState(0)
 
@@ -39,6 +47,9 @@ export function useDualCanvasSetup({ onReady, theme }: DualCanvasSetupOptions) {
     const rect = container.getBoundingClientRect()
     const w = rect.width
     const h = rect.height
+
+    // Cache container size for render functions (avoids per-frame getBoundingClientRect)
+    containerSizeRef.current = { width: w, height: h }
 
     // Size both canvases identically with DPI scaling
     for (const canvas of [staticCanvas, interactiveCanvas]) {
@@ -83,6 +94,7 @@ export function useDualCanvasSetup({ onReady, theme }: DualCanvasSetupOptions) {
     staticCanvasRef,
     interactiveCanvasRef,
     containerRef,
+    containerSizeRef,
     staticRendererRef,
     interactiveRendererRef,
     setupCanvases,

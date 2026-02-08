@@ -110,10 +110,16 @@ export abstract class BaseLineTool implements ITool {
     let createdShape: Shape | undefined
     if (length >= MIN_LENGTH) {
       createdShape = this.createShape(state.dragStart, endPoint)
-      store.addShape(createdShape, true)
     }
 
+    // Clear drag state BEFORE adding shape to store.
+    // Canvas scheduleStaticRender skips when toolManager.isDragging() is true,
+    // so isDragging must be false for the static canvas to re-render with the new shape.
     this.resetState(state)
+
+    if (createdShape) {
+      store.addShape(createdShape, true)
+    }
 
     // Switch to select tool with the new shape selected
     if (createdShape) {

@@ -114,6 +114,14 @@ export function WhiteboardProvider({ children, fontUrls, customShapes, tools }: 
     toolManager.setStoreGetter(() => store.getState())
     toolManager.setRegistry(registry)
 
+    // Sync currentTool → ToolManager synchronously via store subscription.
+    // This avoids the async gap when using a React useEffect in useTools,
+    // which could cause pointer events to be routed to the wrong tool.
+    const unsubTool = store.subscribe(
+      (s) => s.currentTool,
+      (tool) => toolManager.setActiveTool(tool),
+    )
+
     // Wire TextTool viewport subscriber
     const textTool = toolManager.getTool('text') as TextTool | undefined
     if (textTool) {
@@ -121,6 +129,8 @@ export function WhiteboardProvider({ children, fontUrls, customShapes, tools }: 
         store.subscribe((s) => s.viewport, listener),
       )
     }
+
+    return () => { unsubTool() }
   }, [store, toolManager, registry])
 
   // Register/unregister custom shape renderers from props

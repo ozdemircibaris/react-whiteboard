@@ -100,6 +100,15 @@ export abstract class BaseShapeTool implements ITool {
 
     const bounds = this.calculateBounds(state.dragStart, ctx.canvasPoint, ctx.shiftKey)
 
+    // Clear drag state BEFORE adding shape to store.
+    // Canvas scheduleStaticRender skips when toolManager.isDragging() is true,
+    // so isDragging must be false for the static canvas to re-render with the new shape.
+    state.isDragging = false
+    state.dragStart = null
+    state.dragCurrent = null
+    state.activeShapeId = null
+    this.previewShape = null
+
     let createdShape: Shape | undefined
     if (bounds.width > 5 && bounds.height > 5) {
       // Use the same seed as preview so the shape doesn't visually jump
@@ -108,12 +117,6 @@ export abstract class BaseShapeTool implements ITool {
       // Generate new seed for next shape
       this.previewSeed = Math.floor(Math.random() * 2147483647)
     }
-
-    state.isDragging = false
-    state.dragStart = null
-    state.dragCurrent = null
-    state.activeShapeId = null
-    this.previewShape = null
 
     // Switch to select tool with the new shape selected
     if (createdShape) {

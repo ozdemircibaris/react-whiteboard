@@ -295,10 +295,13 @@ export class TextTool implements ITool {
   }
 
   private cancelEdit(): void {
-    if (this.editingShapeId && this.currentStore) {
-      this.currentStore.updateShape(this.editingShapeId, { opacity: 1 }, false)
+    const store = this.currentStore
+    if (this.editingShapeId && store) {
+      store.updateShape(this.editingShapeId, { opacity: 1 }, false)
     }
     this.cleanup()
+    // Return to select tool after cancelling (e.g. Escape key)
+    store?.setTool('select')
   }
 
   private cleanup(): void {
