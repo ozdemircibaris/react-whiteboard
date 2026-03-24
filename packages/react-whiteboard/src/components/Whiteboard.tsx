@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { WhiteboardProvider, useWhiteboardContext } from '../context'
 import { Canvas } from './Canvas'
 import { Minimap } from './Minimap'
@@ -7,6 +7,8 @@ import type { Shape, Viewport } from '../types'
 import type { ThemeColors } from '../types/theme'
 import type { CustomShapeRenderer } from '../core/renderer/ShapeRendererRegistry'
 import type { ITool } from '../tools/types'
+import type { PersistenceAdapter } from '../persistence'
+import { LocalStorageAdapter } from '../persistence'
 
 // ============================================================================
 // Props
@@ -56,6 +58,22 @@ export interface WhiteboardProps {
   customShapes?: CustomShapeRenderer[]
   /** Custom tools (additive to default tools) */
   tools?: ITool[]
+
+  /**
+   * Enable built-in localStorage persistence.
+   * - `true` — persist with default key ('react-whiteboard-document')
+   * - `string` — persist with a custom localStorage key (useful for multi-board apps)
+   * - `false` / omitted — no built-in persistence
+   *
+   * For custom backends, use `persistenceAdapter` instead.
+   */
+  persist?: boolean | string
+  /** Custom persistence adapter (overrides `persist` prop). */
+  persistenceAdapter?: PersistenceAdapter
+  /** Autosave interval in ms (default: 5000). Set to 0 to disable autosave. */
+  autosaveInterval?: number
+  /** Called when a persistence operation fails. */
+  onPersistenceError?: (error: Error) => void
 
   /** Overlay content rendered on top of the canvas (toolbars, panels, etc.) */
   children?: ReactNode
@@ -156,8 +174,23 @@ function WhiteboardInner({
  * For full control, use `<WhiteboardProvider>` + `<Canvas>` directly.
  */
 export function Whiteboard(props: WhiteboardProps) {
+  // Resolve persist prop → stable adapter instance
+  const resolvedAdapter = useMemo(() => {
+    if (props.persistenceAdapter) return props.persistenceAdapter
+    if (!props.persist) return undefined
+    const key = typeof props.persist === 'string' ? props.persist : undefined
+    return new LocalStorageAdapter({ key, onError: props.onPersistenceError })
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally stable, treated like defaultValue
+  }, [])
+
   return (
-    <WhiteboardProvider customShapes={props.customShapes} tools={props.tools}>
+    <WhiteboardProvider
+      customShapes={props.customShapes}
+      tools={props.tools}
+      persistenceAdapter={resolvedAdapter}
+      autosaveInterval={props.autosaveInterval}
+      onPersistenceError={props.onPersistenceError}
+    >
       <WhiteboardInner {...props} />
     </WhiteboardProvider>
   )

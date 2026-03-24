@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, useMemo, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useRef, useMemo, useEffect, useCallback, type ReactNode } from 'react'
 import { useStore } from 'zustand'
 import { createWhiteboardStore } from '../core/store/createStore'
 import type { WhiteboardStore } from '../core/store/createStore'
@@ -8,6 +8,8 @@ import type { TextTool } from '../tools/TextTool'
 import { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 import type { CustomShapeRenderer } from '../core/renderer/ShapeRendererRegistry'
 import { loadFonts } from '../utils/fonts'
+import { parseDocument, documentToStoreData, exportToJSON } from '../utils/serialization'
+import type { PersistenceAdapter } from '../persistence'
 
 // ============================================================================
 // Context
@@ -70,6 +72,8 @@ export function useShapeRendererRegistry(): ShapeRendererRegistry {
 // Provider
 // ============================================================================
 
+const DEFAULT_AUTOSAVE_INTERVAL = 5000
+
 export interface WhiteboardProviderProps {
   children: ReactNode
   /** Custom font URLs to override the default CDN-hosted Virgil + Cascadia Code fonts. */
@@ -78,13 +82,27 @@ export interface WhiteboardProviderProps {
   customShapes?: CustomShapeRenderer[]
   /** Custom tools to register (additive to default tools) */
   tools?: ITool[]
+  /** Persistence adapter for saving/loading whiteboard state. */
+  persistenceAdapter?: PersistenceAdapter
+  /** Autosave interval in ms (default: 5000). Set to 0 to disable autosave. */
+  autosaveInterval?: number
+  /** Called when a persistence operation fails. */
+  onPersistenceError?: (error: Error) => void
 }
 
 /**
  * Provides an isolated whiteboard store + tool manager + shape renderer registry.
  * Multiple <WhiteboardProvider> instances on the same page are fully independent.
  */
-export function WhiteboardProvider({ children, fontUrls, customShapes, tools }: WhiteboardProviderProps) {
+export function WhiteboardProvider({
+  children,
+  fontUrls,
+  customShapes,
+  tools,
+  persistenceAdapter,
+  autosaveInterval = DEFAULT_AUTOSAVE_INTERVAL,
+  onPersistenceError,
+}: WhiteboardProviderProps) {
   const storeRef = useRef<WhiteboardStoreApi | null>(null)
   const toolManagerRef = useRef<ToolManager | null>(null)
   const registryRef = useRef<ShapeRendererRegistry | null>(null)
@@ -158,6 +176,72 @@ export function WhiteboardProvider({ children, fontUrls, customShapes, tools }: 
       }
     }
   }, [tools, toolManager])
+
+  // ---- Persistence: load on mount ----
+  const persistenceLoadedRef = useRef(false)
+  const onPersistenceErrorRef = useRef(onPersistenceError)
+  onPersistenceErrorRef.current = onPersistenceError
+
+  useEffect(() => {
+    if (!persistenceAdapter) {
+      persistenceLoadedRef.current = true
+      return
+    }
+
+    let cancelled = false
+
+    persistenceAdapter.load().then((raw) => {
+      if (cancelled || !raw) {
+        persistenceLoadedRef.current = true
+        return
+      }
+      try {
+        const doc = parseDocument(raw)
+        const { shapes, shapeIds, viewport } = documentToStoreData(doc)
+        store.getState().loadDocument(shapes, shapeIds, viewport)
+      } catch (err) {
+        onPersistenceErrorRef.current?.(err instanceof Error ? err : new Error(String(err)))
+        persistenceAdapter.clear?.()
+      } finally {
+        persistenceLoadedRef.current = true
+      }
+    }).catch((err) => {
+      onPersistenceErrorRef.current?.(err instanceof Error ? err : new Error(String(err)))
+      persistenceLoadedRef.current = true
+    })
+
+    return () => { cancelled = true }
+  }, [store, persistenceAdapter])
+
+  // ---- Persistence: autosave ----
+  const dirtyRef = useRef(false)
+
+  useEffect(() => {
+    if (!persistenceAdapter) return
+    const unsub = store.subscribe(
+      (s) => [s.shapes, s.shapeIds] as const,
+      () => { dirtyRef.current = true },
+    )
+    return unsub
+  }, [store, persistenceAdapter])
+
+  const saveToAdapter = useCallback(async () => {
+    if (!persistenceAdapter || !dirtyRef.current || !persistenceLoadedRef.current) return
+    dirtyRef.current = false
+    try {
+      const { shapes, shapeIds, viewport } = store.getState()
+      const json = await exportToJSON(shapes, shapeIds, viewport)
+      await persistenceAdapter.save(json)
+    } catch (err) {
+      onPersistenceErrorRef.current?.(err instanceof Error ? err : new Error(String(err)))
+    }
+  }, [store, persistenceAdapter])
+
+  useEffect(() => {
+    if (!persistenceAdapter || autosaveInterval === 0) return
+    const id = setInterval(saveToAdapter, autosaveInterval)
+    return () => clearInterval(id)
+  }, [persistenceAdapter, autosaveInterval, saveToAdapter])
 
   const value = useMemo<WhiteboardContextValue>(
     () => ({ store, toolManager, shapeRendererRegistry: registry }),
