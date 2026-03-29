@@ -95,8 +95,8 @@ export { MIN_ZOOM, MAX_ZOOM } from './core/store/viewportActions'
 // Components
 // ============================================================================
 
-export { Canvas, Minimap, Whiteboard } from './components'
-export type { CanvasProps, CanvasContextMenuEvent, MinimapProps, WhiteboardProps } from './components'
+export { Canvas, Minimap, Whiteboard, WhiteboardErrorBoundary } from './components'
+export type { CanvasProps, CanvasContextMenuEvent, MinimapProps, WhiteboardProps, WhiteboardErrorBoundaryProps } from './components'
 
 // ============================================================================
 // Hooks

@@ -7,6 +7,8 @@ import type { ITool } from '../tools/types'
 import type { TextTool } from '../tools/TextTool'
 import { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 import type { CustomShapeRenderer } from '../core/renderer/ShapeRendererRegistry'
+import { WhiteboardErrorBoundary } from '../components/WhiteboardErrorBoundary'
+import type { WhiteboardErrorBoundaryProps } from '../components/WhiteboardErrorBoundary'
 import { loadFonts } from '../utils/fonts'
 import { parseDocument, documentToStoreData, exportToJSON } from '../utils/serialization'
 import type { PersistenceAdapter } from '../persistence'
@@ -88,6 +90,10 @@ export interface WhiteboardProviderProps {
   autosaveInterval?: number
   /** Called when a persistence operation fails. */
   onPersistenceError?: (error: Error) => void
+  /** Custom error boundary fallback (ReactNode or render function). */
+  errorFallback?: WhiteboardErrorBoundaryProps['fallback']
+  /** Called when a rendering error is caught by the error boundary. */
+  onError?: WhiteboardErrorBoundaryProps['onError']
 }
 
 /**
@@ -102,6 +108,8 @@ export function WhiteboardProvider({
   persistenceAdapter,
   autosaveInterval = DEFAULT_AUTOSAVE_INTERVAL,
   onPersistenceError,
+  errorFallback,
+  onError,
 }: WhiteboardProviderProps) {
   const storeRef = useRef<WhiteboardStoreApi | null>(null)
   const toolManagerRef = useRef<ToolManager | null>(null)
@@ -250,7 +258,9 @@ export function WhiteboardProvider({
 
   return (
     <WhiteboardContext.Provider value={value}>
-      {children}
+      <WhiteboardErrorBoundary fallback={errorFallback} onError={onError}>
+        {children}
+      </WhiteboardErrorBoundary>
     </WhiteboardContext.Provider>
   )
 }
