@@ -1,381 +1,136 @@
 import type { WhiteboardStore } from '../core/store'
-import type { Shape, TextShape, RectangleShape, EllipseShape, Viewport } from '../types'
+import type { Shape, Viewport } from '../types'
+import { RESIZE_CURSORS } from '../utils/hitTest'
+import { drawSnapLines, type SnapLine } from '../utils/snapping'
+import type { ITool, ToolEventContext, ToolState, PointerDownResult, PointerMoveResult, PointerUpResult, ToolProvider } from './types'
 import {
-  getShapeAtPoint,
-  getShapesInBounds,
-  hitTestSelectionResizeHandles,
-  getSelectionBounds,
-  RESIZE_CURSORS,
-  type ResizeHandle,
-} from '../utils/hitTest'
-import { hitTestRotationHandle } from '../utils/rotationHandle'
-import { applyResize } from './SelectToolResize'
-import { initRotation, applyRotationDrag } from './SelectToolRotate'
-import { snapToShapes, drawSnapLines, type SnapLine } from '../utils/snapping'
-import type {
-  ITool,
-  ToolEventContext,
-  ToolState,
-  PointerDownResult,
-  PointerMoveResult,
-  PointerUpResult,
-} from './types'
-import type { TextTool } from './TextTool'
-import type { ToolProvider } from './types'
-import { canContainBoundText, getBoundTextShape, BOUND_TEXT_PADDING } from '../utils/boundText'
+  hitTestPointerDown,
+  getHoverCursor,
+  getSelectedShapes,
+  handleClickSelection,
+  startMarquee,
+  completeMarquee,
+  drawMarquee,
+  startMove,
+  applyMove,
+  startResize,
+  applyResizeDrag,
+  startRotation,
+  applyRotation,
+  handleDoubleClick,
+} from './handlers'
 
-/**
- * Select tool — handles selection, moving, resizing, and rotating shapes
- */
+/** Select tool — thin orchestrator that delegates to focused handler modules. */
 export class SelectTool implements ITool {
   readonly type = 'select' as const
   readonly cursor = 'default'
   readonly name = 'Select'
-
   constructor(private manager: ToolProvider) {}
 
   private moveBeforeStates: Shape[] = []
-  private resizeStartFontSizes: Map<string, number> = new Map()
+  private resizeStartFontSizes = new Map<string, number>()
   private isMarquee = false
   private rotationInitialAngle = 0
   private activeSnapLines: SnapLine[] = []
 
-  private allText(shapes: Shape[]): boolean {
-    return shapes.length > 0 && shapes.every((s) => s.type === 'text')
-  }
-
-  private isEdgeHandle(handle: ResizeHandle): boolean {
-    return handle.includes('center')
-  }
-
   onActivate(_store: WhiteboardStore): void {}
+  onDeactivate(store: WhiteboardStore): void { store.clearSelection() }
 
-  onDeactivate(store: WhiteboardStore): void {
-    store.clearSelection()
-  }
-
-  onPointerDown(
-    ctx: ToolEventContext,
-    store: WhiteboardStore,
-    state: ToolState,
-  ): PointerDownResult {
+  onPointerDown(ctx: ToolEventContext, store: WhiteboardStore, state: ToolState): PointerDownResult {
     const { canvasPoint, shiftKey } = ctx
-    const { shapes, shapeIds, selectedIds } = store
+    const hit = hitTestPointerDown(canvasPoint, store)
 
-    if (selectedIds.size > 0) {
-      const selectedShapes = this.getSelectedShapes(store)
-      const selectionBounds = getSelectionBounds(selectedShapes)
-
-      if (selectionBounds) {
-        // Block resize/rotate for locked shapes
-        const hasUnlocked = selectedShapes.some((s) => !s.isLocked)
-        if (hasUnlocked) {
-          // Check rotation handle first
-          if (hitTestRotationHandle(canvasPoint, selectionBounds)) {
-            const rot = initRotation(canvasPoint, selectedShapes, state)
-            this.rotationInitialAngle = rot.initialAngle
-            this.moveBeforeStates = rot.beforeStates
-            return rot.result
-          }
-
-          // Check resize handles
-          const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
-          if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
-            return this.startResize(canvasPoint, handle, selectedShapes, state)
-          }
-        }
-      }
+    if (hit.type === 'rotation') {
+      const selectedShapes = getSelectedShapes(store)
+      const rot = startRotation(canvasPoint, selectedShapes, state)
+      this.rotationInitialAngle = rot.initialAngle
+      this.moveBeforeStates = rot.beforeStates
+      return rot.result
     }
 
-    // Check if clicking on a shape
-    const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 5)
+    if (hit.type === 'resize' && hit.handle) {
+      const selectedShapes = getSelectedShapes(store)
+      const res = startResize(canvasPoint, hit.handle, selectedShapes, state)
+      this.moveBeforeStates = res.beforeStates
+      this.resizeStartFontSizes = res.startFontSizes
+      return res.result
+    }
 
-    if (hitShape) {
-      if (shiftKey) {
-        store.toggleSelection(hitShape.id)
-        if (!store.selectedIds.has(hitShape.id)) {
-          return { handled: true, capture: false, cursor: 'default' }
-        }
-      } else if (!selectedIds.has(hitShape.id)) {
-        store.select(hitShape.id)
-      }
+    if (hit.type === 'shape' && hit.shape) {
+      const earlyResult = handleClickSelection(hit.shape, shiftKey, store)
+      if (earlyResult) return earlyResult
 
-      // Block move for locked shapes (allow selection for unlock access)
-      const movableShapes = this.getSelectedShapes(store).filter((s) => !s.isLocked)
+      const movableShapes = getSelectedShapes(store).filter((s) => !s.isLocked)
       if (movableShapes.length === 0) {
         return { handled: true, capture: false, cursor: 'not-allowed' }
       }
-      return this.startMove(canvasPoint, store, state)
+      const mv = startMove(canvasPoint, store, state)
+      this.moveBeforeStates = mv.beforeStates
+      return mv.result
     }
 
     // Empty space — start marquee
-    if (!shiftKey) store.clearSelection()
     this.isMarquee = true
-    state.isDragging = true
-    state.dragStart = canvasPoint
-    state.dragCurrent = canvasPoint
-    return { handled: true, capture: true, cursor: 'crosshair' }
+    return startMarquee(canvasPoint, shiftKey, store, state)
   }
 
-  onPointerMove(
-    ctx: ToolEventContext,
-    store: WhiteboardStore,
-    state: ToolState,
-  ): PointerMoveResult {
+  onPointerMove(ctx: ToolEventContext, store: WhiteboardStore, state: ToolState): PointerMoveResult {
     const { canvasPoint } = ctx
-
-    // Rotation drag
     if (state.isDragging && state.isRotating && state.dragStart) {
       state.dragCurrent = canvasPoint
-      applyRotationDrag(store, state, ctx.shiftKey, this.rotationInitialAngle)
+      applyRotation(store, state, ctx.shiftKey, this.rotationInitialAngle)
       return { handled: true, cursor: 'grab' }
     }
 
-    // Resize drag
     if (state.isDragging && state.resizeHandle && state.dragStart) {
       state.dragCurrent = canvasPoint
-      applyResize(store, state, this.moveBeforeStates, this.resizeStartFontSizes, ctx.shiftKey)
+      applyResizeDrag(store, state, this.moveBeforeStates, this.resizeStartFontSizes, ctx.shiftKey)
       return { handled: true, cursor: RESIZE_CURSORS[state.resizeHandle] }
     }
 
-    // Marquee drag
     if (state.isDragging && this.isMarquee && state.dragStart) {
       state.dragCurrent = canvasPoint
       return { handled: true, cursor: 'crosshair' }
     }
 
-    // Move drag
     if (state.isDragging && state.dragStart && !state.resizeHandle) {
       state.dragCurrent = canvasPoint
-      this.handleMove(store, state)
+      this.activeSnapLines = applyMove(store, state)
       return { handled: true, cursor: 'move' }
     }
 
-    // Hover
-    return this.getHoverCursor(canvasPoint, store)
+    return getHoverCursor(canvasPoint, store)
   }
 
   onDoubleClick(ctx: ToolEventContext, store: WhiteboardStore): void {
-    const hitShape = getShapeAtPoint(ctx.canvasPoint, store.shapes, store.shapeIds, 5)
-    if (!hitShape) return
-
-    const text = this.manager.getTool('text') as TextTool | undefined
-    if (!text) return
-
-    if (hitShape.type === 'text') {
-      store.setTool('text')
-      text.editText(hitShape as TextShape, ctx.viewport, store)
-      return
-    }
-
-    if (canContainBoundText(hitShape.type)) {
-      const container = hitShape as RectangleShape | EllipseShape
-      const existingText = getBoundTextShape(container, store.shapes)
-
-      if (existingText) {
-        store.setTool('text')
-        text.editBoundText(existingText, container, ctx.viewport, store)
-      } else {
-        const newText = store.createBoundText(hitShape.id)
-        if (newText) {
-          store.setTool('text')
-          text.editBoundText(newText, container, ctx.viewport, store)
-        }
-      }
-    }
+    handleDoubleClick(ctx, store, this.manager)
   }
 
-  onPointerUp(
-    _ctx: ToolEventContext,
-    store: WhiteboardStore,
-    state: ToolState,
-  ): PointerUpResult {
+  onPointerUp(_ctx: ToolEventContext, store: WhiteboardStore, state: ToolState): PointerUpResult {
     if (!state.isDragging) return { handled: false }
-
-    // Marquee selection
-    if (this.isMarquee && state.dragStart && state.dragCurrent) {
-      const x = Math.min(state.dragStart.x, state.dragCurrent.x)
-      const y = Math.min(state.dragStart.y, state.dragCurrent.y)
-      const w = Math.abs(state.dragCurrent.x - state.dragStart.x)
-      const h = Math.abs(state.dragCurrent.y - state.dragStart.y)
-      if (w > 3 || h > 3) {
-        const found = getShapesInBounds(
-          { x, y, width: w, height: h }, store.shapes, store.shapeIds,
-        )
-        if (found.length > 0) store.selectMultiple(found.map((s) => s.id))
-      }
-    }
-
-    // Record history
-    if (state.dragStart && state.dragCurrent && this.moveBeforeStates.length > 0) {
-      const hasMoved =
-        state.dragStart.x !== state.dragCurrent.x ||
-        state.dragStart.y !== state.dragCurrent.y
-      if (hasMoved) {
-        const afterShapes = this.moveBeforeStates
-          .map((before) => store.shapes.get(before.id))
-          .filter((s): s is Shape => s !== undefined)
-          .map((s) => ({ ...s }))
-        store.recordBatchUpdate(this.moveBeforeStates, afterShapes)
-      }
-    }
-
+    if (this.isMarquee) completeMarquee(store, state)
+    this.recordHistory(store, state)
     this.resetDragState(state)
     return { handled: true }
   }
 
   renderOverlay(ctx: CanvasRenderingContext2D, state: ToolState, _viewport: Viewport): void {
     if (this.isMarquee && state.dragStart && state.dragCurrent) {
-      this.drawMarquee(ctx, state)
+      drawMarquee(ctx, state, this.manager.getTheme())
     }
     if (this.activeSnapLines.length > 0 && state.isDragging) {
       drawSnapLines(ctx, this.activeSnapLines, this.manager.getTheme().snapLine)
     }
   }
 
-  // ────────────────────────────────────────────
-
-  private getSelectedShapes(store: WhiteboardStore): Shape[] {
-    return Array.from(store.selectedIds)
-      .map((id) => store.shapes.get(id))
+  private recordHistory(store: WhiteboardStore, state: ToolState): void {
+    if (!state.dragStart || !state.dragCurrent || this.moveBeforeStates.length === 0) return
+    if (state.dragStart.x === state.dragCurrent.x && state.dragStart.y === state.dragCurrent.y) return
+    const afterShapes = this.moveBeforeStates
+      .map((before) => store.shapes.get(before.id))
       .filter((s): s is Shape => s !== undefined)
-  }
-
-  private startResize(
-    canvasPoint: { x: number; y: number },
-    handle: ResizeHandle,
-    selectedShapes: Shape[],
-    state: ToolState,
-  ): PointerDownResult {
-    state.isDragging = true
-    state.dragStart = canvasPoint
-    state.dragCurrent = canvasPoint
-    state.resizeHandle = handle
-    state.startPositions.clear()
-    this.resizeStartFontSizes.clear()
-    selectedShapes.forEach((shape) => {
-      state.startPositions.set(shape.id, {
-        x: shape.x, y: shape.y, width: shape.width, height: shape.height,
-      })
-      if (shape.type === 'text') {
-        this.resizeStartFontSizes.set(shape.id, (shape as TextShape).props.fontSize)
-      }
-    })
-    this.moveBeforeStates = selectedShapes.map((s) => structuredClone(s) as Shape)
-    return { handled: true, capture: true, cursor: RESIZE_CURSORS[handle] }
-  }
-
-  private startMove(
-    canvasPoint: { x: number; y: number },
-    store: WhiteboardStore,
-    state: ToolState,
-  ): PointerDownResult {
-    state.isDragging = true
-    state.dragStart = canvasPoint
-    state.dragCurrent = canvasPoint
-    state.startPositions.clear()
-    const selectedShapes: Shape[] = []
-    store.selectedIds.forEach((id) => {
-      const shape = store.shapes.get(id)
-      // Skip locked shapes — they stay in place
-      if (shape && !shape.isLocked) {
-        state.startPositions.set(id, {
-          x: shape.x, y: shape.y, width: shape.width, height: shape.height,
-        })
-        selectedShapes.push(shape)
-      }
-    })
-    this.moveBeforeStates = selectedShapes.map((s) => structuredClone(s) as Shape)
-    return { handled: true, capture: true, cursor: 'move' }
-  }
-
-  private handleMove(store: WhiteboardStore, state: ToolState): void {
-    if (!state.dragStart || !state.dragCurrent) return
-    const dx = state.dragCurrent.x - state.dragStart.x
-    const dy = state.dragCurrent.y - state.dragStart.y
-
-    // Calculate combined bounds of selection for snapping
-    if (state.startPositions.size === 0) return
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const sp of state.startPositions.values()) {
-      minX = Math.min(minX, sp.x + dx)
-      minY = Math.min(minY, sp.y + dy)
-      maxX = Math.max(maxX, sp.x + dx + sp.width)
-      maxY = Math.max(maxY, sp.y + dy + sp.height)
-    }
-
-    const movingBounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
-    const result = snapToShapes(movingBounds, store.shapes, store.shapeIds, store.selectedIds)
-    this.activeSnapLines = result.snapLines
-
-    const snapDx = result.x - minX
-    const snapDy = result.y - minY
-
-    // Batch all position updates (shapes + bound text) into a single Map copy
-    const batchUpdates = new Map<string, Partial<Shape>>()
-    state.startPositions.forEach((startPos, id) => {
-      const newX = startPos.x + dx + snapDx
-      const newY = startPos.y + dy + snapDy
-      batchUpdates.set(id, { x: newX, y: newY })
-
-      // Inline bound text sync: move text with parent (no rewrap needed for position-only moves)
-      const shape = store.shapes.get(id)
-      if (shape && canContainBoundText(shape.type)) {
-        const textShape = getBoundTextShape(
-          shape as RectangleShape | EllipseShape,
-          store.shapes,
-        )
-        if (textShape) {
-          batchUpdates.set(textShape.id, {
-            x: newX + BOUND_TEXT_PADDING,
-            y: newY + BOUND_TEXT_PADDING,
-          })
-        }
-      }
-    })
-    store.updateShapesBatch(batchUpdates)
-  }
-
-  private getHoverCursor(
-    canvasPoint: { x: number; y: number },
-    store: WhiteboardStore,
-  ): PointerMoveResult {
-    if (store.selectedIds.size > 0) {
-      const selectedShapes = this.getSelectedShapes(store)
-      const selectionBounds = getSelectionBounds(selectedShapes)
-      if (selectionBounds) {
-        if (hitTestRotationHandle(canvasPoint, selectionBounds)) {
-          return { handled: true, cursor: 'grab' }
-        }
-        const handle = hitTestSelectionResizeHandles(canvasPoint, selectionBounds)
-        if (handle && !(this.allText(selectedShapes) && this.isEdgeHandle(handle))) {
-          return { handled: true, cursor: RESIZE_CURSORS[handle] }
-        }
-      }
-    }
-    const hitShape = getShapeAtPoint(canvasPoint, store.shapes, store.shapeIds, 2)
-    if (hitShape) {
-      return { handled: true, cursor: hitShape.isLocked ? 'not-allowed' : 'move' }
-    }
-    return { handled: false, cursor: 'default' }
-  }
-
-  private drawMarquee(ctx: CanvasRenderingContext2D, state: ToolState): void {
-    if (!state.dragStart || !state.dragCurrent) return
-    const theme = this.manager.getTheme()
-    const x = Math.min(state.dragStart.x, state.dragCurrent.x)
-    const y = Math.min(state.dragStart.y, state.dragCurrent.y)
-    const w = Math.abs(state.dragCurrent.x - state.dragStart.x)
-    const h = Math.abs(state.dragCurrent.y - state.dragStart.y)
-    ctx.save()
-    ctx.fillStyle = theme.marqueeFill
-    ctx.strokeStyle = theme.marqueeStroke
-    ctx.lineWidth = 1
-    ctx.setLineDash([4, 4])
-    ctx.fillRect(x, y, w, h)
-    ctx.strokeRect(x, y, w, h)
-    ctx.restore()
+      .map((s) => ({ ...s }))
+    store.recordBatchUpdate(this.moveBeforeStates, afterShapes)
   }
 
   private resetDragState(state: ToolState): void {
