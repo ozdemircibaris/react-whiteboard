@@ -26,7 +26,44 @@ function removeShapes(
 }
 
 /**
+ * Sort shapes so parents come before their bound text children.
+ * Filters out orphaned bound text shapes whose parent is missing
+ * from both the batch and the existing store shapes.
+ */
+export function sortParentFirst(shapes: Shape[], existingShapes: Map<string, Shape>): Shape[] {
+  const batchIds = new Set(shapes.map((s) => s.id))
+  const parents: Shape[] = []
+  const children: Shape[] = []
+  const skipped: Shape[] = []
+
+  for (const shape of shapes) {
+    if (!shape.parentId) {
+      parents.push(shape)
+    } else {
+      // Parent is in the batch or already exists in the store
+      const parentExists = batchIds.has(shape.parentId) || existingShapes.has(shape.parentId)
+      if (parentExists) {
+        children.push(shape)
+      } else {
+        skipped.push(shape)
+      }
+    }
+  }
+
+  if (skipped.length > 0 && process.env.NODE_ENV !== 'production') {
+    for (const s of skipped) {
+      console.warn(
+        `[react-whiteboard] Skipping orphaned bound text shape "${s.id}": parent "${s.parentId}" not found`,
+      )
+    }
+  }
+
+  return [...parents, ...children]
+}
+
+/**
  * Adds shapes to state, respecting parentId for bound text children.
+ * Sorts parents before children and skips orphaned bound text.
  * Used by undo-delete and redo-create.
  */
 function addShapes(
@@ -34,9 +71,10 @@ function addShapes(
   shapes: Shape[],
   indexDelta: number,
 ): Partial<WhiteboardStore> {
+  const sorted = sortParentFirst(shapes, s.shapes)
   const newShapes = new Map(s.shapes)
   const newShapeIds = [...s.shapeIds]
-  shapes.forEach((shape) => {
+  sorted.forEach((shape) => {
     newShapes.set(shape.id, shape)
     // Don't add bound text children to shapeIds (they have parentId)
     if (!shape.parentId && !newShapeIds.includes(shape.id)) {
