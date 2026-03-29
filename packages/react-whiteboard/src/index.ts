@@ -128,6 +128,13 @@ export type {
 export { TOOL_CURSORS } from './tools'
 
 // ============================================================================
+// Persistence
+// ============================================================================
+
+export type { PersistenceAdapter, LocalStorageAdapterOptions } from './persistence'
+export { LocalStorageAdapter } from './persistence'
+
+// ============================================================================
 // Utils — Serialization
 // ============================================================================
 
