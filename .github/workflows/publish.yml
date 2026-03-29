@@ -1,0 +1,122 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate tag and package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm turbo build
+
+      - name: Typecheck
+        run: pnpm turbo typecheck
+
+      - name: Lint
+        run: pnpm turbo lint
+
+      - name: Validate exports map
+        working-directory: packages/react-whiteboard
+        run: |
+          # Verify all export entry points exist after build
+          node -e "
+            const pkg = require('./package.json');
+            const fs = require('fs');
+            const path = require('path');
+
+            function checkPath(p, label) {
+              const resolved = path.resolve(p);
+              if (!fs.existsSync(resolved)) {
+                console.error('MISSING: ' + label + ' -> ' + p);
+                process.exit(1);
+              }
+              console.log('OK: ' + label + ' -> ' + p);
+            }
+
+            const exports = pkg.exports;
+            if (!exports || !exports['.']) {
+              console.error('Missing exports map in package.json');
+              process.exit(1);
+            }
+
+            const root = exports['.'];
+            if (root.import) {
+              if (root.import.types) checkPath(root.import.types, 'import.types');
+              checkPath(root.import.default, 'import.default');
+            }
+            if (root.require) {
+              if (root.require.types) checkPath(root.require.types, 'require.types');
+              checkPath(root.require.default, 'require.default');
+            }
+
+            console.log('All export entry points validated successfully.');
+          "
+
+      - name: Verify tag matches package version
+        working-directory: packages/react-whiteboard
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "ERROR: Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Version match confirmed: $TAG_VERSION"
+
+  publish:
+    name: Publish to npm
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm turbo build
+
+      - name: Publish with provenance
+        working-directory: packages/react-whiteboard
+        run: pnpm publish --no-git-checks --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
