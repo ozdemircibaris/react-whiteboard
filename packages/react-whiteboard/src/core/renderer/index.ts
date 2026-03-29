@@ -15,6 +15,7 @@ import type { ThemeColors } from '../../types/theme'
 import { resolveTheme } from '../../types/theme'
 import { getDevicePixelRatio } from '../../utils/canvas'
 import { drawRotationHandle } from '../../utils/rotationHandle'
+import { shapeCacheKey } from '../../utils/shapeCacheKey'
 import {
   drawRectangle,
   drawEllipse,
@@ -193,48 +194,10 @@ export class CanvasRenderer {
 
   /**
    * Build a lightweight cache key from shape properties that affect rendering (excludes x,y).
-   * Uses type-specific property extraction to avoid expensive JSON.stringify on large data
-   * (e.g. PathShape with thousands of points, ImageShape with base64 src).
+   * Delegates to the standalone shapeCacheKey utility for testability.
    */
-  private shapeCacheKey(shape: Shape, zoom: number): string {
-    const base = `${shape.type}|${shape.width}|${shape.height}|${shape.rotation}|${shape.opacity}|${shape.seed}|${shape.roughness}|${zoom}`
-
-    switch (shape.type) {
-      case 'rectangle': {
-        const p = (shape as RectangleShape).props
-        return `${base}|${p.fill}|${p.fillStyle}|${p.stroke}|${p.strokeWidth}|${p.strokeStyle}|${p.cornerRadius}|${p.boundTextId ?? ''}`
-      }
-      case 'ellipse': {
-        const p = (shape as EllipseShape).props
-        return `${base}|${p.fill}|${p.fillStyle}|${p.stroke}|${p.strokeWidth}|${p.strokeStyle}|${p.boundTextId ?? ''}`
-      }
-      case 'path': {
-        const p = (shape as PathShape).props
-        return `${base}|${p.stroke}|${p.strokeWidth}|${p.strokeStyle}|${p.isComplete}|${p.points.length}`
-      }
-      case 'line': {
-        const p = (shape as LineShape).props
-        const pts = p.points
-        return `${base}|${p.stroke}|${p.strokeWidth}|${p.strokeStyle}|${pts.length}|${pts[0]?.x}|${pts[0]?.y}|${pts[pts.length - 1]?.x}|${pts[pts.length - 1]?.y}`
-      }
-      case 'arrow': {
-        const p = (shape as ArrowShape).props
-        return `${base}|${p.stroke}|${p.strokeWidth}|${p.strokeStyle}|${p.start.x}|${p.start.y}|${p.end.x}|${p.end.y}|${p.startArrowhead}|${p.endArrowhead}`
-      }
-      case 'text': {
-        const p = (shape as TextShape).props
-        return `${base}|${p.text.length}|${p.fontSize}|${p.fontFamily}|${p.fontWeight}|${p.fontStyle}|${p.color}|${p.backgroundColor}|${p.align}|${p.lineHeight}`
-      }
-      case 'image': {
-        const p = (shape as ImageShape).props
-        return `${base}|${p.src.length}|${p.naturalWidth}|${p.naturalHeight}`
-      }
-      default: {
-        // Custom shapes: fallback to JSON.stringify (unavoidable for unknown prop structure)
-        const p = shape.props as Record<string, unknown>
-        return `${base}|${JSON.stringify(p)}`
-      }
-    }
+  private getShapeCacheKey(shape: Shape, zoom: number): string {
+    return shapeCacheKey(shape, zoom)
   }
 
   /**
@@ -249,7 +212,7 @@ export class CanvasRenderer {
     zoom: number,
     allShapes?: Map<string, Shape>,
   ): void {
-    const key = this.shapeCacheKey(shape, zoom)
+    const key = this.getShapeCacheKey(shape, zoom)
     let entry = this.dragCache.get(shape.id)
 
     if (!entry || entry.key !== key) {
