@@ -8,10 +8,11 @@
  */
 
 // ============================================================================
-// @public — Types & Interfaces
+// Types & Interfaces
 // All exported types are part of the stable public API.
 // ============================================================================
 
+/** @public */
 export type {
   // Geometry
   Point,
@@ -68,37 +69,43 @@ export type {
 } from './types'
 
 // ============================================================================
-// @public — Theme Constants
+// Theme Constants
 // ============================================================================
 
+/** @public */
 export { LIGHT_THEME, DARK_THEME, resolveTheme } from './types'
 
 // ============================================================================
-// @public — Components
+// Components
 // Primary building blocks for rendering whiteboards.
 // ============================================================================
 
+/** @public */
 export { Canvas, Minimap, Whiteboard, WhiteboardErrorBoundary } from './components'
+/** @public */
 export type { CanvasProps, CanvasContextMenuEvent, MinimapProps, WhiteboardProps, WhiteboardErrorBoundaryProps } from './components'
 
 // ============================================================================
-// @public — Context Provider & Hooks
+// Context Provider & Hooks
 // WhiteboardProvider creates an isolated store; hooks access it.
 // ============================================================================
 
+/** @public */
 export {
   WhiteboardProvider,
   useWhiteboardStore,
   useToolManager,
   useShapeRendererRegistry,
 } from './context'
+/** @public */
 export type { WhiteboardProviderProps } from './context'
 
 // ============================================================================
-// @public — Hooks
+// Hooks
 // Composable hooks for tools, events, input, and rendering.
 // ============================================================================
 
+/** @public */
 export {
   useDualCanvasSetup,
   useKeyboardShortcuts,
@@ -108,30 +115,36 @@ export {
   useShapeProperties,
   useWhiteboardEvents,
 } from './hooks'
+/** @public */
 export type { WhiteboardEventCallbacks } from './hooks'
 
 // ============================================================================
-// @public — Store & Constants
+// Store & Constants
 // WhiteboardStore interface and zoom limit constants.
 // ============================================================================
 
+/** @public */
 export type { WhiteboardStore } from './core'
+/** @public */
 export { MIN_ZOOM, MAX_ZOOM } from './core/store/viewportActions'
 
 // ============================================================================
-// @internal — Core Internals (advanced / escape-hatch)
+// Core Internals (advanced / escape-hatch)
 // createWhiteboardStore and CanvasRenderer are exported for advanced use
 // cases but are not covered by semver guarantees.
 // ============================================================================
 
+/** @internal */
 export { createWhiteboardStore, CanvasRenderer } from './core'
 
 // ============================================================================
-// @public — Custom Shape Renderer Registry
+// Custom Shape Renderer Registry
 // Register custom shape types with canvas draw, hit-test, and SVG export.
 // ============================================================================
 
+/** @public */
 export { ShapeRendererRegistry } from './core'
+/** @public */
 export type {
   CustomShapeRenderer,
   CustomShapeDrawContext,
@@ -139,10 +152,12 @@ export type {
 } from './core'
 
 // ============================================================================
-// @public — Tool System (custom tool API)
+// Tool System (custom tool API)
 // ============================================================================
 
+/** @public */
 export { ToolManager } from './tools'
+/** @public */
 export type {
   ITool,
   ToolEventContext,
@@ -150,19 +165,23 @@ export type {
   ToolProvider,
   ToolConfig,
 } from './tools'
+/** @public */
 export { TOOL_CURSORS } from './tools'
 
 // ============================================================================
-// @public — Persistence
+// Persistence
 // ============================================================================
 
+/** @public */
 export type { PersistenceAdapter, LocalStorageAdapterOptions } from './persistence'
+/** @public */
 export { LocalStorageAdapter } from './persistence'
 
 // ============================================================================
-// @public — Serialization Utilities
+// Serialization Utilities
 // ============================================================================
 
+/** @public */
 export {
   serializeDocument,
   exportToJSON,
@@ -171,23 +190,30 @@ export {
   downloadFile,
   pickAndReadFile,
 } from './utils/serialization'
+/** @public */
 export type { WhiteboardDocument } from './utils/serialization'
 
 // ============================================================================
-// @public — Export Utilities (PNG, SVG)
+// Export Utilities (PNG, SVG)
 // ============================================================================
 
+/** @public */
 export { exportToPng, downloadPng } from './utils/exportPng'
+/** @public */
 export type { ExportPngOptions } from './utils/exportPng'
+/** @public */
 export { exportToSvg, downloadSvg } from './utils/exportSvg'
+/** @public */
 export type { ExportSvgOptions } from './utils/exportSvg'
+/** @public */
 export { clearImageCache } from './core/renderer/imageRenderer'
 
 // ============================================================================
-// @public — Image Blob Store
+// Image Blob Store
 // Efficient in-memory blob storage for image shape data.
 // ============================================================================
 
+/** @public */
 export {
   storeBlobAsUrl,
   isBlobUrl,
@@ -197,9 +223,10 @@ export {
 } from './utils/imageBlobStore'
 
 // ============================================================================
-// @public — Font Utilities
+// Font Utilities
 // ============================================================================
 
+/** @public */
 export {
   FONT_FAMILIES,
   FONT_SIZE_PRESETS,
@@ -210,12 +237,14 @@ export {
   measureTextLines,
   wrapTextLines,
 } from './utils/fonts'
+/** @public */
 export type { FontSizePreset } from './utils/fonts'
 
 // ============================================================================
-// @public — Coordinate & Geometry Utilities
+// Coordinate & Geometry Utilities
 // ============================================================================
 
+/** @public */
 export {
   screenToCanvas,
   canvasToScreen,
@@ -232,9 +261,10 @@ export {
 } from './utils/canvas'
 
 // ============================================================================
-// @public — Hit Testing Utilities
+// Hit Testing Utilities
 // ============================================================================
 
+/** @public */
 export {
   getShapeBounds,
   getShapeAtPoint,
@@ -244,15 +274,19 @@ export {
 } from './utils/hitTest'
 
 // ============================================================================
-// @public — Snapping Utilities
+// Snapping Utilities
 // ============================================================================
 
+/** @public */
 export { snapToGrid, snapToShapes } from './utils/snapping'
+/** @public */
 export type { SnapLine, SnapResult } from './utils/snapping'
 
 // ============================================================================
-// @public — Shape Bounds
+// Shape Bounds
 // ============================================================================
 
+/** @public */
 export { getShapesBounds } from './utils/shapeBounds'
+/** @public */
 export type { ShapesBounds } from './utils/shapeBounds'
