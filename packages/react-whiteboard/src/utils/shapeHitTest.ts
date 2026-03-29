@@ -5,7 +5,8 @@ import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegist
 const EPSILON = 0.0001
 
 /**
- * Rotate a point around a center point by a given angle (in radians)
+ * Rotate a point around a center point by a given angle (in radians).
+ * @internal
  */
 export function rotatePoint(point: Point, center: Point, angle: number): Point {
   const cos = Math.cos(angle)

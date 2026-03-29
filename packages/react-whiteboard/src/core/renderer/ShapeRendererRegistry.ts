@@ -9,6 +9,7 @@ import type { Point, Shape } from '../../types'
 /**
  * Context provided to custom shape canvas draw functions.
  * Wraps all rendering dependencies into a single discoverable object.
+ * @public
  */
 export interface CustomShapeDrawContext {
   /** The 2D canvas rendering context */
@@ -27,6 +28,7 @@ export interface CustomShapeDrawContext {
 
 /**
  * Context provided to custom shape SVG render functions.
+ * @public
  */
 export interface CustomShapeSvgContext {
   /** RoughJS SVG instance for hand-drawn SVG rendering */
@@ -42,6 +44,7 @@ export interface CustomShapeSvgContext {
  *
  * Only `type` and `draw` are required. `hitTest` defaults to bounding-box
  * rectangle test, and `svgRender` defaults to skipping the shape in SVG export.
+ * @public
  */
 export interface CustomShapeRenderer {
   /** Shape type string this renderer handles (must match shape.type) */
@@ -61,6 +64,7 @@ export interface CustomShapeRenderer {
 /**
  * Per-instance registry for custom shape renderers.
  * Created by WhiteboardProvider and shared via context.
+ * @public
  */
 export class ShapeRendererRegistry {
   private renderers = new Map<string, CustomShapeRenderer>()

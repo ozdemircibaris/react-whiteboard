@@ -18,6 +18,10 @@ import type { TextShape } from '../../types'
 // Store State Interface
 // ============================================================================
 
+/**
+ * Complete store interface with state and all action methods.
+ * @public
+ */
 export interface WhiteboardStore {
   // State
   shapes: Map<string, Shape>
@@ -121,6 +125,10 @@ export interface WhiteboardStore {
 // Store Implementation
 // ============================================================================
 
+/**
+ * Create a new isolated Zustand whiteboard store instance.
+ * @internal - Prefer using {@link WhiteboardProvider} which creates and manages the store.
+ */
 export const createWhiteboardStore = () =>
   create<WhiteboardStore>()(
     subscribeWithSelector((set, get) => ({

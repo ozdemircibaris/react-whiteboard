@@ -42,6 +42,7 @@ interface DragCacheEntry {
 /**
  * Canvas renderer with RoughJS for hand-drawn aesthetic.
  * Orchestrates shape rendering and handles grid/selection drawing.
+ * @internal - Used by Canvas component; not intended for direct consumer use.
  */
 export class CanvasRenderer {
   private static NOOP_SELECTION = (_x: number, _y: number, _w: number, _h: number) => {}

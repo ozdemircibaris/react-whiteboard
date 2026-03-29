@@ -15,6 +15,7 @@ const blobRegistry = new Map<string, Blob>()
 /**
  * Store a blob and return an ObjectURL reference.
  * The ObjectURL is a short string (~50 chars) suitable for shape.props.src.
+ * @public
  */
 export function storeBlobAsUrl(blob: Blob): string {
   const url = URL.createObjectURL(blob)
@@ -24,6 +25,7 @@ export function storeBlobAsUrl(blob: Blob): string {
 
 /**
  * Check if a src string is a managed blob URL.
+ * @public
  */
 export function isBlobUrl(src: string): boolean {
   return src.startsWith('blob:')
@@ -31,6 +33,7 @@ export function isBlobUrl(src: string): boolean {
 
 /**
  * Get the blob for a managed URL. Returns undefined for non-blob URLs.
+ * @internal
  */
 export function getBlob(url: string): Blob | undefined {
   return blobRegistry.get(url)
@@ -38,6 +41,7 @@ export function getBlob(url: string): Blob | undefined {
 
 /**
  * Revoke a blob URL and remove it from the registry.
+ * @internal
  */
 export function revokeBlob(url: string): void {
   if (blobRegistry.has(url)) {
@@ -49,6 +53,7 @@ export function revokeBlob(url: string): void {
 /**
  * Convert a base64 DataURL to a blob URL for efficient storage.
  * Returns the original string if it's not a data URL.
+ * @public
  */
 export function dataUrlToBlobUrl(dataUrl: string): string {
   if (!dataUrl.startsWith('data:')) return dataUrl
@@ -72,6 +77,7 @@ export function dataUrlToBlobUrl(dataUrl: string): string {
 /**
  * Convert a blob URL back to a base64 DataURL for serialization.
  * Returns the original string if it's not a blob URL or not in the registry.
+ * @public
  */
 export async function blobUrlToDataUrl(url: string): Promise<string> {
   const blob = blobRegistry.get(url)
@@ -87,6 +93,7 @@ export async function blobUrlToDataUrl(url: string): Promise<string> {
 
 /**
  * Clear all stored blobs and revoke their URLs.
+ * @public
  */
 export function clearBlobStore(): void {
   for (const url of blobRegistry.keys()) {

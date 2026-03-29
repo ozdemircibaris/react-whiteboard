@@ -3,6 +3,7 @@
  *
  * Implement `save` and `load` to persist whiteboard state to any backend.
  * The optional `clear` method removes persisted data.
+ * @public
  */
 export interface PersistenceAdapter {
   save(data: string): Promise<void>
@@ -14,6 +15,7 @@ export interface PersistenceAdapter {
 // LocalStorageAdapter
 // ============================================================================
 
+/** @public */
 export interface LocalStorageAdapterOptions {
   /** localStorage key (default: 'react-whiteboard-document') */
   key?: string
@@ -26,6 +28,7 @@ export interface LocalStorageAdapterOptions {
  *
  * Handles SSR (no `window`), quota-exceeded errors, and private-browsing
  * restrictions gracefully — errors are forwarded to `onError` instead of thrown.
+ * @public
  */
 export class LocalStorageAdapter implements PersistenceAdapter {
   private readonly key: string

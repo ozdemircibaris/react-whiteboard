@@ -3,7 +3,10 @@ import { CanvasRenderer } from '../core/renderer'
 import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 import { getShapesBounds } from './shapeBounds'
 
-/** Options for PNG export */
+/**
+ * Options for PNG export.
+ * @public
+ */
 export interface ExportPngOptions {
   /** Padding around content in pixels (default: 32) */
   padding?: number
@@ -21,6 +24,7 @@ export interface ExportPngOptions {
  * and returns a data URL.
  *
  * Returns null if there are no shapes to export.
+ * @public
  */
 export function exportToPng(
   shapes: Map<string, Shape>,
@@ -72,6 +76,7 @@ export function exportToPng(
 /**
  * Export shapes to PNG and trigger a download.
  * Returns false if there are no shapes.
+ * @public
  */
 export function downloadPng(
   shapes: Map<string, Shape>,

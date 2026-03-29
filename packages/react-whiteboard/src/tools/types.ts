@@ -5,7 +5,8 @@ import type { ResizeHandle } from '../utils/hitTest'
 import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 
 /**
- * Event context passed to tool handlers
+ * Event context passed to tool handlers.
+ * @public
  */
 export interface ToolEventContext {
   /** Screen point (relative to canvas element) */
@@ -58,7 +59,8 @@ export interface PointerUpResult {
 }
 
 /**
- * Tool state for tracking drag operations
+ * Tool state for tracking drag operations.
+ * @public
  */
 export interface ToolState {
   /** Whether currently in a drag operation */
@@ -80,7 +82,8 @@ export interface ToolState {
 }
 
 /**
- * Tool interface - all tools must implement this
+ * Tool interface - all tools must implement this.
+ * @public
  */
 export interface ITool {
   /** Tool type identifier */
@@ -148,7 +151,8 @@ export interface ITool {
 }
 
 /**
- * Tool configuration for registration
+ * Tool configuration for registration.
+ * @public
  */
 export interface ToolConfig {
   type: ToolType
@@ -160,6 +164,7 @@ export interface ToolConfig {
  * Minimal interface for accessing tools by type.
  * Used by tools that need to reference other tools (e.g., SelectTool -> TextTool)
  * without importing ToolManager directly (avoids circular dependencies).
+ * @public
  */
 export interface ToolProvider {
   getTool(type: ToolType): ITool | undefined
@@ -168,7 +173,8 @@ export interface ToolProvider {
 }
 
 /**
- * Tool cursors mapping
+ * Tool cursors mapping.
+ * @public
  */
 export const TOOL_CURSORS: Record<string, string> = {
   select: 'default',
@@ -183,7 +189,8 @@ export const TOOL_CURSORS: Record<string, string> = {
 }
 
 /**
- * Create initial tool state
+ * Create initial tool state.
+ * @internal
  */
 export function createToolState(): ToolState {
   return {

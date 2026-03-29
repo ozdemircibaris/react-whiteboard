@@ -10,7 +10,8 @@ interface TouchGesturesOptions {
 }
 
 /**
- * Hook for managing touch gestures (pinch zoom, two-finger pan)
+ * Hook for managing touch gestures (pinch zoom, two-finger pan).
+ * @public
  */
 export function useTouchGestures({
   containerRef,

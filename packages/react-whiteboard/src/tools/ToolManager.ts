@@ -16,6 +16,7 @@ import { TextTool } from './TextTool'
 /**
  * Tool manager - handles tool switching and event routing.
  * Each instance owns its own set of tool instances.
+ * @public
  */
 export class ToolManager {
   private static EMPTY_SET: ReadonlySet<string> = new Set<string>()

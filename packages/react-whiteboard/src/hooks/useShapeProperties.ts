@@ -58,6 +58,7 @@ function getShapeStyle(shape: StylableShape): Partial<ShapeStyleProps> {
  * When stylable shapes are selected: changes apply to selected shapes AND update
  * the store's default props for future shapes.
  * When nothing is selected: changes only update defaults.
+ * @public
  */
 export function useShapeProperties() {
   const currentShapeStyle = useWhiteboardStore((s) => s.currentShapeStyle)

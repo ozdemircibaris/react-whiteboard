@@ -2,7 +2,9 @@ import type { Point, Viewport } from '../../types'
 import type { StoreApi } from './types'
 import { easeOutCubic } from '../../utils/canvas'
 
+/** @public */
 export const MIN_ZOOM = 0.1
+/** @public */
 export const MAX_ZOOM = 10
 const DEFAULT_ZOOM_DURATION = 200
 

@@ -35,6 +35,7 @@ const WhiteboardContext = createContext<WhiteboardContextValue | null>(null)
 /**
  * Access the raw context value (store + toolManager + shapeRendererRegistry).
  * Throws if used outside <WhiteboardProvider>.
+ * @internal
  */
 export function useWhiteboardContext(): WhiteboardContextValue {
   const ctx = useContext(WhiteboardContext)
@@ -48,6 +49,7 @@ export function useWhiteboardContext(): WhiteboardContextValue {
  * Zustand selector hook — drop-in replacement for the old global useWhiteboardStore.
  *
  * Usage: `const shapes = useWhiteboardStore((s) => s.shapes)`
+ * @public
  */
 export function useWhiteboardStore<T>(selector: (state: WhiteboardStore) => T): T {
   const { store } = useWhiteboardContext()
@@ -56,6 +58,7 @@ export function useWhiteboardStore<T>(selector: (state: WhiteboardStore) => T): 
 
 /**
  * Access the ToolManager instance for the current whiteboard.
+ * @public
  */
 export function useToolManager(): ToolManager {
   const { toolManager } = useWhiteboardContext()
@@ -64,6 +67,7 @@ export function useToolManager(): ToolManager {
 
 /**
  * Access the ShapeRendererRegistry for registering custom shape renderers.
+ * @public
  */
 export function useShapeRendererRegistry(): ShapeRendererRegistry {
   const { shapeRendererRegistry } = useWhiteboardContext()
@@ -76,6 +80,7 @@ export function useShapeRendererRegistry(): ShapeRendererRegistry {
 
 const DEFAULT_AUTOSAVE_INTERVAL = 5000
 
+/** @public */
 export interface WhiteboardProviderProps {
   children: ReactNode
   /** Custom font URLs to override the default CDN-hosted Virgil + Cascadia Code fonts. */
@@ -99,6 +104,7 @@ export interface WhiteboardProviderProps {
 /**
  * Provides an isolated whiteboard store + tool manager + shape renderer registry.
  * Multiple <WhiteboardProvider> instances on the same page are fully independent.
+ * @public
  */
 export function WhiteboardProvider({
   children,

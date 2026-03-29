@@ -11,7 +11,10 @@ import { resolveTheme } from '../types/theme'
 import type { ThemeColors } from '../types/theme'
 import type { Point } from '../types'
 
-/** Event data passed to the onContextMenu callback */
+/**
+ * Event data passed to the onContextMenu callback.
+ * @public
+ */
 export interface CanvasContextMenuEvent {
   /** Screen-space position (use for menu placement) */
   screenPoint: Point
@@ -21,6 +24,7 @@ export interface CanvasContextMenuEvent {
   shapeId: string | null
 }
 
+/** @public */
 export interface CanvasProps {
   /** Show grid */
   showGrid?: boolean
@@ -60,6 +64,10 @@ const textOverlayStyle: React.CSSProperties = {
   overflow: 'hidden',
 }
 
+/**
+ * Main canvas component for rendering shapes, handling pointer events, and drawing.
+ * @public
+ */
 export function Canvas({
   showGrid = true,
   gridSize = 20,

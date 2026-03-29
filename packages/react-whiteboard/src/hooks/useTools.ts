@@ -19,6 +19,7 @@ interface UseToolsOptions {
  *
  * When `readOnly` is true, only pan gestures are processed — all tool
  * interactions are disabled.
+ * @public
  */
 export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = false }: UseToolsOptions) {
   const lastPointerRef = useRef<Point | null>(null)

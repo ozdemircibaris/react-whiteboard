@@ -5,6 +5,7 @@ import type { ThemeColors } from '../types/theme'
 import { resolveTheme } from '../types/theme'
 import { getShapesBounds } from '../utils/shapeBounds'
 
+/** @public */
 export interface MinimapProps {
   width?: number
   height?: number
@@ -31,6 +32,10 @@ function getWorldBounds(shapes: Map<string, Shape>, shapeIds: string[]) {
   }
 }
 
+/**
+ * Minimap overview component showing all shapes and the current viewport.
+ * @public
+ */
 export function Minimap({ width = 200, height = 150, className, theme: themeProp, canvasWidth, canvasHeight }: MinimapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef = useRef(0)

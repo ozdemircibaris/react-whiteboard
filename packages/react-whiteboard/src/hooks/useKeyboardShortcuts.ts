@@ -24,6 +24,7 @@ const TOOL_SHORTCUTS: Record<string, ToolType> = {
  *
  * Uses `getState()` to read shapes/selectedIds at keypress time,
  * so the event listener never re-registers when store state changes.
+ * @public
  */
 export function useKeyboardShortcuts({ getState, readOnly = false }: KeyboardShortcutsOptions) {
   const isShiftPressedRef = useRef(false)

@@ -14,6 +14,7 @@ import { getBoundTextShape, canContainBoundText } from '../utils/boundText'
  * When nothing is selected: changes only update defaults.
  *
  * Also resolves bound text from selected container shapes (rectangle/ellipse).
+ * @public
  */
 export function useTextProperties() {
   const currentTextProps = useWhiteboardStore((s) => s.currentTextProps)

@@ -6,7 +6,8 @@ import { isBlobUrl, blobUrlToDataUrl, dataUrlToBlobUrl } from './imageBlobStore'
 const FORMAT_VERSION = 1
 
 /**
- * Serialized whiteboard document format
+ * Serialized whiteboard document format.
+ * @public
  */
 export interface WhiteboardDocument {
   version: number
@@ -18,6 +19,7 @@ export interface WhiteboardDocument {
 
 /**
  * Serialize whiteboard state to a JSON-compatible document object.
+ * @public
  */
 export function serializeDocument(
   shapes: Map<string, Shape>,
@@ -71,6 +73,7 @@ async function resolveImageBlobUrls(shapes: Shape[]): Promise<Shape[]> {
 /**
  * Serialize whiteboard state to a JSON string.
  * Async because blob URLs must be resolved to base64 DataURLs for persistence.
+ * @public
  */
 export async function exportToJSON(
   shapes: Map<string, Shape>,
@@ -85,6 +88,7 @@ export async function exportToJSON(
 /**
  * Parse and validate a JSON string into a WhiteboardDocument.
  * Throws on invalid input.
+ * @public
  */
 export function parseDocument(json: string): WhiteboardDocument {
   const raw: unknown = JSON.parse(json)
@@ -124,6 +128,7 @@ export function parseDocument(json: string): WhiteboardDocument {
 /**
  * Convert a parsed document into store-ready data structures.
  * Converts base64 DataURL image sources to efficient blob URLs.
+ * @public
  */
 export function documentToStoreData(doc: WhiteboardDocument): {
   shapes: Map<string, Shape>
@@ -157,6 +162,7 @@ export function documentToStoreData(doc: WhiteboardDocument): {
 
 /**
  * Trigger a file download in the browser.
+ * @public
  */
 export function downloadFile(content: string, filename: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType })
@@ -171,6 +177,7 @@ export function downloadFile(content: string, filename: string, mimeType: string
 /**
  * Open a file picker and read the selected file as text.
  * Returns null if the user cancels.
+ * @public
  */
 export function pickAndReadFile(accept: string): Promise<string | null> {
   return new Promise((resolve) => {

@@ -1,5 +1,6 @@
 import type { Bounds, Point, Shape } from '../types'
 
+/** @public */
 export interface SnapLine {
   orientation: 'horizontal' | 'vertical'
   position: number
@@ -7,6 +8,7 @@ export interface SnapLine {
   to: number
 }
 
+/** @public */
 export interface SnapResult {
   x: number
   y: number
@@ -16,7 +18,8 @@ export interface SnapResult {
 const SNAP_THRESHOLD = 5
 
 /**
- * Snap a point to the nearest grid intersection
+ * Snap a point to the nearest grid intersection.
+ * @public
  */
 export function snapToGrid(point: Point, gridSize: number): Point {
   return {
@@ -29,6 +32,7 @@ export function snapToGrid(point: Point, gridSize: number): Point {
  * Snap moving bounds to other shape edges/centers (smart guides).
  * Returns the snapped position and visual snap lines.
  * Uses proximity culling to skip shapes that are too far away to snap.
+ * @public
  */
 export function snapToShapes(
   movingBounds: Bounds,
@@ -141,7 +145,8 @@ export function snapToShapes(
 }
 
 /**
- * Draw snap guide lines on the canvas overlay
+ * Draw snap guide lines on the canvas overlay.
+ * @internal
  */
 export function drawSnapLines(
   ctx: CanvasRenderingContext2D,
