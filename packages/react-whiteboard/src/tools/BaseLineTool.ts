@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
 import rough from 'roughjs'
+import type { RoughCanvas } from 'roughjs/bin/canvas'
 import type { WhiteboardStore } from '../core/store'
 import type { Point, Viewport, Shape } from '../types'
 import type {
@@ -29,6 +30,8 @@ export abstract class BaseLineTool implements ITool {
 
   protected previewStart: Point | null = null
   protected previewEnd: Point | null = null
+  private cachedRc: RoughCanvas | null = null
+  private cachedRcCanvas: HTMLCanvasElement | null = null
 
   /**
    * Default stroke properties - can be overridden by subclasses
@@ -194,10 +197,13 @@ export abstract class BaseLineTool implements ITool {
     if (!this.previewStart || !this.previewEnd || !state.isDragging) return
 
     ctx.save()
-    ctx.globalAlpha = 0.7
+    ctx.globalAlpha = 0.9
 
-    const rc = rough.canvas(ctx.canvas)
-    rc.line(
+    if (!this.cachedRc || this.cachedRcCanvas !== ctx.canvas) {
+      this.cachedRc = rough.canvas(ctx.canvas)
+      this.cachedRcCanvas = ctx.canvas
+    }
+    this.cachedRc.line(
       this.previewStart.x, this.previewStart.y,
       this.previewEnd.x, this.previewEnd.y,
       {

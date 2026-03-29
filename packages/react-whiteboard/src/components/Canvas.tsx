@@ -188,8 +188,10 @@ export function Canvas({
     const { width, height } = containerSizeRef.current
     if (width === 0 || height === 0) return
 
-    const curShapes = shapesRef.current
-    const curShapeIds = shapeIdsRef.current
+    // Read shapes/ids directly from the store for freshness
+    const storeState = store.getState()
+    const curShapes = storeState.shapes
+    const curShapeIds = storeState.shapeIds
     const transientIds = toolManager.getTransientShapeIds()
 
     renderer.clear(width, height)
@@ -214,7 +216,7 @@ export function Canvas({
       }
     }
     renderer.resetTransform()
-  }, [viewport, showGrid, gridSize, resolvedBg, staticCanvasRef, containerSizeRef, staticRendererRef, toolManager])
+  }, [viewport, showGrid, gridSize, resolvedBg, staticCanvasRef, containerSizeRef, staticRendererRef, toolManager, store])
 
   // ── Interactive render: selection UI, transient shapes, overlays ──
   const renderInteractive = useCallback(() => {
@@ -228,11 +230,14 @@ export function Canvas({
     const { width, height } = containerSizeRef.current
     if (width === 0 || height === 0) return
 
-    const curShapes = shapesRef.current
+    // Read shapes directly from the store (always fresh) rather than the
+    // subscription-updated ref to avoid race conditions during drag.
+    const curShapes = store.getState().shapes
     const transientIds = toolManager.getTransientShapeIds()
 
     // Detect drag-start: re-render static canvas to exclude transient shapes (fixes ghost)
     if (!hadTransientRef.current && transientIds.size > 0) {
+      renderer.clearDragCache()
       cancelAnimationFrame(staticRafRef.current)
       staticRafRef.current = requestAnimationFrame(() => renderStaticRef.current?.())
     }
@@ -273,7 +278,7 @@ export function Canvas({
 
     renderOverlay(ctx)
     renderer.resetTransform()
-  }, [selectedIds, viewport, renderOverlay, interactiveCanvasRef, containerSizeRef, interactiveRendererRef, toolManager])
+  }, [selectedIds, viewport, renderOverlay, interactiveCanvasRef, containerSizeRef, interactiveRendererRef, toolManager, store])
 
   // ── Keep render refs current (StrictMode safe) ────────────────────
   useEffect(() => {
@@ -331,7 +336,7 @@ export function Canvas({
       const screenPoint: Point = { x: e.clientX, y: e.clientY }
       const canvasPoint = screenToCanvas(screenPoint, viewportRef.current, rect)
       const { shapes, shapeIds, selectedIds: sel } = store.getState()
-      const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 2, shapeRendererRegistry)
+      const hitShape = getShapeAtPoint(canvasPoint, shapes, shapeIds, 5, shapeRendererRegistry)
       if (hitShape && !sel.has(hitShape.id)) {
         store.getState().select(hitShape.id)
       }
