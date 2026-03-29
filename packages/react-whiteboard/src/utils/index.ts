@@ -1,4 +1,5 @@
 export * from './canvas'
+export * from './dom'
 export * from './hitTest'
 export * from './fonts'
 export * from './snapping'

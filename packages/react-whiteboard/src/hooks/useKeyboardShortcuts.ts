@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { WhiteboardStore } from '../core/store/createStore'
 import type { Shape, ToolType } from '../types'
+import { isInputTarget } from '../utils/dom'
 
 interface KeyboardShortcutsOptions {
   /** Always-fresh state accessor (e.g. store.getState). Avoids stale closures. */
@@ -48,9 +49,8 @@ export function useKeyboardShortcuts({ getState, readOnly = false }: KeyboardSho
     if (readOnly) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept when typing in an input/textarea
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      // Don't intercept when typing in an input-like element
+      if (isInputTarget(e.target)) return
 
       const isMod = e.metaKey || e.ctrlKey
       const moveAmount = e.shiftKey ? 10 : 1
