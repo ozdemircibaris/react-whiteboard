@@ -9,6 +9,7 @@ import type {
   PathShape,
   ImageShape,
 } from '../types'
+import { updateShapeFields } from '../types'
 import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 import {
   renderRectangle,
@@ -26,6 +27,7 @@ import { getShapesBounds } from './shapeBounds'
 // Types
 // ============================================================================
 
+/** @public */
 export interface ExportSvgOptions {
   /** Padding around content in pixels (default: 32) */
   padding?: number
@@ -50,10 +52,10 @@ async function resolveImageSrcs(
   for (const id of shapeIds) {
     const shape = shapes.get(id)
     if (!shape || shape.type !== 'image') continue
-    const imgShape = shape as ImageShape
+    const imgShape = shape
     if (!isBlobUrl(imgShape.props.src)) continue
     const dataUrl = await blobUrlToDataUrl(imgShape.props.src)
-    resolved.set(id, { ...imgShape, props: { ...imgShape.props, src: dataUrl } } as Shape)
+    resolved.set(id, updateShapeFields(imgShape, { props: { ...imgShape.props, src: dataUrl } }))
   }
   return resolved
 }
@@ -62,6 +64,7 @@ async function resolveImageSrcs(
  * Export all shapes to an SVG string using RoughJS SVG mode for hand-drawn aesthetics.
  * Async because blob URLs in image shapes must be resolved to base64 DataURLs.
  * Returns null if there are no shapes to export.
+ * @public
  */
 export async function exportToSvg(
   shapes: Map<string, Shape>,
@@ -161,6 +164,7 @@ export async function exportToSvg(
 /**
  * Export shapes to SVG and trigger a download.
  * Returns false if there are no shapes.
+ * @public
  */
 export async function downloadSvg(
   shapes: Map<string, Shape>,

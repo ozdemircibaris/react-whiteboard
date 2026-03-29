@@ -1,8 +1,8 @@
 /**
  * Theme color configuration for the whiteboard library.
  * Allows consumers to customize all visual colors used in canvas rendering.
+ * @public
  */
-
 export interface ThemeColors {
   /** Canvas background color */
   canvasBackground: string
@@ -45,6 +45,7 @@ export interface ThemeColors {
   defaultTextColor: string
 }
 
+/** @public */
 export const LIGHT_THEME: ThemeColors = {
   canvasBackground: '#fafafa',
   grid: '#e5e5e5',
@@ -64,6 +65,7 @@ export const LIGHT_THEME: ThemeColors = {
   defaultTextColor: '#1e1e1e',
 }
 
+/** @public */
 export const DARK_THEME: ThemeColors = {
   canvasBackground: '#1e1e2e',
   grid: '#252538',
@@ -83,7 +85,10 @@ export const DARK_THEME: ThemeColors = {
   defaultTextColor: '#e0e0e0',
 }
 
-/** Merge a partial theme with a base theme (defaults to LIGHT_THEME) */
+/**
+ * Merge a partial theme with a base theme (defaults to LIGHT_THEME).
+ * @public
+ */
 export function resolveTheme(
   partial?: Partial<ThemeColors>,
   base: ThemeColors = LIGHT_THEME,

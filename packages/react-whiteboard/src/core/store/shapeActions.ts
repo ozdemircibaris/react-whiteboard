@@ -1,4 +1,5 @@
 import type { Shape } from '../../types'
+import { updateShapeFields } from '../../types'
 import type { StoreApi } from './types'
 import { createHistoryEntry, pushHistory } from './historyHelpers'
 import { getBoundTextIdFromShape } from '../../utils/boundText'
@@ -33,7 +34,7 @@ export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
         const shape = state.shapes.get(id)
         if (!shape) return {}
 
-        const updatedShape = { ...shape, ...updates } as Shape
+        const updatedShape = updateShapeFields(shape, updates)
         const newShapes = new Map(state.shapes)
         newShapes.set(id, updatedShape)
 
@@ -145,7 +146,7 @@ export function createShapeActions(set: StoreApi['set'], get: StoreApi['get']) {
         for (const [id, partial] of updates) {
           const shape = newShapes.get(id)
           if (!shape) continue
-          newShapes.set(id, { ...shape, ...partial } as Shape)
+          newShapes.set(id, updateShapeFields(shape, partial))
         }
         return { shapes: newShapes }
       })

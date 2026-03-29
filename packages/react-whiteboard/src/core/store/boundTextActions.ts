@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
-import type { Shape, TextShape, RectangleShape, EllipseShape } from '../../types'
+import type { Shape, TextShape } from '../../types'
+import { updateShapeFields } from '../../types'
 import type { StoreApi } from './types'
 import { wrapTextLines } from '../../utils/fonts'
 import {
@@ -22,11 +23,10 @@ export function createBoundTextActions(set: StoreApi['set'], get: StoreApi['get'
       const state = get()
       const parent = state.shapes.get(parentId)
       if (!parent || !canContainBoundText(parent.type)) return null
-
-      const container = parent as RectangleShape | EllipseShape
+      if (parent.type !== 'rectangle' && parent.type !== 'ellipse') return null
 
       // Return existing bound text
-      const existing = getBoundTextShape(container, state.shapes)
+      const existing = getBoundTextShape(parent, state.shapes)
       if (existing) return existing
 
       const pad = BOUND_TEXT_PADDING
@@ -54,11 +54,13 @@ export function createBoundTextActions(set: StoreApi['set'], get: StoreApi['get'
         newShapes.set(textShape.id, textShape)
 
         // Update parent's boundTextId
-        const updatedParent = {
-          ...container,
-          props: { ...container.props, boundTextId: textShape.id },
-        } as Shape
-        newShapes.set(parentId, updatedParent)
+        const currentParent = newShapes.get(parentId)
+        if (currentParent && (currentParent.type === 'rectangle' || currentParent.type === 'ellipse')) {
+          const updatedParent = updateShapeFields(currentParent, {
+            props: { ...currentParent.props, boundTextId: textShape.id },
+          })
+          newShapes.set(parentId, updatedParent)
+        }
 
         return { shapes: newShapes }
       })
@@ -73,9 +75,9 @@ export function createBoundTextActions(set: StoreApi['set'], get: StoreApi['get'
       const state = get()
       const parent = state.shapes.get(parentId)
       if (!parent || !canContainBoundText(parent.type)) return
+      if (parent.type !== 'rectangle' && parent.type !== 'ellipse') return
 
-      const container = parent as RectangleShape | EllipseShape
-      const textShape = getBoundTextShape(container, state.shapes)
+      const textShape = getBoundTextShape(parent, state.shapes)
       if (!textShape) return
 
       const pad = BOUND_TEXT_PADDING
@@ -102,9 +104,9 @@ export function createBoundTextActions(set: StoreApi['set'], get: StoreApi['get'
       const state = get()
       const parent = state.shapes.get(parentId)
       if (!parent || !canContainBoundText(parent.type)) return
+      if (parent.type !== 'rectangle' && parent.type !== 'ellipse') return
 
-      const container = parent as RectangleShape | EllipseShape
-      const textShape = getBoundTextShape(container, state.shapes)
+      const textShape = getBoundTextShape(parent, state.shapes)
       if (!textShape) return
 
       set((s) => {
@@ -112,11 +114,13 @@ export function createBoundTextActions(set: StoreApi['set'], get: StoreApi['get'
         newShapes.delete(textShape.id)
 
         // Clear parent's boundTextId
-        const updatedParent = {
-          ...container,
-          props: { ...container.props, boundTextId: null },
-        } as Shape
-        newShapes.set(parentId, updatedParent)
+        const currentParent = newShapes.get(parentId)
+        if (currentParent && (currentParent.type === 'rectangle' || currentParent.type === 'ellipse')) {
+          const updatedParent = updateShapeFields(currentParent, {
+            props: { ...currentParent.props, boundTextId: null },
+          })
+          newShapes.set(parentId, updatedParent)
+        }
 
         const historyUpdate = recordHistory
           ? pushHistory(

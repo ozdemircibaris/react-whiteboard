@@ -16,6 +16,7 @@ interface DualCanvasSetupOptions {
 /**
  * Hook for dual-canvas initialization and resize handling.
  * Manages two stacked canvases (static + interactive) with matching DPI/size.
+ * @public
  */
 export function useDualCanvasSetup({ onReady, theme }: DualCanvasSetupOptions) {
   const staticCanvasRef = useRef<HTMLCanvasElement>(null)

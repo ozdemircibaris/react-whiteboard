@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { Shape, Viewport } from '../types'
 import { useWhiteboardContext } from '../context'
 
+/** @public */
 export interface WhiteboardEventCallbacks {
   /** Fired when a new shape is added to the canvas */
   onShapeCreate?: (shape: Shape) => void
@@ -18,6 +19,7 @@ export interface WhiteboardEventCallbacks {
  * Uses Zustand subscription with shallow diffing to detect individual changes.
  *
  * Must be used inside a <WhiteboardProvider>.
+ * @public
  */
 export function useWhiteboardEvents(callbacks: WhiteboardEventCallbacks): void {
   const { store } = useWhiteboardContext()

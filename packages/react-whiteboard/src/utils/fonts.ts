@@ -3,6 +3,7 @@ import type { TextFontFamily, TextShapeProps } from '../types'
 /**
  * Font family → CSS font stack mapping.
  * Each key maps to a full CSS font-family fallback chain.
+ * @public
  */
 export const FONT_FAMILIES: Record<TextFontFamily, string> = {
   hand: 'Virgil, "Segoe Print", "Bradley Hand", "Marker Felt", cursive',
@@ -13,6 +14,7 @@ export const FONT_FAMILIES: Record<TextFontFamily, string> = {
 
 /**
  * Font size presets matching Excalidraw's S/M/L/XL pattern.
+ * @public
  */
 export const FONT_SIZE_PRESETS = {
   S: 16,
@@ -21,10 +23,12 @@ export const FONT_SIZE_PRESETS = {
   XL: 36,
 } as const
 
+/** @public */
 export type FontSizePreset = keyof typeof FONT_SIZE_PRESETS
 
 /**
  * Default text styling properties for new text shapes.
+ * @public
  */
 export const DEFAULT_TEXT_PROPS: Omit<TextShapeProps, 'text'> = {
   fontSize: 20,
@@ -40,6 +44,7 @@ export const DEFAULT_TEXT_PROPS: Omit<TextShapeProps, 'text'> = {
 /**
  * Build a CSS font string from text shape properties.
  * Used by both the canvas renderer and the textarea WYSIWYG overlay.
+ * @public
  */
 export function resolveFont(props: Pick<TextShapeProps, 'fontStyle' | 'fontWeight' | 'fontSize' | 'fontFamily'>): string {
   const style = props.fontStyle === 'italic' ? 'italic ' : ''
@@ -59,6 +64,7 @@ const DEFAULT_FONT_URLS: Record<string, string> = {
 }
 
 /**
+ * @public
  * Load whiteboard fonts using the FontFace API.
  * Call this once at app startup to ensure hand-drawn and mono fonts render correctly.
  *
@@ -102,7 +108,10 @@ function getMeasureContext(): CanvasRenderingContext2D | null {
   return _measureCtx
 }
 
-/** Default max width for new text shapes (in canvas units) */
+/**
+ * Default max width for new text shapes (in canvas units).
+ * @public
+ */
 export const DEFAULT_TEXT_MAX_WIDTH = 300
 
 type FontMeasureProps = Pick<TextShapeProps, 'fontSize' | 'fontFamily' | 'fontWeight' | 'fontStyle' | 'lineHeight'>
@@ -110,6 +119,7 @@ type FontMeasureProps = Pick<TextShapeProps, 'fontSize' | 'fontFamily' | 'fontWe
 /**
  * Measure text dimensions for multiline text (no word-wrap).
  * Returns width (max line width) and height (total line heights).
+ * @public
  */
 export function measureTextLines(
   text: string,
@@ -174,6 +184,7 @@ function breakWord(word: string, maxWidth: number, ctx: CanvasRenderingContext2D
  * Preserves explicit newlines, then wraps each paragraph by word boundaries.
  * Long words/URLs that exceed maxWidth are broken at character boundaries.
  * Returns actual rendered width (may be less than maxWidth for short text).
+ * @public
  */
 export function wrapTextLines(
   text: string,

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { WhiteboardStore } from '../core/store/createStore'
 import type { Shape, ToolType } from '../types'
+import { cloneShape, updateShapeFields } from '../types'
 import { isInputTarget } from '../utils/dom'
 
 interface KeyboardShortcutsOptions {
@@ -24,6 +25,7 @@ const TOOL_SHORTCUTS: Record<string, ToolType> = {
  *
  * Uses `getState()` to read shapes/selectedIds at keypress time,
  * so the event listener never re-registers when store state changes.
+ * @public
  */
 export function useKeyboardShortcuts({ getState, readOnly = false }: KeyboardShortcutsOptions) {
   const isShiftPressedRef = useRef(false)
@@ -187,17 +189,15 @@ export function useKeyboardShortcuts({ getState, readOnly = false }: KeyboardSho
         state.selectedIds.forEach((id) => {
           const shape = state.shapes.get(id)
           if (shape) {
-            beforeShapes.push(structuredClone(shape) as Shape)
+            beforeShapes.push(cloneShape(shape))
             state.updateShape(id, { x: shape.x + delta.x, y: shape.y + delta.y }, false)
           }
         })
 
         if (beforeShapes.length > 0) {
-          const afterShapes: Shape[] = beforeShapes.map((before) => ({
-            ...before,
-            x: before.x + delta.x,
-            y: before.y + delta.y,
-          } as Shape))
+          const afterShapes: Shape[] = beforeShapes.map((before) =>
+            updateShapeFields(before, { x: before.x + delta.x, y: before.y + delta.y })
+          )
           state.recordBatchUpdate(beforeShapes, afterShapes)
         }
         return

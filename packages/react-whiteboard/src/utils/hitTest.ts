@@ -23,7 +23,8 @@ export {
 } from './shapeHitTest'
 
 /**
- * Get the bounds of a shape (accounting for stroke width)
+ * Get the bounds of a shape (accounting for stroke width).
+ * @public
  */
 export function getShapeBounds(shape: Shape): Bounds {
   const strokeWidth = 'props' in shape && 'strokeWidth' in shape.props ? shape.props.strokeWidth : 0
@@ -70,6 +71,7 @@ import { hitTestShape } from './shapeHitTest'
 /**
  * Find the shape at a given point (returns the topmost shape).
  * Pass an optional registry for custom shape hit testing.
+ * @public
  */
 export function getShapeAtPoint(
   point: Point,
@@ -93,6 +95,7 @@ export function getShapeAtPoint(
 /**
  * Find all shapes at a given point.
  * Pass an optional registry for custom shape hit testing.
+ * @public
  */
 export function getShapesAtPoint(
   point: Point,
@@ -114,7 +117,8 @@ export function getShapesAtPoint(
 }
 
 /**
- * Find shapes within a selection box (marquee selection)
+ * Find shapes within a selection box (marquee selection).
+ * @public
  */
 export function getShapesInBounds(
   bounds: Bounds,
@@ -155,7 +159,8 @@ export function getShapesInBounds(
 }
 
 /**
- * Get combined bounds of multiple shapes
+ * Get combined bounds of multiple shapes.
+ * @public
  */
 export function getSelectionBounds(shapes: Shape[]): Bounds | null {
   if (shapes.length === 0) return null

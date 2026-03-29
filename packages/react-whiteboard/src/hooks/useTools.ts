@@ -19,17 +19,51 @@ interface UseToolsOptions {
  *
  * When `readOnly` is true, only pan gestures are processed — all tool
  * interactions are disabled.
+ * @public
  */
 export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = false }: UseToolsOptions) {
   const lastPointerRef = useRef<Point | null>(null)
   const isPanningRef = useRef(false)
   const [cursorStyle, setCursorStyle] = useState('default')
 
-  // Cached container rect — refreshed at pointerdown, reused during drag
-  // to avoid getBoundingClientRect layout thrash on every pointermove
+  // Cached container rect — kept warm via ResizeObserver + scroll/resize
+  // listeners to avoid getBoundingClientRect layout thrash on every pointermove
   const cachedRectRef = useRef<DOMRect | null>(null)
 
   const toolManager = useToolManager()
+
+  // Keep cachedRectRef warm via ResizeObserver and passive scroll/resize listeners
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const measureRect = () => {
+      cachedRectRef.current = container.getBoundingClientRect()
+    }
+
+    // Initial measurement
+    measureRect()
+
+    // ResizeObserver refreshes the cache when the container is resized
+    let observer: ResizeObserver | undefined
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => {
+        measureRect()
+      })
+      observer.observe(container)
+    }
+
+    // Passive scroll/resize listeners handle position changes
+    // that ResizeObserver does not detect (e.g. parent scroll)
+    window.addEventListener('scroll', measureRect, { passive: true })
+    window.addEventListener('resize', measureRect, { passive: true })
+
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('scroll', measureRect)
+      window.removeEventListener('resize', measureRect)
+    }
+  }, [containerRef])
 
   // Store selectors
   const currentTool = useWhiteboardStore((s) => s.currentTool)
@@ -48,7 +82,7 @@ export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = fals
   }, [currentTool, readOnly])
 
   // Build ToolEventContext from a React pointer event.
-  // Uses cachedRectRef when available (during drag) to avoid layout thrash.
+  // Uses cachedRectRef (kept warm by ResizeObserver) to avoid layout thrash.
   const createEventContext = useCallback(
     (e: React.PointerEvent): ToolEventContext | null => {
       const container = containerRef.current
@@ -93,10 +127,6 @@ export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = fals
 
       canvas.setPointerCapture(e.pointerId)
       lastPointerRef.current = { x: e.clientX, y: e.clientY }
-
-      // Cache container rect for the duration of this drag session
-      const container = containerRef.current
-      cachedRectRef.current = container ? container.getBoundingClientRect() : null
 
       // Middle mouse or alt+left click → panning
       if (e.button === 1 || (e.button === 0 && e.altKey)) {
@@ -194,7 +224,6 @@ export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = fals
       }
 
       lastPointerRef.current = null
-      cachedRectRef.current = null
       requestRender()
     },
     [canvasRef, createEventContext, setIsPanning, requestRender, readOnly],
@@ -210,7 +239,7 @@ export function useTools({ containerRef, canvasRef, renderFnRef, readOnly = fals
       const container = containerRef.current
       if (!container) return
 
-      const rect = container.getBoundingClientRect()
+      const rect = cachedRectRef.current ?? container.getBoundingClientRect()
       const screenPoint: Point = { x: e.clientX, y: e.clientY }
       const canvasPoint = screenToCanvas(screenPoint, viewport, rect)
 

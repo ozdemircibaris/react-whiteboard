@@ -9,16 +9,28 @@ export { LIGHT_THEME, DARK_THEME, resolveTheme } from './theme'
 // Geometry Types
 // ============================================================================
 
+/**
+ * A 2D point with x and y coordinates.
+ * @public
+ */
 export interface Point {
   x: number
   y: number
 }
 
+/**
+ * Width and height dimensions.
+ * @public
+ */
 export interface Size {
   width: number
   height: number
 }
 
+/**
+ * Axis-aligned bounding box with position and size.
+ * @public
+ */
 export interface Bounds {
   x: number
   y: number
@@ -26,6 +38,10 @@ export interface Bounds {
   height: number
 }
 
+/**
+ * 2D transform with position, rotation, and scale.
+ * @public
+ */
 export interface Transform {
   x: number
   y: number
@@ -37,6 +53,10 @@ export interface Transform {
 // Viewport Types
 // ============================================================================
 
+/**
+ * Camera viewport state: pan offset and zoom level.
+ * @public
+ */
 export interface Viewport {
   /** Pan offset X */
   x: number
@@ -46,6 +66,10 @@ export interface Viewport {
   zoom: number
 }
 
+/**
+ * Min/max extent of the visible viewport area in canvas coordinates.
+ * @public
+ */
 export interface ViewportBounds {
   minX: number
   minY: number
@@ -63,12 +87,22 @@ export interface ViewportBounds {
 // Style Types
 // ============================================================================
 
-/** Fill style — maps to RoughJS fillStyle option */
+/**
+ * Fill style — maps to RoughJS fillStyle option.
+ * @public
+ */
 export type FillStyle = 'solid' | 'hachure' | 'cross-hatch' | 'dots'
 
-/** Stroke style — solid, dashed, or dotted */
+/**
+ * Stroke style — solid, dashed, or dotted.
+ * @public
+ */
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted'
 
+/**
+ * Discriminated union of built-in shape type strings, extensible via `string`.
+ * @public
+ */
 export type ShapeType =
   | 'rectangle'
   | 'ellipse'
@@ -81,6 +115,10 @@ export type ShapeType =
   | 'react-component'
   | string // Allow custom shape types
 
+/**
+ * Common properties shared by all shape types.
+ * @public
+ */
 export interface BaseShape {
   id: string
   type: ShapeType
@@ -99,6 +137,7 @@ export interface BaseShape {
   roughness: number
 }
 
+/** @public */
 export interface RectangleShape extends BaseShape {
   type: 'rectangle'
   props: {
@@ -112,6 +151,7 @@ export interface RectangleShape extends BaseShape {
   }
 }
 
+/** @public */
 export interface EllipseShape extends BaseShape {
   type: 'ellipse'
   props: {
@@ -124,6 +164,7 @@ export interface EllipseShape extends BaseShape {
   }
 }
 
+/** @public */
 export interface LineShape extends BaseShape {
   type: 'line'
   props: {
@@ -134,6 +175,7 @@ export interface LineShape extends BaseShape {
   }
 }
 
+/** @public */
 export interface ArrowShape extends BaseShape {
   type: 'arrow'
   props: {
@@ -147,8 +189,10 @@ export interface ArrowShape extends BaseShape {
   }
 }
 
+/** @public */
 export type TextFontFamily = 'hand' | 'sans' | 'serif' | 'mono'
 
+/** @public */
 export interface TextShapeProps {
   text: string
   fontSize: number
@@ -161,11 +205,13 @@ export interface TextShapeProps {
   lineHeight: number
 }
 
+/** @public */
 export interface TextShape extends BaseShape {
   type: 'text'
   props: TextShapeProps
 }
 
+/** @public */
 export interface PathPoint {
   x: number
   y: number
@@ -173,6 +219,7 @@ export interface PathPoint {
   pressure?: number
 }
 
+/** @public */
 export interface PathShape extends BaseShape {
   type: 'path'
   props: {
@@ -184,6 +231,7 @@ export interface PathShape extends BaseShape {
   }
 }
 
+/** @public */
 export interface ImageShape extends BaseShape {
   type: 'image'
   props: {
@@ -193,6 +241,7 @@ export interface ImageShape extends BaseShape {
   }
 }
 
+/** @public */
 export interface GroupShape extends BaseShape {
   type: 'group'
   props: {
@@ -200,6 +249,7 @@ export interface GroupShape extends BaseShape {
   }
 }
 
+/** @public */
 export interface ReactComponentShape extends BaseShape {
   type: 'react-component'
   props: {
@@ -208,6 +258,10 @@ export interface ReactComponentShape extends BaseShape {
   }
 }
 
+/**
+ * Discriminated union of all built-in shape types.
+ * @public
+ */
 export type Shape =
   | RectangleShape
   | EllipseShape
@@ -219,10 +273,39 @@ export type Shape =
   | GroupShape
   | ReactComponentShape
 
+/**
+ * Type-safe partial update that excludes discriminant fields.
+ * Prevents accidental mutation of `type` and `id`.
+ * @public
+ */
+export type ShapeUpdate<T extends Shape = Shape> = Omit<Partial<T>, 'type' | 'id'>
+
+/**
+ * Merge a shape with a partial update, preserving the concrete discriminated union type.
+ * Replaces unsafe `{ ...shape, ...updates } as Shape` patterns.
+ * @public
+ */
+export function updateShapeFields<T extends Shape>(shape: T, update: Partial<T>): T {
+  return { ...shape, ...update }
+}
+
+/**
+ * Type-safe deep clone of a shape via structuredClone, preserving the discriminated union type.
+ * Replaces unsafe `structuredClone(shape) as Shape` patterns.
+ * @public
+ */
+export function cloneShape<T extends Shape>(shape: T): T {
+  return structuredClone(shape)
+}
+
 // ============================================================================
 // Tool Types
 // ============================================================================
 
+/**
+ * Discriminated union of built-in tool type strings, extensible via `string`.
+ * @public
+ */
 export type ToolType =
   | 'select'
   | 'rectangle'
@@ -235,6 +318,7 @@ export type ToolType =
   | 'hand'
   | string // Allow custom tools
 
+/** @public */
 export interface Tool {
   type: ToolType
   cursor: string
@@ -244,6 +328,7 @@ export interface Tool {
 // Selection Types
 // ============================================================================
 
+/** @public */
 export interface Selection {
   shapeIds: string[]
   bounds: Bounds | null
@@ -253,12 +338,14 @@ export interface Selection {
 // History Types
 // ============================================================================
 
+/** @public */
 export type HistoryAction =
   | { type: 'create'; shapes: Shape[] }
   | { type: 'update'; before: Shape[]; after: Shape[] }
   | { type: 'delete'; shapes: Shape[] }
   | { type: 'reorder'; previousShapeIds: string[]; newShapeIds: string[] }
 
+/** @public */
 export interface HistoryEntry {
   id: string
   timestamp: number
@@ -269,6 +356,10 @@ export interface HistoryEntry {
 // Store Types
 // ============================================================================
 
+/**
+ * Read-only snapshot of the whiteboard store state.
+ * @public
+ */
 export interface WhiteboardState {
   // Shapes
   shapes: Map<string, Shape>
@@ -296,6 +387,7 @@ export interface WhiteboardState {
 // Event Types
 // ============================================================================
 
+/** @public */
 export interface PointerState {
   isDown: boolean
   startPoint: Point | null
@@ -304,6 +396,7 @@ export interface PointerState {
   pressure: number
 }
 
+/** @public */
 export interface WhiteboardEvent {
   point: Point
   canvasPoint: Point
@@ -317,6 +410,10 @@ export interface WhiteboardEvent {
 // Config Types
 // ============================================================================
 
+/**
+ * Configuration options for whiteboard behavior.
+ * @public
+ */
 export interface WhiteboardConfig {
   /** Initial viewport */
   initialViewport?: Partial<Viewport>

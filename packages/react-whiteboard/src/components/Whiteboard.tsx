@@ -14,6 +14,7 @@ import { LocalStorageAdapter } from '../persistence'
 // Props
 // ============================================================================
 
+/** @public */
 export interface WhiteboardProps {
   /** Initial data to load on mount */
   initialData?: {
@@ -172,6 +173,7 @@ function WhiteboardInner({
  * optional minimap, `onChange` callback, `initialData` loading, and `readOnly` mode.
  *
  * For full control, use `<WhiteboardProvider>` + `<Canvas>` directly.
+ * @public
  */
 export function Whiteboard(props: WhiteboardProps) {
   // Resolve persist prop → stable adapter instance

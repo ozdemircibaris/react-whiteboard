@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
-import type { Shape, RectangleShape, EllipseShape } from '../../types'
+import type { Shape } from '../../types'
+import { cloneShape } from '../../types'
 import type { StoreApi } from './types'
 import { createHistoryEntry, pushHistory } from './historyHelpers'
 import { collectBoundTextIds, getBoundTextIdFromShape } from '../../utils/boundText'
@@ -20,13 +21,13 @@ export function createClipboardActions(set: StoreApi['set'], get: StoreApi['get'
       const copied = Array.from(selectedIds)
         .map((id) => shapes.get(id))
         .filter((s): s is Shape => s !== undefined)
-        .map((s) => structuredClone(s) as Shape)
+        .map((s) => cloneShape(s))
 
       // Include bound text children
       const boundTextIds = collectBoundTextIds(selectedIds, shapes)
       for (const btId of boundTextIds) {
         const bt = shapes.get(btId)
-        if (bt) copied.push(structuredClone(bt) as Shape)
+        if (bt) copied.push(cloneShape(bt))
       }
 
       set({ clipboard: copied, clipboardPasteCount: 0 })
@@ -52,7 +53,7 @@ export function createClipboardActions(set: StoreApi['set'], get: StoreApi['get'
         if (bt) shapesToCut.push(bt)
       }
 
-      const copied = shapesToCut.map((s) => structuredClone(s) as Shape)
+      const copied = shapesToCut.map((s) => cloneShape(s))
 
       const idsSet = new Set(allIds)
       const newShapes = new Map(shapes)
@@ -85,29 +86,25 @@ export function createClipboardActions(set: StoreApi['set'], get: StoreApi['get'
 
       // Create new shapes with fresh IDs and offset positions
       const idMap = new Map<string, string>()
-      const newShapes = clipboard.map((s) => {
+      let newShapes = clipboard.map((s): Shape => {
         const newId = nanoid()
         idMap.set(s.id, newId)
-        return {
-          ...structuredClone(s),
-          id: newId,
-          x: s.x + offset,
-          y: s.y + offset,
-          seed: Math.floor(Math.random() * 2 ** 31),
-        } as Shape
+        const cloned = cloneShape(s)
+        return { ...cloned, id: newId, x: s.x + offset, y: s.y + offset, seed: Math.floor(Math.random() * 2 ** 31) }
       })
 
       // Remap parentId and boundTextId references
-      for (const shape of newShapes) {
+      newShapes = newShapes.map((shape): Shape => {
+        let updated = shape
         if (shape.parentId && idMap.has(shape.parentId)) {
-          shape.parentId = idMap.get(shape.parentId)!
+          updated = { ...updated, parentId: idMap.get(shape.parentId)! }
         }
         const btId = getBoundTextIdFromShape(shape)
-        if (btId && idMap.has(btId)) {
-          const container = shape as RectangleShape | EllipseShape
-          container.props = { ...container.props, boundTextId: idMap.get(btId)! }
+        if (btId && idMap.has(btId) && (shape.type === 'rectangle' || shape.type === 'ellipse')) {
+          updated = { ...shape, parentId: updated.parentId, props: { ...shape.props, boundTextId: idMap.get(btId)! } }
         }
-      }
+        return updated
+      })
 
       // Separate z-order shapes from bound text (bound text has parentId)
       const newShapeMap = new Map(state.shapes)
@@ -157,29 +154,25 @@ export function createClipboardActions(set: StoreApi['set'], get: StoreApi['get'
       }
 
       const idMap = new Map<string, string>()
-      const newShapes = selected.map((s) => {
+      let newShapes = selected.map((s): Shape => {
         const newId = nanoid()
         idMap.set(s.id, newId)
-        return {
-          ...structuredClone(s),
-          id: newId,
-          x: s.x + PASTE_OFFSET,
-          y: s.y + PASTE_OFFSET,
-          seed: Math.floor(Math.random() * 2 ** 31),
-        } as Shape
+        const cloned = cloneShape(s)
+        return { ...cloned, id: newId, x: s.x + PASTE_OFFSET, y: s.y + PASTE_OFFSET, seed: Math.floor(Math.random() * 2 ** 31) }
       })
 
       // Remap references
-      for (const shape of newShapes) {
+      newShapes = newShapes.map((shape): Shape => {
+        let updated = shape
         if (shape.parentId && idMap.has(shape.parentId)) {
-          shape.parentId = idMap.get(shape.parentId)!
+          updated = { ...updated, parentId: idMap.get(shape.parentId)! }
         }
         const btId = getBoundTextIdFromShape(shape)
-        if (btId && idMap.has(btId)) {
-          const container = shape as RectangleShape | EllipseShape
-          container.props = { ...container.props, boundTextId: idMap.get(btId)! }
+        if (btId && idMap.has(btId) && (shape.type === 'rectangle' || shape.type === 'ellipse')) {
+          updated = { ...shape, parentId: updated.parentId, props: { ...shape.props, boundTextId: idMap.get(btId)! } }
         }
-      }
+        return updated
+      })
 
       const newShapeMap = new Map(state.shapes)
       const newShapeIds = [...state.shapeIds]

@@ -1,14 +1,16 @@
 import type { Point, Viewport, Bounds } from '../types'
 
 /**
- * Get the device pixel ratio for high-DPI displays
+ * Get the device pixel ratio for high-DPI displays.
+ * @internal
  */
 export function getDevicePixelRatio(): number {
   return typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
 }
 
 /**
- * Convert screen coordinates to canvas coordinates
+ * Convert screen coordinates to canvas coordinates.
+ * @public
  */
 export function screenToCanvas(
   screenPoint: Point,
@@ -24,7 +26,8 @@ export function screenToCanvas(
 }
 
 /**
- * Convert canvas coordinates to screen coordinates
+ * Convert canvas coordinates to screen coordinates.
+ * @public
  */
 export function canvasToScreen(
   canvasPoint: Point,
@@ -40,7 +43,8 @@ export function canvasToScreen(
 }
 
 /**
- * Get the visible bounds in canvas coordinates
+ * Get the visible bounds in canvas coordinates.
+ * @public
  */
 export function getVisibleBounds(
   viewport: Viewport,
@@ -58,7 +62,8 @@ export function getVisibleBounds(
 }
 
 /**
- * Check if a point is within bounds
+ * Check if a point is within bounds.
+ * @public
  */
 export function isPointInBounds(point: Point, bounds: Bounds): boolean {
   return (
@@ -70,7 +75,8 @@ export function isPointInBounds(point: Point, bounds: Bounds): boolean {
 }
 
 /**
- * Check if two bounds intersect
+ * Check if two bounds intersect.
+ * @public
  */
 export function boundsIntersect(a: Bounds, b: Bounds): boolean {
   return !(
@@ -82,7 +88,8 @@ export function boundsIntersect(a: Bounds, b: Bounds): boolean {
 }
 
 /**
- * Get the center point of bounds
+ * Get the center point of bounds.
+ * @public
  */
 export function getBoundsCenter(bounds: Bounds): Point {
   return {
@@ -92,7 +99,8 @@ export function getBoundsCenter(bounds: Bounds): Point {
 }
 
 /**
- * Expand bounds by a given amount
+ * Expand bounds by a given amount.
+ * @public
  */
 export function expandBounds(bounds: Bounds, amount: number): Bounds {
   return {
@@ -104,7 +112,8 @@ export function expandBounds(bounds: Bounds, amount: number): Bounds {
 }
 
 /**
- * Calculate distance between two points
+ * Calculate distance between two points.
+ * @public
  */
 export function distance(a: Point, b: Point): number {
   const dx = b.x - a.x
@@ -113,28 +122,32 @@ export function distance(a: Point, b: Point): number {
 }
 
 /**
- * Calculate the angle between two points (in radians)
+ * Calculate the angle between two points (in radians).
+ * @public
  */
 export function angle(from: Point, to: Point): number {
   return Math.atan2(to.y - from.y, to.x - from.x)
 }
 
 /**
- * Clamp a value between min and max
+ * Clamp a value between min and max.
+ * @public
  */
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
 /**
- * Linear interpolation between two values
+ * Linear interpolation between two values.
+ * @public
  */
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
 }
 
 /**
- * Linear interpolation between two points
+ * Linear interpolation between two points.
+ * @public
  */
 export function lerpPoint(a: Point, b: Point, t: number): Point {
   return {
@@ -144,6 +157,7 @@ export function lerpPoint(a: Point, b: Point, t: number): Point {
 }
 
 /**
+ * @internal
  * Calculate arrowhead points for drawing
  *
  * @param start - The start point of the line
@@ -173,6 +187,7 @@ export function calculateArrowhead(
 }
 
 /**
+ * @internal
  * Snap a point to the nearest angle increment from a start point
  * Useful for constraining lines/arrows to fixed angles (e.g., 45°)
  *
@@ -200,6 +215,7 @@ export function snapToAngle(start: Point, end: Point, snapDegrees: number = 45):
 }
 
 /**
+ * @internal
  * Cubic ease-out function for smooth animations
  * Starts fast and decelerates toward the end
  *

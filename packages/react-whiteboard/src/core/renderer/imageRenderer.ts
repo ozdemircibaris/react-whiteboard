@@ -34,13 +34,17 @@ function getOrLoadImage(src: string): HTMLImageElement | null {
   return null
 }
 
-/** Clear the image cache (useful for cleanup/testing) */
+/**
+ * Clear the image cache (useful for cleanup/testing).
+ * @public
+ */
 export function clearImageCache(): void {
   imageCache.clear()
 }
 
 /**
  * Draw an image shape on the canvas.
+ * @internal
  */
 export function drawImage(
   ctx: CanvasRenderingContext2D,

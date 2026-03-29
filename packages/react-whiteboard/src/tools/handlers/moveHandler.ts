@@ -1,4 +1,5 @@
-import type { Shape, RectangleShape, EllipseShape } from '../../types'
+import type { Shape } from '../../types'
+import { cloneShape } from '../../types'
 import type { WhiteboardStore } from '../../core/store'
 import { snapToShapes, type SnapLine } from '../../utils/snapping'
 import { canContainBoundText, getBoundTextShape, BOUND_TEXT_PADDING } from '../../utils/boundText'
@@ -39,7 +40,7 @@ export function startMove(
 
   return {
     result: { handled: true, capture: true, cursor: 'move' },
-    beforeStates: selectedShapes.map((s) => structuredClone(s) as Shape),
+    beforeStates: selectedShapes.map((s) => cloneShape(s)),
   }
 }
 
@@ -81,9 +82,9 @@ export function applyMove(
 
     // Move bound text with parent container
     const shape = store.shapes.get(id)
-    if (shape && canContainBoundText(shape.type)) {
+    if (shape && canContainBoundText(shape.type) && (shape.type === 'rectangle' || shape.type === 'ellipse')) {
       const textShape = getBoundTextShape(
-        shape as RectangleShape | EllipseShape,
+        shape,
         store.shapes,
       )
       if (textShape) {

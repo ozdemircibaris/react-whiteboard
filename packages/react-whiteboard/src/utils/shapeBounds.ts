@@ -1,5 +1,6 @@
 import type { Shape } from '../types'
 
+/** @public */
 export interface ShapesBounds {
   minX: number
   minY: number
@@ -10,6 +11,7 @@ export interface ShapesBounds {
 /**
  * Calculate the bounding box that encloses all specified shapes.
  * Returns null if there are no shapes to measure.
+ * @public
  */
 export function getShapesBounds(
   shapes: Map<string, Shape>,

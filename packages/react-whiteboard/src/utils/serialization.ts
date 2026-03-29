@@ -1,4 +1,5 @@
-import type { Shape, ImageShape, Viewport } from '../types'
+import type { Shape, Viewport } from '../types'
+import { updateShapeFields } from '../types'
 import { collectBoundTextIds } from './boundText'
 import { isBlobUrl, blobUrlToDataUrl, dataUrlToBlobUrl } from './imageBlobStore'
 
@@ -6,7 +7,8 @@ import { isBlobUrl, blobUrlToDataUrl, dataUrlToBlobUrl } from './imageBlobStore'
 const FORMAT_VERSION = 1
 
 /**
- * Serialized whiteboard document format
+ * Serialized whiteboard document format.
+ * @public
  */
 export interface WhiteboardDocument {
   version: number
@@ -18,6 +20,7 @@ export interface WhiteboardDocument {
 
 /**
  * Serialize whiteboard state to a JSON-compatible document object.
+ * @public
  */
 export function serializeDocument(
   shapes: Map<string, Shape>,
@@ -57,10 +60,9 @@ export function serializeDocument(
 async function resolveImageBlobUrls(shapes: Shape[]): Promise<Shape[]> {
   const resolved: Shape[] = []
   for (const shape of shapes) {
-    if (shape.type === 'image' && isBlobUrl((shape as ImageShape).props.src)) {
-      const imgShape = shape as ImageShape
-      const dataUrl = await blobUrlToDataUrl(imgShape.props.src)
-      resolved.push({ ...imgShape, props: { ...imgShape.props, src: dataUrl } } as Shape)
+    if (shape.type === 'image' && isBlobUrl(shape.props.src)) {
+      const dataUrl = await blobUrlToDataUrl(shape.props.src)
+      resolved.push(updateShapeFields(shape, { props: { ...shape.props, src: dataUrl } }))
     } else {
       resolved.push(shape)
     }
@@ -71,6 +73,7 @@ async function resolveImageBlobUrls(shapes: Shape[]): Promise<Shape[]> {
 /**
  * Serialize whiteboard state to a JSON string.
  * Async because blob URLs must be resolved to base64 DataURLs for persistence.
+ * @public
  */
 export async function exportToJSON(
   shapes: Map<string, Shape>,
@@ -85,6 +88,7 @@ export async function exportToJSON(
 /**
  * Parse and validate a JSON string into a WhiteboardDocument.
  * Throws on invalid input.
+ * @public
  */
 export function parseDocument(json: string): WhiteboardDocument {
   const raw: unknown = JSON.parse(json)
@@ -124,6 +128,7 @@ export function parseDocument(json: string): WhiteboardDocument {
 /**
  * Convert a parsed document into store-ready data structures.
  * Converts base64 DataURL image sources to efficient blob URLs.
+ * @public
  */
 export function documentToStoreData(doc: WhiteboardDocument): {
   shapes: Map<string, Shape>
@@ -133,15 +138,11 @@ export function documentToStoreData(doc: WhiteboardDocument): {
   const shapes = new Map<string, Shape>()
   for (const shape of doc.shapes) {
     if (shape.type === 'image') {
-      const imgShape = shape as ImageShape
-      const src = imgShape.props.src
+      const src = shape.props.src
       // Convert base64 DataURLs to blob URLs for efficient in-memory storage
       if (src.startsWith('data:')) {
         const blobUrl = dataUrlToBlobUrl(src)
-        shapes.set(shape.id, {
-          ...imgShape,
-          props: { ...imgShape.props, src: blobUrl },
-        } as Shape)
+        shapes.set(shape.id, updateShapeFields(shape, { props: { ...shape.props, src: blobUrl } }))
         continue
       }
     }
@@ -157,6 +158,7 @@ export function documentToStoreData(doc: WhiteboardDocument): {
 
 /**
  * Trigger a file download in the browser.
+ * @public
  */
 export function downloadFile(content: string, filename: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType })
@@ -171,6 +173,7 @@ export function downloadFile(content: string, filename: string, mimeType: string
 /**
  * Open a file picker and read the selected file as text.
  * Returns null if the user cancels.
+ * @public
  */
 export function pickAndReadFile(accept: string): Promise<string | null> {
   return new Promise((resolve) => {
