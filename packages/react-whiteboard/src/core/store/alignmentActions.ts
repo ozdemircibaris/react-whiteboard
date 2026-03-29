@@ -1,4 +1,5 @@
 import type { Shape } from '../../types'
+import { cloneShape } from '../../types'
 import type { StoreApi } from './types'
 import { getBoundTextIdFromShape, BOUND_TEXT_PADDING } from '../../utils/boundText'
 
@@ -21,7 +22,7 @@ export function createAlignmentActions(
     const before = updates
       .map((u) => state.shapes.get(u.id))
       .filter((s): s is Shape => s !== undefined)
-      .map((s) => structuredClone(s) as Shape)
+      .map((s) => cloneShape(s))
 
     // Build a single batch of all position updates (shapes + bound text)
     const batch = new Map<string, Partial<Shape>>()

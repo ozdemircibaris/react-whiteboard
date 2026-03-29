@@ -1,4 +1,5 @@
-import type { Shape, ImageShape, Viewport } from '../types'
+import type { Shape, Viewport } from '../types'
+import { updateShapeFields } from '../types'
 import { collectBoundTextIds } from './boundText'
 import { isBlobUrl, blobUrlToDataUrl, dataUrlToBlobUrl } from './imageBlobStore'
 
@@ -59,10 +60,9 @@ export function serializeDocument(
 async function resolveImageBlobUrls(shapes: Shape[]): Promise<Shape[]> {
   const resolved: Shape[] = []
   for (const shape of shapes) {
-    if (shape.type === 'image' && isBlobUrl((shape as ImageShape).props.src)) {
-      const imgShape = shape as ImageShape
-      const dataUrl = await blobUrlToDataUrl(imgShape.props.src)
-      resolved.push({ ...imgShape, props: { ...imgShape.props, src: dataUrl } } as Shape)
+    if (shape.type === 'image' && isBlobUrl(shape.props.src)) {
+      const dataUrl = await blobUrlToDataUrl(shape.props.src)
+      resolved.push(updateShapeFields(shape, { props: { ...shape.props, src: dataUrl } }))
     } else {
       resolved.push(shape)
     }
@@ -138,15 +138,11 @@ export function documentToStoreData(doc: WhiteboardDocument): {
   const shapes = new Map<string, Shape>()
   for (const shape of doc.shapes) {
     if (shape.type === 'image') {
-      const imgShape = shape as ImageShape
-      const src = imgShape.props.src
+      const src = shape.props.src
       // Convert base64 DataURLs to blob URLs for efficient in-memory storage
       if (src.startsWith('data:')) {
         const blobUrl = dataUrlToBlobUrl(src)
-        shapes.set(shape.id, {
-          ...imgShape,
-          props: { ...imgShape.props, src: blobUrl },
-        } as Shape)
+        shapes.set(shape.id, updateShapeFields(shape, { props: { ...shape.props, src: blobUrl } }))
         continue
       }
     }

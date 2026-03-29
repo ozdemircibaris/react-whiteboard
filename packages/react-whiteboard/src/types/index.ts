@@ -273,6 +273,31 @@ export type Shape =
   | GroupShape
   | ReactComponentShape
 
+/**
+ * Type-safe partial update that excludes discriminant fields.
+ * Prevents accidental mutation of `type` and `id`.
+ * @public
+ */
+export type ShapeUpdate<T extends Shape = Shape> = Omit<Partial<T>, 'type' | 'id'>
+
+/**
+ * Merge a shape with a partial update, preserving the concrete discriminated union type.
+ * Replaces unsafe `{ ...shape, ...updates } as Shape` patterns.
+ * @public
+ */
+export function updateShapeFields<T extends Shape>(shape: T, update: Partial<T>): T {
+  return { ...shape, ...update }
+}
+
+/**
+ * Type-safe deep clone of a shape via structuredClone, preserving the discriminated union type.
+ * Replaces unsafe `structuredClone(shape) as Shape` patterns.
+ * @public
+ */
+export function cloneShape<T extends Shape>(shape: T): T {
+  return structuredClone(shape)
+}
+
 // ============================================================================
 // Tool Types
 // ============================================================================

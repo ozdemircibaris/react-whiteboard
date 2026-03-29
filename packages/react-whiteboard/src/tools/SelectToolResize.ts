@@ -36,16 +36,16 @@ export function applyResize(
 
     switch (shape.type) {
       case 'text':
-        resizeText(store, id, shape as TextShape, newBounds, startBounds, isCornerHandle, resizeStartFontSizes)
+        resizeText(store, id, shape, newBounds, startBounds, isCornerHandle, resizeStartFontSizes)
         break
       case 'line':
         resizeLine(store, id, newBounds, startBounds, moveBeforeStates)
         break
       case 'arrow':
-        resizeArrow(store, id, shape as ArrowShape, newBounds, startBounds, moveBeforeStates)
+        resizeArrow(store, id, shape, newBounds, startBounds, moveBeforeStates)
         break
       case 'path':
-        resizePath(store, id, shape as PathShape, newBounds, startBounds, moveBeforeStates)
+        resizePath(store, id, shape, newBounds, startBounds, moveBeforeStates)
         break
       default:
         store.updateShape(id, newBounds, false)
@@ -129,7 +129,7 @@ function resizeLine(
   startBounds: ResizeBounds,
   moveBeforeStates: Shape[],
 ): void {
-  const original = moveBeforeStates.find((s) => s.id === id) as LineShape | undefined
+  const original = moveBeforeStates.find((s): s is LineShape => s.id === id && s.type === 'line')
   const safeScaleX = startBounds.width > 0 ? newBounds.width / startBounds.width : 1
   const safeScaleY = startBounds.height > 0 ? newBounds.height / startBounds.height : 1
   if (original) {
@@ -148,7 +148,7 @@ function resizeArrow(
   startBounds: ResizeBounds,
   moveBeforeStates: Shape[],
 ): void {
-  const original = moveBeforeStates.find((s) => s.id === id) as ArrowShape | undefined
+  const original = moveBeforeStates.find((s): s is ArrowShape => s.id === id && s.type === 'arrow')
   const safeScaleX = startBounds.width > 0 ? newBounds.width / startBounds.width : 1
   const safeScaleY = startBounds.height > 0 ? newBounds.height / startBounds.height : 1
   if (original) {
@@ -168,7 +168,7 @@ function resizePath(
   startBounds: ResizeBounds,
   moveBeforeStates: Shape[],
 ): void {
-  const original = moveBeforeStates.find((s) => s.id === id) as PathShape | undefined
+  const original = moveBeforeStates.find((s): s is PathShape => s.id === id && s.type === 'path')
   const safeScaleX = startBounds.width > 0 ? newBounds.width / startBounds.width : 1
   const safeScaleY = startBounds.height > 0 ? newBounds.height / startBounds.height : 1
   if (original) {

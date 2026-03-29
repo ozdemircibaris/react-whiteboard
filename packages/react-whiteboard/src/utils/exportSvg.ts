@@ -9,6 +9,7 @@ import type {
   PathShape,
   ImageShape,
 } from '../types'
+import { updateShapeFields } from '../types'
 import type { ShapeRendererRegistry } from '../core/renderer/ShapeRendererRegistry'
 import {
   renderRectangle,
@@ -51,10 +52,10 @@ async function resolveImageSrcs(
   for (const id of shapeIds) {
     const shape = shapes.get(id)
     if (!shape || shape.type !== 'image') continue
-    const imgShape = shape as ImageShape
+    const imgShape = shape
     if (!isBlobUrl(imgShape.props.src)) continue
     const dataUrl = await blobUrlToDataUrl(imgShape.props.src)
-    resolved.set(id, { ...imgShape, props: { ...imgShape.props, src: dataUrl } } as Shape)
+    resolved.set(id, updateShapeFields(imgShape, { props: { ...imgShape.props, src: dataUrl } }))
   }
   return resolved
 }

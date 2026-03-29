@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
 import type { GroupShape, Shape } from '../../types'
+import { updateShapeFields } from '../../types'
 import type { StoreApi } from './types'
 
 /**
@@ -54,7 +55,7 @@ export function createGroupActions(
       // Update children's parentId
       const newShapes = new Map(state.shapes)
       for (const shape of shapes) {
-        newShapes.set(shape.id, { ...shape, parentId: groupId } as Shape)
+        newShapes.set(shape.id, updateShapeFields(shape, { parentId: groupId }))
       }
       newShapes.set(groupId, groupShape)
 
@@ -96,7 +97,7 @@ export function createGroupActions(
         for (const childId of childIds) {
           const child = newShapes.get(childId)
           if (child) {
-            newShapes.set(childId, { ...child, parentId: null } as Shape)
+            newShapes.set(childId, updateShapeFields(child, { parentId: null }))
             restoredChildIds.push(childId)
           }
         }

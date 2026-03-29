@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type { Shape, ToolType, Viewport, Point, HistoryEntry, TextShapeProps } from '../../types'
+import { cloneShape, updateShapeFields } from '../../types'
 import { createShapeActions } from './shapeActions'
 import { createViewportActions } from './viewportActions'
 import { createHistoryActions } from './historyActions'
@@ -203,12 +204,12 @@ export const createWhiteboardStore = () =>
         for (const id of state.selectedIds) {
           const shape = state.shapes.get(id)
           if (shape && !shape.isLocked) {
-            before.push(structuredClone(shape) as Shape)
-            state.updateShape(id, { isLocked: true } as Partial<Shape>, false)
+            before.push(cloneShape(shape))
+            state.updateShape(id, { isLocked: true }, false)
           }
         }
         if (before.length > 0) {
-          const after = before.map((s) => ({ ...s, isLocked: true }) as Shape)
+          const after = before.map((s) => updateShapeFields(s, { isLocked: true }))
           state.recordBatchUpdate(before, after)
         }
       },
@@ -218,12 +219,12 @@ export const createWhiteboardStore = () =>
         for (const id of state.selectedIds) {
           const shape = state.shapes.get(id)
           if (shape && shape.isLocked) {
-            before.push(structuredClone(shape) as Shape)
-            state.updateShape(id, { isLocked: false } as Partial<Shape>, false)
+            before.push(cloneShape(shape))
+            state.updateShape(id, { isLocked: false }, false)
           }
         }
         if (before.length > 0) {
-          const after = before.map((s) => ({ ...s, isLocked: false }) as Shape)
+          const after = before.map((s) => updateShapeFields(s, { isLocked: false }))
           state.recordBatchUpdate(before, after)
         }
       },

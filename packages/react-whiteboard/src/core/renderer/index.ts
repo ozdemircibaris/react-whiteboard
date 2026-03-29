@@ -11,6 +11,7 @@ import type {
   TextShape,
   ImageShape,
 } from '../../types'
+import { updateShapeFields } from '../../types'
 import type { ThemeColors } from '../../types/theme'
 import { resolveTheme } from '../../types/theme'
 import { getDevicePixelRatio } from '../../utils/canvas'
@@ -261,7 +262,7 @@ export class CanvasRenderer {
     // Position shape so its center aligns with cache center
     const tempX = halfW - width / 2
     const tempY = halfH - height / 2
-    const tempShape = { ...shape, x: tempX, y: tempY } as Shape
+    const tempShape = updateShapeFields(shape, { x: tempX, y: tempY })
 
     // Swap ctx/roughCanvas to render onto the offscreen canvas
     const origCtx = this.ctx

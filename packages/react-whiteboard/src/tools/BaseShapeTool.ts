@@ -3,6 +3,7 @@ import rough from 'roughjs'
 import type { RoughCanvas } from 'roughjs/bin/canvas'
 import type { WhiteboardStore } from '../core/store'
 import type { Shape, Viewport } from '../types'
+import { updateShapeFields } from '../types'
 import type {
   ITool,
   ToolEventContext,
@@ -82,10 +83,7 @@ export abstract class BaseShapeTool implements ITool {
 
     if (this.previewShape && state.dragStart) {
       const bounds = this.calculateBounds(state.dragStart, ctx.canvasPoint, ctx.shiftKey)
-      this.previewShape = {
-        ...this.previewShape,
-        ...bounds,
-      } as Shape
+      this.previewShape = updateShapeFields(this.previewShape, bounds)
     }
 
     return { handled: true, cursor: 'crosshair' }

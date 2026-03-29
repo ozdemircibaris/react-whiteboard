@@ -1,5 +1,6 @@
 import type { WhiteboardStore } from '../core/store'
 import type { Shape } from '../types'
+import { cloneShape } from '../types'
 import { getSelectionBounds } from '../utils/hitTest'
 import { angleFromCenter, calculateRotation } from '../utils/rotationHandle'
 import type { ToolState, PointerDownResult } from './types'
@@ -32,7 +33,7 @@ export function initRotation(
   return {
     result: { handled: true, capture: true, cursor: 'grab' },
     initialAngle,
-    beforeStates: selectedShapes.map((s) => structuredClone(s) as Shape),
+    beforeStates: selectedShapes.map((s) => cloneShape(s)),
   }
 }
 

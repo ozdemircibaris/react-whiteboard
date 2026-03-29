@@ -1,4 +1,5 @@
-import type { Shape, TextShape } from '../../types'
+import type { Shape } from '../../types'
+import { cloneShape } from '../../types'
 import type { WhiteboardStore } from '../../core/store'
 import { RESIZE_CURSORS, type ResizeHandle } from '../../utils/hitTest'
 import { applyResize } from '../SelectToolResize'
@@ -29,13 +30,13 @@ export function startResize(
       x: shape.x, y: shape.y, width: shape.width, height: shape.height,
     })
     if (shape.type === 'text') {
-      startFontSizes.set(shape.id, (shape as TextShape).props.fontSize)
+      startFontSizes.set(shape.id, shape.props.fontSize)
     }
   })
 
   return {
     result: { handled: true, capture: true, cursor: RESIZE_CURSORS[handle] },
-    beforeStates: selectedShapes.map((s) => structuredClone(s) as Shape),
+    beforeStates: selectedShapes.map((s) => cloneShape(s)),
     startFontSizes,
   }
 }
