@@ -58,13 +58,23 @@ export function drawPath(
   ctx.fillStyle = stroke
 
   const first = outlinePoints[0]!
+  const len = outlinePoints.length
   ctx.beginPath()
   ctx.moveTo(first[0]!, first[1]!)
 
-  for (let i = 1; i < outlinePoints.length; i++) {
-    const pt = outlinePoints[i]!
-    ctx.lineTo(pt[0]!, pt[1]!)
+  // Smooth path using average midpoints technique:
+  // each point becomes a quadratic control point, with the
+  // midpoint to the next point as the endpoint.
+  for (let i = 1; i < len - 1; i++) {
+    const cur = outlinePoints[i]!
+    const next = outlinePoints[i + 1]!
+    const mx = (cur[0]! + next[0]!) / 2
+    const my = (cur[1]! + next[1]!) / 2
+    ctx.quadraticCurveTo(cur[0]!, cur[1]!, mx, my)
   }
+
+  const last = outlinePoints[len - 1]!
+  ctx.quadraticCurveTo(last[0]!, last[1]!, last[0]!, last[1]!)
 
   ctx.closePath()
   ctx.fill()

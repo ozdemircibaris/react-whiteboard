@@ -4,8 +4,8 @@ import { BaseShapeTool, type ShapeBounds } from './BaseShapeTool'
 import { buildRoughOptions } from '../core/renderer/shapeRenderers'
 
 const DEFAULT_ELLIPSE_PROPS = {
-  fill: '#e0e0e0',
-  fillStyle: 'hachure' as FillStyle,
+  fill: 'transparent',
+  fillStyle: 'solid' as FillStyle,
   stroke: '#333333',
   strokeWidth: 2,
   strokeStyle: 'solid' as StrokeStyle,
